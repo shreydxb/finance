@@ -3,12 +3,16 @@ import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './screens/Login'
 import Home from './screens/Home'
 import Accounts from './screens/Accounts'
+import Transactions from './screens/Transactions'
+import Settings from './screens/Settings'
 
 const SCREENS = ['Home', 'Accounts', 'Transactions', 'Cash Flow', 'Budget', 'Recurring', 'Goals', 'Settings']
 
 const BUILT_SCREENS = {
   Home,
   Accounts,
+  Transactions,
+  Settings,
 }
 
 function Dashboard() {
