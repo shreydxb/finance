@@ -16,6 +16,22 @@ Every push to the production branch triggers a build.
 - Edge Function deploys go through Supabase, not Netlify, and cost nothing here.
   Backend-only changes never need a Netlify build.
 
+## Open items (as of 6 Aug 2026)
+
+- **Netlify production branch still points at `claude/epic-1-task-3-continue-fsbdo9`.**
+  Until it's switched to `main`, the live site is missing Home and all of
+  Epic 7's UI. Also check branch deploys are off, not "all branches".
+- **The Telegram webhook secret is deliberately unset.** The function currently
+  skips the header check (it logs a warning), so the household allowlist is the
+  only gate. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
+  *and* re-running `setWebhook` with the identical string, in one sitting — a
+  mismatch is silent apart from 403s in the function log.
+- **No real accounts exist.** Every intake row flags "which account" until they
+  are added, named as they print on receipts (last-4 digits matter for matching).
+- **Receipt accuracy is unproven.** Text intake works end to end; no real
+  photograph has been through the pipeline yet. See the tuning pass in the
+  function README — this is the last open acceptance criterion on Epic 7.
+
 ## Branches
 
 `main` is the trunk and holds Epics 1–7. Netlify's production branch must point
