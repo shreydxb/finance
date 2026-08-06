@@ -64,7 +64,8 @@ function Dashboard() {
 
       <main>
         {ActiveScreen ? (
-          <ActiveScreen />
+          // Home's "see all" links jump between tabs; other screens ignore it.
+          <ActiveScreen onNavigate={setScreen} />
         ) : (
           <p className="mx-auto max-w-3xl px-6 py-10 text-center text-sm text-stone-500">
             {screen} is coming in a later epic.

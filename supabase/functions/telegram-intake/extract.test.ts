@@ -152,7 +152,8 @@ test('every outgoing header stays inside Latin-1', async () => {
 
   assert.ok(Object.keys(captured).length > 0, 'headers were captured')
   for (const [name, value] of Object.entries(captured)) {
-    assert.ok(/^[\x00-\xFF]*$/.test(value), `header ${name} must be Latin-1, got: ${value}`)
+    const offending = Array.from(value).find((char) => char.charCodeAt(0) > 0xff)
+    assert.equal(offending, undefined, `header ${name} must be Latin-1, but contains ${offending}: ${value}`)
   }
 })
 
