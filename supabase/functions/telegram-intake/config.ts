@@ -4,8 +4,9 @@
 // (`supabase secrets set ...`). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are
 // injected by the platform.
 //
-// The model name is a config value on purpose — swapping GPT-4o-mini for
-// something else later must not need a code change.
+// The model name is a config value on purpose — swapping the extraction model
+// must not need a code change. That flexibility already paid for itself once:
+// see DEFAULTS.openRouterModel below.
 
 export interface Config {
   telegramBotToken: string
@@ -26,7 +27,12 @@ export interface Config {
 }
 
 export const DEFAULTS = {
-  openRouterModel: 'openai/gpt-4o-mini',
+  // Gemini Flash-Lite rather than the originally-planned GPT-4o-mini: this
+  // workload is ~90% photographs, and GPT-4o-mini bills an image at the same
+  // dollar cost as full GPT-4o (it inflates image token counts ~33x to keep
+  // per-image price constant). Flash-Lite reads a receipt for roughly a
+  // fifteenth of the price. See PLAN.md decision 5.
+  openRouterModel: 'google/gemini-2.5-flash-lite',
   groqWhisperModel: 'whisper-large-v3',
   /** Deliberately conservative to start: more review pings, fewer silent wrong rows. */
   confidenceThreshold: 0.85,

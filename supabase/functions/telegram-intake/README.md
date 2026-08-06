@@ -11,7 +11,7 @@ Telegram group
    │  photo / voice / text
    ▼
 telegram-intake (Edge Function)
-   │  ├─ photo  → getFile → base64 → GPT-4o-mini vision ─┐
+   │  ├─ photo  → getFile → base64 → Gemini Flash-Lite ──┐
    │  ├─ voice  → getFile → Groq Whisper → transcript ───┤→ one JSON contract
    │  └─ text   ─────────────────────────────────────────┘   + confidence 0–1
    ▼
@@ -161,7 +161,7 @@ safety net for a Telegram prompt nobody answered.
 | Settings → Telegram intake | The two Telegram user ids (the allowlist) | unset — fails closed |
 | Settings → Telegram intake | Auto-log confidence threshold | 85% |
 | Settings → Telegram intake | Fallback account for unmatched payment methods | none → flag for review |
-| Secret `OPENROUTER_MODEL` | Extraction model | `openai/gpt-4o-mini` |
+| Secret `OPENROUTER_MODEL` | Extraction model | `google/gemini-2.5-flash-lite` |
 | Secret `GROQ_WHISPER_MODEL` | Transcription model | `whisper-large-v3` |
 
 The threshold starts conservative on purpose: more Confirm/Fix pings early,
@@ -205,7 +205,7 @@ Zerodha INR contract note, plus the misbehaviours worth guarding against
 (markdown fences, prose preamble, a stringy amount, a 0–100 confidence, an
 unreadable total, an invented category). Those run in CI with no keys.
 
-What that **cannot** cover is whether GPT-4o-mini reads *your* photographs
+What that **cannot** cover is whether the model reads *your* photographs
 correctly. That needs live keys and real receipts, and it's the one part of this
 epic that can't be finished from the repo:
 

@@ -1,8 +1,10 @@
-// A corpus of model responses shaped like the ones GPT-4o-mini actually returns
-// for the receipt types this household sends: Noon/Carrefour orders, restaurant
-// bills, fuel, utilities, and Zerodha-style INR contract notes — plus the
-// misbehaviours worth pinning down (markdown fences, prose preamble, a stringy
-// amount, a 0–100 confidence, an unreadable total, an invented category).
+// A corpus of model responses shaped like the ones a vision model actually
+// returns for the receipt types this household sends: Noon/Carrefour orders,
+// restaurant bills, fuel, utilities, and Zerodha-style INR contract notes —
+// plus the misbehaviours worth pinning down (markdown fences, prose preamble, a
+// stringy amount, a 0–100 confidence, an unreadable total, an invented
+// category). Model-agnostic on purpose: these guarantees must hold whichever
+// model OPENROUTER_MODEL points at.
 //
 // These exercise the deterministic half of the pipeline. Tuning the *prompt*
 // against real photographs still needs live keys and real receipts — see

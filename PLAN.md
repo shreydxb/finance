@@ -81,7 +81,9 @@ to stall).
 ## Telegram/AI intake (Phase 1, not deferred)
 
 Supabase Edge Function (same pattern as the existing `quotes` price-fetch function).
-GPT-4o-mini for vision/text extraction, Groq Whisper for voice notes.
+Gemini 2.5 Flash-Lite (via OpenRouter) for vision/text extraction — see decision
+5. Groq Whisper for voice notes is built but switched off until a `GROQ_API_KEY`
+is set; photo and text intake ship first.
 Confidence-gated: high confidence auto-logs with an FYI ping; low confidence writes
 immediately but sets `needs_review=true` and sends inline Confirm/Fix buttons in
 Telegram before treating it as clean data. This directly replaces the old guessed
@@ -111,3 +113,14 @@ Full rationale for each decision below lives in Taskiv (`get_project_memory` /
 4. **Assign-to-partner review + link-spend-to-goal are Phase 2** — not blocking; the
    couples-collaboration need is already covered by Telegram intake's own
    confidence/review flow in Phase 1.
+5. **Extraction model is Gemini 2.5 Flash-Lite, not GPT-4o-mini** — reverses the
+   original choice in decision 3's implementation. GPT-4o-mini's cheap text
+   pricing does not apply to images: OpenAI inflates its image token count ~33x
+   specifically so that an image costs the same dollars as it does on full
+   GPT-4o. This workload is ~90% photographs, so that pricing quirk dominates.
+   Gemini Flash-Lite reads a receipt for roughly a fifteenth of the cost
+   ($0.04/month vs $0.59/month at 150 receipts). Still routed through
+   OpenRouter, so the swap was a config value, not a code change. Accuracy on
+   real receipts is unproven for *either* model — the tuning pass in the
+   function README is what settles that, and re-running it against a different
+   model costs one secret.
