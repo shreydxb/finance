@@ -101,9 +101,15 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
       return { status: 'ignored', reason: error.message }
     }
     deps.log?.('extraction failed', { error: String(error) })
+    // The reason goes in the reply, not just the logs. A silent "couldn't read
+    // that" leaves the household unable to tell a blurry photo from an expired
+    // API key, and Supabase's function logs don't surface console output.
+    const hint = errorHint(error)
     await deps.messenger.sendMessage(
       message.chat.id,
-      "I couldn't read that one. Send it again, or add it by hand in the app.",
+      hint
+        ? `I couldn't read that one — ${hint}\n\nSend it again, or add it by hand in the app.`
+        : "I couldn't read that one. Send it again, or add it by hand in the app.",
       { replyToMessageId: message.message_id }
     )
     return { status: 'error', reason: error instanceof ExtractionError ? error.message : String(error) }
@@ -131,6 +137,19 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
 }
 
 class UnsupportedMessage extends Error {}
+
+/**
+ * A short, readable version of a failure for the Telegram reply. Upstream
+ * errors carry the useful part ("OpenRouter 402: insufficient credits"), so
+ * they're worth showing — this is a private household group, and the
+ * alternative is the couple silently losing spends to an unexplained failure.
+ */
+export function errorHint(error: unknown): string | null {
+  const raw = error instanceof Error ? error.message : String(error)
+  const cleaned = raw.replace(/\s+/g, ' ').trim()
+  if (!cleaned) return null
+  return cleaned.length > 200 ? `${cleaned.slice(0, 200)}…` : cleaned
+}
 
 async function extractFromMessage(
   message: TelegramMessage,

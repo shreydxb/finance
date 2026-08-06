@@ -14,7 +14,7 @@ import {
   textUpdate,
   voiceUpdate,
 } from './fixtures/updates.ts'
-import { handleUpdate, matchAccount } from './intake.ts'
+import { errorHint, handleUpdate, matchAccount } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
 
 function json(fields: Record<string, unknown>): string {
@@ -309,12 +309,23 @@ test('callbacks from outside the household do nothing', async () => {
 })
 
 test('a model failure is reported back rather than dropped on the floor', async () => {
-  const h = harness('THROW:openrouter exploded')
+  const h = harness('THROW:OpenRouter 402: insufficient credits')
   const outcome = await handleUpdate(textUpdate('84 aed lunch'), h.deps)
 
   assert.equal(outcome.status, 'error')
   assert.equal(h.store.rows.size, 0)
-  assert.match(h.messenger.last().text ?? '', /couldn't read that one/)
+  const reply = h.messenger.last().text ?? ''
+  assert.match(reply, /couldn't read that one/)
+  // The cause is shown, not buried: a blurry photo and an unpaid API bill are
+  // very different problems, and only one of them is worth retrying.
+  assert.match(reply, /OpenRouter 402: insufficient credits/)
+  assert.match(reply, /add it by hand in the app/)
+})
+
+test('errorHint flattens and truncates, and gives up on empty errors', () => {
+  assert.equal(errorHint(new Error('OpenRouter 400:\n  bad  request')), 'OpenRouter 400: bad request')
+  assert.equal(errorHint(new Error('')), null)
+  assert.equal(errorHint(new Error('x'.repeat(400)))?.length, 201)
 })
 
 test('/help explains the three ways to send a spend', async () => {
