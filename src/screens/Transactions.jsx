@@ -6,6 +6,8 @@ import {
   updateTransaction,
   deleteTransaction,
   deleteSplitGroup,
+  countNeedsReview,
+  markReviewed,
 } from '../lib/transactions'
 import { listAccounts, OWNERS } from '../lib/accounts'
 import { listCategories } from '../lib/categories'
@@ -45,12 +47,22 @@ function groupBySplit(items) {
   return entries
 }
 
-const EMPTY_FILTERS = { search: '', category: '', owner: '', accountId: '', dateFrom: '', dateTo: '', sort: 'date' }
+const EMPTY_FILTERS = {
+  search: '',
+  category: '',
+  owner: '',
+  accountId: '',
+  dateFrom: '',
+  dateTo: '',
+  sort: 'date',
+  needsReview: false,
+}
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
   const [categories, setCategories] = useState([])
+  const [reviewCount, setReviewCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(EMPTY_FILTERS)
@@ -59,10 +71,16 @@ export default function Transactions() {
   async function refresh() {
     setError('')
     try {
-      const [txns, accts, cats] = await Promise.all([listTransactions(filters), listAccounts(), listCategories()])
+      const [txns, accts, cats, pending] = await Promise.all([
+        listTransactions(filters),
+        listAccounts(),
+        listCategories(),
+        countNeedsReview(),
+      ])
       setTransactions(txns)
       setAccounts(accts)
       setCategories(cats)
+      setReviewCount(pending)
     } catch {
       setError('Could not load transactions. Check your connection and try again.')
     } finally {
@@ -126,6 +144,11 @@ export default function Transactions() {
     await refresh()
   }
 
+  async function handleMarkReviewed(id) {
+    await markReviewed(id)
+    await refresh()
+  }
+
   async function handleDelete() {
     if (editing.splitGroup) {
       await deleteSplitGroup(editing.split_group_id)
@@ -160,6 +183,22 @@ export default function Transactions() {
         </p>
       )}
 
+      {/* Safety net for anything the Telegram Confirm/Fix prompt never got an answer to. */}
+      {reviewCount > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span>
+            {reviewCount} {reviewCount === 1 ? 'transaction needs' : 'transactions need'} a review.
+          </span>
+          <button
+            type="button"
+            onClick={() => setFilters((f) => ({ ...f, needsReview: !f.needsReview }))}
+            className="shrink-0 rounded-lg border border-amber-300 px-2 py-1 text-xs font-medium hover:bg-amber-100"
+          >
+            {filters.needsReview ? 'Show all' : 'Show only these'}
+          </button>
+        </div>
+      )}
+
       <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
 
       {error && (
@@ -186,6 +225,7 @@ export default function Transactions() {
                   accountName={accountName}
                   showDate={flat}
                   onClick={() => openEdit(entry)}
+                  onMarkReviewed={handleMarkReviewed}
                 />
               ))}
             </div>
@@ -207,32 +247,44 @@ export default function Transactions() {
   )
 }
 
-function EntryRow({ entry, accountName, showDate, onClick }) {
+function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed }) {
   if (entry.kind === 'single') {
     const t = entry.transaction
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
-      >
-        <span className="min-w-0">
-          <span className="flex items-center gap-2">
-            <span className="font-medium text-stone-900">{t.category || 'Uncategorised'}</span>
-            {t.needs_review && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
-                Needs review
-              </span>
-            )}
+      <div className="flex items-center border-b border-stone-100 last:border-b-0">
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-left text-sm hover:bg-stone-50"
+        >
+          <span className="min-w-0">
+            <span className="flex items-center gap-2">
+              <span className="font-medium text-stone-900">{t.category || 'Uncategorised'}</span>
+              {t.source === 'telegram' && <span title="Logged from Telegram">📥</span>}
+              {t.needs_review && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
+                  Needs review
+                </span>
+              )}
+            </span>
+            <span className="block truncate text-xs text-stone-400">
+              {showDate ? `${formatDateHeading(t.date)} · ` : ''}
+              {t.owner} · {accountName(t.account_id)}
+              {t.note ? ` · ${t.note}` : ''}
+            </span>
           </span>
-          <span className="block truncate text-xs text-stone-400">
-            {showDate ? `${formatDateHeading(t.date)} · ` : ''}
-            {t.owner} · {accountName(t.account_id)}
-            {t.note ? ` · ${t.note}` : ''}
-          </span>
-        </span>
-        <span className="shrink-0 pl-2 font-medium text-stone-700">{formatAmount(t.amount, t.currency)}</span>
-      </button>
+          <span className="shrink-0 pl-2 font-medium text-stone-700">{formatAmount(t.amount, t.currency)}</span>
+        </button>
+        {t.needs_review && (
+          <button
+            type="button"
+            onClick={() => onMarkReviewed(t.id)}
+            className="mr-3 shrink-0 rounded-lg border border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
+          >
+            Looks right
+          </button>
+        )}
+      </div>
     )
   }
 

@@ -180,6 +180,8 @@ export default function Settings() {
         )}
       </div>
 
+      <TelegramIntake accounts={accounts} />
+
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-stone-900">Categories</h2>
         <button
@@ -223,6 +225,197 @@ export default function Settings() {
           onCancel={() => setEditing(null)}
           onDelete={handleDelete}
         />
+      )}
+    </div>
+  )
+}
+
+const PERSON_KEYS = ['tg_id_1', 'tg_id_2']
+
+/**
+ * Configures the telegram-intake Edge Function. The two Telegram user ids are
+ * the function's allowlist: until both are filled in it accepts nothing, so
+ * this screen is the switch that turns intake on.
+ */
+function TelegramIntake({ accounts }) {
+  const [people, setPeople] = useState(PERSON_KEYS.map(() => ({ person: '', telegramUserId: '' })))
+  const [threshold, setThreshold] = useState('85')
+  const [defaultAccountId, setDefaultAccountId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const [p1, p2, rawThreshold, rawAccount] = await Promise.all([
+          getSetting('tg_id_1'),
+          getSetting('tg_id_2'),
+          getSetting('ai_confidence_threshold'),
+          getSetting('tg_default_account_id'),
+        ])
+        if (cancelled) return
+        setPeople(
+          [p1, p2].map((entry) => ({
+            person: entry?.person ?? '',
+            telegramUserId: entry?.telegram_user_id == null ? '' : String(entry.telegram_user_id),
+          }))
+        )
+        if (rawThreshold != null) setThreshold(String(Math.round(Number(rawThreshold) * 100)))
+        if (typeof rawAccount === 'string') setDefaultAccountId(rawAccount)
+      } catch {
+        if (!cancelled) setError('Could not load Telegram settings.')
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function updatePerson(index, patch) {
+    setPeople((current) => current.map((p, i) => (i === index ? { ...p, ...patch } : p)))
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setStatus('')
+
+    const invalidId = people.some((p) => p.telegramUserId !== '' && !/^\d+$/.test(p.telegramUserId.trim()))
+    if (invalidId) {
+      setError('A Telegram user id is a plain number — send /id to the bot to get yours.')
+      return
+    }
+    const percent = Number(threshold)
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      setError('Confidence threshold must be between 0 and 100.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await Promise.all([
+        ...PERSON_KEYS.map((key, i) =>
+          upsertSetting(key, {
+            person: people[i].person.trim() || null,
+            telegram_user_id: people[i].telegramUserId.trim() ? Number(people[i].telegramUserId.trim()) : null,
+          })
+        ),
+        upsertSetting('ai_confidence_threshold', percent / 100),
+        upsertSetting('tg_default_account_id', defaultAccountId || null),
+      ])
+      setStatus('Saved.')
+    } catch {
+      setError('Could not save. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const configured = people.filter((p) => p.telegramUserId.trim()).length
+
+  return (
+    <div className="mb-6 rounded-xl border border-stone-200 bg-white p-5">
+      <h2 className="mb-1 text-lg font-semibold text-stone-900">Telegram intake</h2>
+      <p className="mb-4 text-sm text-stone-500">
+        Who the bot accepts spends from. Send <code className="rounded bg-stone-100 px-1">/id</code> to the bot in your
+        group to get each number. {configured < 2 && 'Until both are filled in, the bot ignores everything.'}
+      </p>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {people.map((person, i) => (
+          <div key={PERSON_KEYS[i]} className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor={`tg-person-${i}`} className="mb-1 block text-xs font-medium text-stone-700">
+                Person {i + 1}
+              </label>
+              <input
+                id={`tg-person-${i}`}
+                type="text"
+                value={person.person}
+                onChange={(e) => updatePerson(i, { person: e.target.value })}
+                placeholder="Name"
+                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor={`tg-id-${i}`} className="mb-1 block text-xs font-medium text-stone-700">
+                Telegram user id
+              </label>
+              <input
+                id={`tg-id-${i}`}
+                type="text"
+                inputMode="numeric"
+                value={person.telegramUserId}
+                onChange={(e) => updatePerson(i, { telegramUserId: e.target.value })}
+                placeholder="e.g. 123456789"
+                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              />
+            </div>
+          </div>
+        ))}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="tg-threshold" className="mb-1 block text-xs font-medium text-stone-700">
+              Auto-log above
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="tg-threshold"
+                type="number"
+                min="0"
+                max="100"
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+                className="w-20 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              />
+              <span className="text-sm text-stone-500">% confidence</span>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="tg-default-account" className="mb-1 block text-xs font-medium text-stone-700">
+              Fallback account
+            </label>
+            <select
+              id="tg-default-account"
+              value={defaultAccountId}
+              onChange={(e) => setDefaultAccountId(e.target.value)}
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+            >
+              <option value="">Flag for review instead</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <p className="text-xs text-stone-400">
+          Below the threshold — or when the amount, category or account can&apos;t be resolved — the spend is still
+          logged, flagged “Needs review”, and the bot asks you to confirm or fix it.
+        </p>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          {status && <span className="text-sm text-stone-500">{status}</span>}
+        </div>
+      </form>
+
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-red-600">
+          {error}
+        </p>
       )}
     </div>
   )

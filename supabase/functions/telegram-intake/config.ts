@@ -1,0 +1,74 @@
+// Env-backed config for telegram-intake.
+//
+// Nothing here is committed: every value is a Supabase Edge Function secret
+// (`supabase secrets set ...`). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are
+// injected by the platform.
+//
+// The model name is a config value on purpose — swapping GPT-4o-mini for
+// something else later must not need a code change.
+
+export interface Config {
+  telegramBotToken: string
+  /** Telegram echoes this back in X-Telegram-Bot-Api-Secret-Token. */
+  telegramWebhookSecret: string | null
+  openRouterApiKey: string
+  openRouterModel: string
+  groqApiKey: string | null
+  groqWhisperModel: string
+  supabaseUrl: string
+  supabaseServiceKey: string
+  /** Fallback when settings.ai_confidence_threshold is unset. */
+  confidenceThreshold: number
+  /** Fallback allowlist when settings.tg_id_1/tg_id_2 are unset. */
+  allowedTelegramIds: number[]
+  defaultCurrency: string
+  demoMode: boolean
+}
+
+export const DEFAULTS = {
+  openRouterModel: 'openai/gpt-4o-mini',
+  groqWhisperModel: 'whisper-large-v3',
+  /** Deliberately conservative to start: more review pings, fewer silent wrong rows. */
+  confidenceThreshold: 0.85,
+  defaultCurrency: 'AED',
+}
+
+export type Env = Record<string, string | undefined>
+
+function required(env: Env, key: string): string {
+  const value = env[key]
+  if (!value) throw new Error(`Missing required secret: ${key}`)
+  return value
+}
+
+export function parseThreshold(raw: string | undefined | null, fallback: number): number {
+  if (raw === undefined || raw === null || raw === '') return fallback
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value < 0 || value > 1) return fallback
+  return value
+}
+
+export function parseIdList(raw: string | undefined): number[] {
+  if (!raw) return []
+  return raw
+    .split(/[,\s]+/)
+    .map((part) => Number(part.trim()))
+    .filter((id) => Number.isInteger(id) && id !== 0)
+}
+
+export function loadConfig(env: Env): Config {
+  return {
+    telegramBotToken: required(env, 'TELEGRAM_BOT_TOKEN'),
+    telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || null,
+    openRouterApiKey: required(env, 'OPENROUTER_API_KEY'),
+    openRouterModel: env.OPENROUTER_MODEL || DEFAULTS.openRouterModel,
+    groqApiKey: env.GROQ_API_KEY || null,
+    groqWhisperModel: env.GROQ_WHISPER_MODEL || DEFAULTS.groqWhisperModel,
+    supabaseUrl: required(env, 'SUPABASE_URL'),
+    supabaseServiceKey: required(env, 'SUPABASE_SERVICE_ROLE_KEY'),
+    confidenceThreshold: parseThreshold(env.AI_CONFIDENCE_THRESHOLD, DEFAULTS.confidenceThreshold),
+    allowedTelegramIds: parseIdList(env.TELEGRAM_ALLOWED_IDS),
+    defaultCurrency: env.DEFAULT_CURRENCY || DEFAULTS.defaultCurrency,
+    demoMode: env.DEMO_MODE === 'true',
+  }
+}

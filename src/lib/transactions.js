@@ -9,6 +9,7 @@ export async function listTransactions(filters = {}) {
   if (filters.dateFrom) query = query.gte('date', filters.dateFrom)
   if (filters.dateTo) query = query.lte('date', filters.dateTo)
   if (filters.search) query = query.ilike('note', `%${filters.search}%`)
+  if (filters.needsReview) query = query.eq('needs_review', true)
 
   const sortColumn = filters.sort === 'amount' ? 'amount' : 'date'
   query = query.order(sortColumn, { ascending: false }).order('created_at', { ascending: false })
@@ -41,6 +42,20 @@ export async function createSplitTransaction(baseFields, splitLines) {
   const { data, error } = await supabase.from('transactions').insert(rows).select()
   if (error) throw error
   return data
+}
+
+export async function countNeedsReview() {
+  const { count, error } = await supabase
+    .from('transactions')
+    .select('id', { count: 'exact', head: true })
+    .eq('needs_review', true)
+  if (error) throw error
+  return count ?? 0
+}
+
+/** The in-app safety net for anything the Telegram Confirm/Fix prompt missed. */
+export async function markReviewed(id) {
+  return updateTransaction(id, { needs_review: false })
 }
 
 export async function updateTransaction(id, patch) {

@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import { ACCOUNTS, CATEGORIES } from './fixtures/fakes.ts'
+import { buildHouseholdContext, PostgrestStore, SETTINGS_KEYS } from './store.ts'
+
+function context(settings: { key: string; value: unknown }[], fallbackTelegramIds: number[] = []) {
+  return buildHouseholdContext({
+    categories: CATEGORIES,
+    accounts: ACCOUNTS,
+    settings,
+    fallbackThreshold: 0.85,
+    fallbackTelegramIds,
+  })
+}
+
+test('the allowlist comes from the two settings rows', () => {
+  const household = context([
+    { key: SETTINGS_KEYS.person1, value: { person: 'Shrey', telegram_user_id: 111 } },
+    { key: SETTINGS_KEYS.person2, value: { person: 'Tarika', telegram_user_id: 222 } },
+  ])
+
+  assert.deepEqual(Array.from(household.people.entries()), [
+    [111, 'Shrey'],
+    [222, 'Tarika'],
+  ])
+})
+
+test('an unconfigured household lets nobody in', () => {
+  const household = context([
+    { key: SETTINGS_KEYS.person1, value: { person: 'Shrey', telegram_user_id: null } },
+    { key: SETTINGS_KEYS.person2, value: null },
+  ])
+
+  assert.equal(household.people.size, 0, 'fail closed until the ids are filled in')
+})
+
+test('env ids are a bootstrap path and carry no person name', () => {
+  const household = context([], [111])
+  assert.equal(household.people.get(111), '')
+  assert.equal(household.people.size, 1)
+})
+
+test('the threshold falls back when the setting is missing or out of range', () => {
+  assert.equal(context([{ key: SETTINGS_KEYS.threshold, value: 0.6 }]).confidenceThreshold, 0.6)
+  assert.equal(context([{ key: SETTINGS_KEYS.threshold, value: 42 }]).confidenceThreshold, 0.85)
+  assert.equal(context([]).confidenceThreshold, 0.85)
+})
+
+test('a default account that no longer exists is ignored', () => {
+  assert.equal(context([{ key: SETTINGS_KEYS.defaultAccount, value: 'acc-joint' }]).defaultAccountId, 'acc-joint')
+  assert.equal(context([{ key: SETTINGS_KEYS.defaultAccount, value: 'acc-deleted' }]).defaultAccountId, null)
+  assert.equal(context([]).defaultAccountId, null)
+})
+
+test('PostgREST calls are shaped the way Supabase expects', async () => {
+  const calls: { url: string; init: RequestInit }[] = []
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co/',
+    serviceKey: 'service-key',
+    fetchImpl: ((url: string, init: RequestInit = {}) => {
+      calls.push({ url, init })
+      return Promise.resolve(new Response(JSON.stringify([{ id: 'tx-1' }]), { status: 200 }))
+    }) as unknown as typeof fetch,
+  })
+
+  await store.insertTransaction({ amount: 84, telegram_msg_id: 12 })
+  assert.equal(calls[0].url, 'https://project.supabase.co/rest/v1/transactions')
+  assert.equal(calls[0].init.method, 'POST')
+  assert.match(String((calls[0].init.headers as Record<string, string>).authorization), /service-key/)
+  assert.equal((calls[0].init.headers as Record<string, string>).prefer, 'return=representation')
+
+  await store.findTransactionByMessage(-100, 4242)
+  // A correction may reply to either the household's message or the bot's prompt.
+  assert.match(calls[1].url, /telegram_chat_id=eq\.-100/)
+  assert.match(calls[1].url, /or=\(telegram_msg_id\.eq\.4242,telegram_prompt_msg_id\.eq\.4242\)/)
+})
+
+test('a PostgREST error is surfaced, not swallowed', async () => {
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: (() => Promise.resolve(new Response('permission denied', { status: 403 }))) as unknown as typeof fetch,
+  })
+
+  await assert.rejects(() => store.getTransaction('tx-1'), /403/)
+})
