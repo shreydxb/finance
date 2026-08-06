@@ -8,6 +8,10 @@
 // authenticated by the webhook secret header, and the *data* is gated by the
 // household allowlist inside handleUpdate.)
 
+// The only non-relative import in the function, and it's types-only: it gives
+// this file the Deno globals. Everything else is plain fetch.
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
+
 import { loadConfig } from './config.ts'
 import { OpenRouterClient } from './extract.ts'
 import { handleUpdate } from './intake.ts'
@@ -16,11 +20,6 @@ import { PostgrestStore } from './store.ts'
 import { TelegramClient } from './telegram.ts'
 import { GroqWhisper } from './transcribe.ts'
 import type { DownloadedFile, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from './types.ts'
-
-declare const Deno: {
-  env: { toObject(): Record<string, string | undefined> }
-  serve(handler: (request: Request) => Response | Promise<Response>): unknown
-}
 
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token'
 

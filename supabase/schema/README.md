@@ -14,6 +14,10 @@ Run in order, in the Supabase SQL Editor (or `psql`), against your project:
 10. `010_goals_pay_down.sql` — pay-down goal support
 11. `011_telegram_intake.sql` — confirm/fix threading columns, intake indexes, intake settings keys
 
+All eleven are applied to the `our-rokda` project (`wrxqgfbolryveivgdjia`).
+`001`–`007` were run by hand in the SQL Editor, so they don't appear in
+`supabase migration list`; `008`–`011` do.
+
 Every file is additive-only and safe to re-run: `create table if not exists`,
 `add column if not exists`, idempotent policy re-declaration, and
 guarded/`on conflict` seed inserts. Nothing here drops or rewrites data.

@@ -50,6 +50,17 @@ Deno on Supabase and under `node --test` locally.
 
 ## Setup
 
+Already done against the `our-rokda` project (`wrxqgfbolryveivgdjia`):
+
+- **Migration 011 applied** — threading columns, indexes, and the four intake
+  settings keys are live. `transactions.account_id` is now nullable.
+- **Function deployed** — `telegram-intake` v1, `verify_jwt` off, source
+  verified identical to this directory. It has never been invoked, and it will
+  answer `500 {"error":"function is not configured"}` until step 3 below.
+
+Steps 1, 2, 3, 5 and 7 still need you — they need BotFather and your own
+Telegram accounts. Step 4 is only needed when you change the code.
+
 ### 1. Create the bot
 
 1. Message [@BotFather](https://t.me/BotFather) → `/newbot`, follow the prompts.
@@ -96,7 +107,8 @@ Check it took: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"`.
 
 ### 6. Run the migration
 
-Run `supabase/schema/011_telegram_intake.sql` (see `supabase/schema/README.md`).
+Already applied to `our-rokda`. For a fresh project, run
+`supabase/schema/011_telegram_intake.sql` (see `supabase/schema/README.md`).
 
 ### 7. Fill in the allowlist
 
