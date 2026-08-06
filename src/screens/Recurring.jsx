@@ -1,0 +1,275 @@
+import { useEffect, useState } from 'react'
+import {
+  listRecurring,
+  createRecurring,
+  updateRecurring,
+  deleteRecurring,
+  nextDueDate,
+  daysUntil,
+  MONTH_NAMES,
+} from '../lib/recurring'
+import { listIncome, createIncome, updateIncome, deleteIncome, INCOME_KINDS } from '../lib/income'
+import { listAccounts, OWNERS } from '../lib/accounts'
+import RecurringForm from '../components/RecurringForm'
+import IncomeForm from '../components/IncomeForm'
+
+function formatMoney(amount, currency) {
+  return `${currency} ${Number(amount).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export default function Recurring() {
+  const [view, setView] = useState('bills')
+  const [entries, setEntries] = useState([])
+  const [income, setIncome] = useState([])
+  const [accounts, setAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [editingEntry, setEditingEntry] = useState(null) // recurring row, or 'new'
+  const [editingIncome, setEditingIncome] = useState(null)
+  const [personFilter, setPersonFilter] = useState('')
+  const [kindFilter, setKindFilter] = useState('')
+
+  async function refresh() {
+    setError('')
+    try {
+      const [rec, inc, accts] = await Promise.all([listRecurring(), listIncome(), listAccounts()])
+      setEntries(rec)
+      setIncome(inc)
+      setAccounts(accts)
+    } catch {
+      setError('Could not load. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  async function handleSaveEntry(values) {
+    if (editingEntry && editingEntry !== 'new') {
+      await updateRecurring(editingEntry.id, values)
+    } else {
+      await createRecurring(values)
+    }
+    setEditingEntry(null)
+    await refresh()
+  }
+
+  async function handleDeleteEntry() {
+    await deleteRecurring(editingEntry.id)
+    setEditingEntry(null)
+    await refresh()
+  }
+
+  async function handleSaveIncome(values) {
+    if (editingIncome && editingIncome !== 'new') {
+      await updateIncome(editingIncome.id, values)
+    } else {
+      await createIncome(values)
+    }
+    setEditingIncome(null)
+    await refresh()
+  }
+
+  async function handleDeleteIncome() {
+    await deleteIncome(editingIncome.id)
+    setEditingIncome(null)
+    await refresh()
+  }
+
+  if (loading) {
+    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+  }
+
+  const withDue = entries
+    .map((e) => ({ entry: e, due: nextDueDate(e) }))
+    .filter((x) => x.due)
+    .sort((a, b) => a.due - b.due)
+  const withoutDue = entries.filter((e) => !nextDueDate(e))
+
+  const filteredIncome = income.filter((i) => (!personFilter || i.person === personFilter) && (!kindFilter || i.kind === kindFilter))
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex rounded-lg border border-stone-300 p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setView('bills')}
+            className={`rounded-md px-3 py-1.5 font-medium ${view === 'bills' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+          >
+            Bills & EMIs
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('income')}
+            className={`rounded-md px-3 py-1.5 font-medium ${view === 'income' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+          >
+            Income log
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => (view === 'bills' ? setEditingEntry('new') : setEditingIncome('new'))}
+          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800"
+        >
+          + Add
+        </button>
+      </div>
+
+      {error && (
+        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </p>
+      )}
+
+      {view === 'bills' ? (
+        <>
+          {entries.length === 0 && <p className="py-10 text-center text-sm text-stone-500">No recurring bills yet.</p>}
+
+          {withDue.length > 0 && (
+            <div className="rounded-xl border border-stone-200 bg-white">
+              {withDue.map(({ entry, due }) => {
+                const days = daysUntil(due)
+                const dueSoon = days <= 7
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setEditingEntry(entry)}
+                    className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium text-stone-900">{entry.name}</span>
+                        {dueSoon && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
+                            {days === 0 ? 'Due today' : `Due in ${days}d`}
+                          </span>
+                        )}
+                        {entry.autopay && (
+                          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-stone-500">Autopay</span>
+                        )}
+                      </span>
+                      <span className="block truncate text-xs text-stone-400">
+                        {entry.owner} · {formatDate(due)} · {entry.kind}
+                      </span>
+                    </span>
+                    <span className="shrink-0 pl-2 font-medium text-stone-700">{formatMoney(entry.amount, entry.currency)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {withoutDue.length > 0 && (
+            <div className="mt-6">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">No upcoming due date</h3>
+              <div className="rounded-xl border border-stone-200 bg-white">
+                {withoutDue.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setEditingEntry(entry)}
+                    className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="font-medium text-stone-900">{entry.name}</span>
+                      <span className="block truncate text-xs text-stone-400">
+                        {entry.owner} · {entry.kind}
+                        {entry.months?.length > 0 ? ` · ${entry.months.map((m) => MONTH_NAMES[m - 1]).join('/')}` : ' · every month'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 pl-2 font-medium text-stone-700">{formatMoney(entry.amount, entry.currency)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {editingEntry && (
+            <RecurringForm
+              entry={editingEntry === 'new' ? null : editingEntry}
+              accounts={accounts}
+              onSave={handleSaveEntry}
+              onCancel={() => setEditingEntry(null)}
+              onDelete={handleDeleteEntry}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <div className="mb-4 flex gap-2">
+            <select
+              value={personFilter}
+              onChange={(e) => setPersonFilter(e.target.value)}
+              className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+            >
+              <option value="">All people</option>
+              {OWNERS.filter((o) => o !== 'Joint').map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+            <select
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value)}
+              className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+            >
+              <option value="">All kinds</option>
+              {INCOME_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {k.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {filteredIncome.length === 0 ? (
+            <p className="py-10 text-center text-sm text-stone-500">No income logged yet.</p>
+          ) : (
+            <div className="rounded-xl border border-stone-200 bg-white">
+              {filteredIncome.map((i) => (
+                <button
+                  key={i.id}
+                  type="button"
+                  onClick={() => setEditingIncome(i)}
+                  className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                >
+                  <span className="min-w-0">
+                    <span className="font-medium text-stone-900">
+                      {i.person} · {i.kind.replace('_', ' ')}
+                    </span>
+                    <span className="block truncate text-xs text-stone-400">
+                      {formatDate(new Date(`${i.date}T00:00:00`))}
+                      {i.source ? ` · ${i.source}` : ''}
+                    </span>
+                  </span>
+                  <span className={`shrink-0 pl-2 font-medium ${Number(i.amount) < 0 ? 'text-red-600' : 'text-stone-700'}`}>
+                    {formatMoney(i.amount, i.currency)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {editingIncome && (
+            <IncomeForm
+              income={editingIncome === 'new' ? null : editingIncome}
+              onSave={handleSaveIncome}
+              onCancel={() => setEditingIncome(null)}
+              onDelete={handleDeleteIncome}
+            />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
