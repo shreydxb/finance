@@ -7,6 +7,7 @@ import Transactions from './screens/Transactions'
 import CashFlow from './screens/CashFlow'
 import Budget from './screens/Budget'
 import Recurring from './screens/Recurring'
+import Goals from './screens/Goals'
 import Settings from './screens/Settings'
 
 const SCREENS = ['Home', 'Accounts', 'Transactions', 'Cash Flow', 'Budget', 'Recurring', 'Goals', 'Settings']
@@ -18,6 +19,7 @@ const BUILT_SCREENS = {
   'Cash Flow': CashFlow,
   Budget,
   Recurring,
+  Goals,
   Settings,
 }
 
