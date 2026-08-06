@@ -6,6 +6,16 @@ export async function getSetting(key) {
   return data?.value ?? null
 }
 
+export async function upsertSetting(key, value) {
+  const { data, error } = await supabase
+    .from('settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export function toAED(value, currency, fxRates) {
   const rate = fxRates?.[currency]
   if (!rate) return value
