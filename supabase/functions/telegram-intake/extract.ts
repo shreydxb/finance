@@ -38,7 +38,11 @@ export class OpenRouterClient implements ModelClient {
       headers: {
         authorization: `Bearer ${this.apiKey}`,
         'content-type': 'application/json',
-        'x-title': 'Our Money v4 — Telegram intake',
+        // ASCII only. HTTP header values are ByteString (Latin-1), so a stray
+        // em dash here makes Deno throw while *building* the request — the call
+        // never reaches OpenRouter, and the failure looks nothing like a header
+        // problem from the outside.
+        'x-title': 'Our Money v4 - Telegram intake',
       },
       body: JSON.stringify({
         model: this.model,

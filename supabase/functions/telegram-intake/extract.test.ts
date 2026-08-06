@@ -10,6 +10,7 @@ import {
   normalizeAmount,
   normalizeCurrency,
   normalizeDate,
+  OpenRouterClient,
   parseExtraction,
 } from './extract.ts'
 import { CATEGORIES, FakeModel } from './fixtures/fakes.ts'
@@ -129,6 +130,30 @@ test('matchCategory only ever returns a category the household has', () => {
   assert.equal(matchCategory('Pet Supplies', names), null)
   assert.equal(matchCategory('', names), null)
   assert.equal(matchCategory(null, names), null)
+})
+
+test('every outgoing header stays inside Latin-1', async () => {
+  // Regression: 'x-title' once contained an em dash. HTTP header values are
+  // ByteString, so Deno threw "not a valid ByteString" while constructing the
+  // request — the call never left the Edge Function, and the symptom (silent
+  // extraction failure, zero requests recorded at OpenRouter) pointed nowhere
+  // near the real cause.
+  let captured: Record<string, string> = {}
+  const fetchImpl = ((_url: string, init: RequestInit) => {
+    captured = init.headers as Record<string, string>
+    return Promise.resolve(
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"amount":84,"confidence":0.9}' } }] }))
+    )
+  }) as unknown as typeof fetch
+
+  await new OpenRouterClient('test-key', 'google/gemini-2.5-flash-lite', fetchImpl).chat([
+    { role: 'user', content: 'hi' },
+  ])
+
+  assert.ok(Object.keys(captured).length > 0, 'headers were captured')
+  for (const [name, value] of Object.entries(captured)) {
+    assert.ok(/^[\x00-\xFF]*$/.test(value), `header ${name} must be Latin-1, got: ${value}`)
+  }
 })
 
 test('text extraction sends the household context in the prompt', async () => {
