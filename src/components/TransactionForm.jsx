@@ -9,16 +9,16 @@ function sumSplits(lines) {
   return lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0)
 }
 
-export default function TransactionForm({ transaction, accounts, categories, onSave, onCancel, onDelete }) {
+export default function TransactionForm({ transaction, prefill, accounts, categories, onSave, onCancel, onDelete }) {
   const isEdit = Boolean(transaction)
   const isSplitEdit = isEdit && transaction.splitGroup
 
   const [date, setDate] = useState(transaction?.date ?? today())
   const [amount, setAmount] = useState(transaction && !isSplitEdit ? String(transaction.amount) : '')
-  const [currency, setCurrency] = useState(transaction?.currency ?? 'AED')
-  const [accountId, setAccountId] = useState(transaction?.account_id ?? accounts[0]?.id ?? '')
+  const [currency, setCurrency] = useState(transaction?.currency ?? prefill?.currency ?? 'AED')
+  const [accountId, setAccountId] = useState(transaction?.account_id ?? prefill?.account_id ?? accounts[0]?.id ?? '')
   const [category, setCategory] = useState(transaction && !isSplitEdit ? transaction.category : categories[0]?.name ?? '')
-  const [owner, setOwner] = useState(transaction?.owner ?? OWNERS[0])
+  const [owner, setOwner] = useState(transaction?.owner ?? prefill?.owner ?? OWNERS[0])
   const [note, setNote] = useState(transaction?.note ?? '')
   const [tagsInput, setTagsInput] = useState(transaction?.tags?.join(', ') ?? '')
   const [split, setSplit] = useState(Boolean(isSplitEdit))

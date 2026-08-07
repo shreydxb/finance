@@ -3,6 +3,7 @@ import { listBudgets, upsertBudget, BUDGET_GROUPS } from '../lib/budgets'
 import { listCategories } from '../lib/categories'
 import { listTransactions } from '../lib/transactions'
 import { listIncome } from '../lib/income'
+import { listGoals, listAllContributions } from '../lib/goals'
 import { getSetting, toAED } from '../lib/settings'
 import { currentYearMonth, monthRange, monthLabel, shiftMonth } from '../lib/period'
 import BudgetLimitForm from '../components/BudgetLimitForm'
@@ -19,6 +20,8 @@ export default function Budget() {
   const [budgets, setBudgets] = useState([])
   const [transactions, setTransactions] = useState([])
   const [income, setIncome] = useState([])
+  const [goals, setGoals] = useState([])
+  const [contributions, setContributions] = useState([])
   const [fxRates, setFxRates] = useState({ AED: 1 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -28,17 +31,21 @@ export default function Budget() {
     setError('')
     try {
       const { from, to } = monthRange(ym.year, ym.month)
-      const [cats, buds, txns, inc, fx] = await Promise.all([
+      const [cats, buds, txns, inc, gs, contribs, fx] = await Promise.all([
         listCategories(),
         listBudgets(),
         listTransactions({ dateFrom: from, dateTo: to }),
         listIncome({ dateFrom: from, dateTo: to }),
+        listGoals(),
+        listAllContributions(),
         getSetting('fx_rates'),
       ])
       setCategories(cats)
       setBudgets(buds)
       setTransactions(txns)
       setIncome(inc)
+      setGoals(gs)
+      setContributions(contribs.filter((c) => c.date >= from && c.date <= to))
       setFxRates(fx || { AED: 1 })
     } catch {
       setError('Could not load budget. Check your connection and try again.')
@@ -79,9 +86,25 @@ export default function Budget() {
   const budgeted = rows.filter((r) => r.budget)
   const unbudgeted = rows.filter((r) => !r.budget)
 
+  const contributedByGoal = new Map()
+  for (const c of contributions) {
+    contributedByGoal.set(c.goal_id, (contributedByGoal.get(c.goal_id) || 0) + Number(c.amount))
+  }
+  const goalRows = (kind) =>
+    goals
+      .filter((g) => g.kind === kind)
+      .map((g) => {
+        const planned = Number(g.monthly_plan) || 0
+        const actual = contributedByGoal.get(g.id) || 0
+        return { goal: g, planned, actual, remaining: planned - actual }
+      })
+  const saveUpContribRows = goalRows('save_up')
+  const payDownContribRows = goalRows('pay_down')
+  const totalContributions = [...saveUpContribRows, ...payDownContribRows].reduce((sum, r) => sum + r.planned, 0)
+
   const totalBudgeted = budgeted.reduce((sum, r) => sum + r.planned, 0)
   const totalIncome = income.reduce((sum, i) => sum + toAED(Number(i.amount) || 0, i.currency, fxRates), 0)
-  const leftToBudget = totalIncome - totalBudgeted
+  const leftToBudget = totalIncome - totalBudgeted - totalContributions
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -89,7 +112,7 @@ export default function Budget() {
         <p className="text-sm text-stone-500">Left to budget</p>
         <p className="mt-1 text-4xl font-semibold text-stone-900">{formatAED(leftToBudget)}</p>
         <p className="mt-2 text-xs text-stone-400">
-          Income logged this month {formatAED(totalIncome)} − budgeted {formatAED(totalBudgeted)}
+          Income logged this month {formatAED(totalIncome)} − budgeted {formatAED(totalBudgeted)} − goal contributions {formatAED(totalContributions)}
         </p>
       </div>
 
@@ -161,6 +184,12 @@ export default function Budget() {
         )
       })}
 
+      <div className="mb-6">
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Contributions</h3>
+        <ContributionSubsection title="Save up" rows={saveUpContribRows} />
+        <ContributionSubsection title="Pay down" rows={payDownContribRows} />
+      </div>
+
       {unbudgeted.length > 0 && (
         <div className="mb-6">
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Not yet budgeted</h3>
@@ -189,6 +218,42 @@ export default function Budget() {
           onSave={handleSaveBudget}
           onCancel={() => setEditingCategory(null)}
         />
+      )}
+    </div>
+  )
+}
+
+function ContributionSubsection({ title, rows }) {
+  return (
+    <div className="mb-3 rounded-xl border border-stone-200 bg-white">
+      <div className="border-b border-stone-100 px-4 py-2 text-xs font-semibold text-stone-500">{title}</div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-3 text-sm text-stone-500">
+          {title === 'Pay down'
+            ? 'None of your liability accounts are included in the budget.'
+            : 'No save-up goals yet.'}
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-stone-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+            <span>Goal</span>
+            <span className="w-20 text-right">Planned</span>
+            <span className="w-20 text-right">Actual</span>
+            <span className="w-20 text-right">Remaining</span>
+          </div>
+          {rows.map((r) => (
+            <div key={r.goal.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-stone-100 px-4 py-3 text-sm last:border-b-0">
+              <span className="truncate font-medium text-stone-900">
+                {r.goal.icon} {r.goal.name}
+              </span>
+              <span className="w-20 text-right text-stone-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
+              <span className="w-20 text-right text-stone-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
+              <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-red-600' : 'text-stone-900'}`}>
+                {r.remaining.toLocaleString('en-AE', { maximumFractionDigits: 0 })}
+              </span>
+            </div>
+          ))}
+        </>
       )}
     </div>
   )

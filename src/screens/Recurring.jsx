@@ -23,6 +23,11 @@ function formatDate(d) {
 
 export default function Recurring() {
   const [view, setView] = useState('bills')
+  const [layout, setLayout] = useState('list') // list | calendar
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const now = new Date()
+    return { year: now.getFullYear(), month: now.getMonth() + 1 }
+  })
   const [entries, setEntries] = useState([])
   const [income, setIncome] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -133,7 +138,26 @@ export default function Recurring() {
         <>
           {entries.length === 0 && <p className="py-10 text-center text-sm text-stone-500">No recurring bills yet.</p>}
 
-          {withDue.length > 0 && (
+          {entries.length > 0 && (
+            <div className="mb-4 flex rounded-lg border border-stone-300 p-0.5 text-xs w-fit">
+              {['list', 'calendar'].map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLayout(l)}
+                  className={`rounded-md px-2.5 py-1 font-medium capitalize ${layout === l ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {layout === 'calendar' && entries.length > 0 && (
+            <CalendarView entries={entries} cursor={calendarCursor} setCursor={setCalendarCursor} onSelect={setEditingEntry} />
+          )}
+
+          {layout === 'list' && withDue.length > 0 && (
             <div className="rounded-xl border border-stone-200 bg-white">
               {withDue.map(({ entry, due }) => {
                 const days = daysUntil(due)
@@ -168,7 +192,7 @@ export default function Recurring() {
             </div>
           )}
 
-          {withoutDue.length > 0 && (
+          {layout === 'list' && withoutDue.length > 0 && (
             <div className="mt-6">
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">No upcoming due date</h3>
               <div className="rounded-xl border border-stone-200 bg-white">
@@ -273,3 +297,83 @@ export default function Recurring() {
     </div>
   )
 }
+
+function monthGridDays(year, month) {
+  const firstWeekday = new Date(year, month - 1, 1).getDay()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstWeekday; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  return cells
+}
+
+function CalendarView({ entries, cursor, setCursor, onSelect }) {
+  const byDay = new Map()
+  for (const entry of entries) {
+    if (!entry.day_of_month) continue
+    if (entry.months?.length > 0 && !entry.months.includes(cursor.month)) continue
+    const day = Math.min(entry.day_of_month, new Date(cursor.year, cursor.month, 0).getDate())
+    if (!byDay.has(day)) byDay.set(day, [])
+    byDay.get(day).push(entry)
+  }
+
+  const cells = monthGridDays(cursor.year, cursor.month)
+
+  function shift(delta) {
+    setCursor((c) => {
+      const d = new Date(c.year, c.month - 1 + delta, 1)
+      return { year: d.getFullYear(), month: d.getMonth() + 1 }
+    })
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <button type="button" onClick={() => shift(-1)} className="rounded-lg px-2 py-1 text-sm font-medium text-stone-600 hover:bg-stone-100">
+          ← Prev
+        </button>
+        <span className="text-sm font-semibold text-stone-900">{MONTH_NAMES_FULL[cursor.month - 1]} {cursor.year}</span>
+        <button type="button" onClick={() => shift(1)} className="rounded-lg px-2 py-1 text-sm font-medium text-stone-600 hover:bg-stone-100">
+          Next →
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-stone-400">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+      <div className="mt-1 grid grid-cols-7 gap-1">
+        {cells.map((day, i) => (
+          <div
+            key={i}
+            className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-stone-200 bg-white' : 'border-transparent'}`}
+          >
+            {day && (
+              <>
+                <span className="text-[11px] text-stone-400">{day}</span>
+                <div className="mt-0.5 space-y-0.5">
+                  {(byDay.get(day) || []).map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => onSelect(entry)}
+                      className="block w-full truncate rounded bg-stone-100 px-1 py-0.5 text-left text-[10px] font-medium text-stone-700 hover:bg-stone-200"
+                      title={entry.name}
+                    >
+                      {entry.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const MONTH_NAMES_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   createAccount,
   updateAccount,
@@ -10,7 +10,11 @@ import {
 } from '../lib/accounts'
 import { toAED } from '../lib/settings'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
+import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
+import { listCategories } from '../lib/categories'
 import AccountForm from '../components/AccountForm'
+import TransactionForm from '../components/TransactionForm'
+import TransactionList from '../components/TransactionList'
 import NetWorthHero from '../components/NetWorthHero'
 import NetWorthBreakdown from '../components/NetWorthBreakdown'
 
@@ -28,6 +32,7 @@ export default function Accounts() {
   const { accounts, fxRates, loading, error, refresh } = useAccountsAndFx()
   const [editing, setEditing] = useState(null) // account being edited, or 'new'
   const [groupBy, setGroupBy] = useState('type')
+  const [viewingAccount, setViewingAccount] = useState(null) // account whose detail view is open
 
   const assetGroups = groupByType(accounts.filter((a) => !a.is_liability), ASSET_TYPES, fxRates)
   const liabilityGroups = groupByType(accounts.filter((a) => a.is_liability), LIABILITY_TYPES, fxRates)
@@ -45,6 +50,7 @@ export default function Accounts() {
   async function handleDelete(id) {
     await deleteAccount(id)
     setEditing(null)
+    setViewingAccount(null)
     await refresh()
   }
 
@@ -79,13 +85,21 @@ export default function Accounts() {
         </button>
       </div>
 
-      <AccountGroupList title="Assets" groups={assetGroups} onEdit={setEditing} />
-      <AccountGroupList title="Liabilities" groups={liabilityGroups} onEdit={setEditing} />
+      <AccountGroupList title="Assets" groups={assetGroups} onSelect={setViewingAccount} />
+      <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={setViewingAccount} />
 
       {accounts.length === 0 && (
         <p className="py-10 text-center text-sm text-stone-500">
           No accounts yet. Add your first one — manual entry only, no bank connection needed.
         </p>
+      )}
+
+      {viewingAccount && !editing && (
+        <AccountDetail
+          account={viewingAccount}
+          onClose={() => setViewingAccount(null)}
+          onEdit={() => setEditing(viewingAccount)}
+        />
       )}
 
       {editing && (
@@ -100,6 +114,118 @@ export default function Accounts() {
   )
 }
 
+function AccountDetail({ account, onClose, onEdit }) {
+  const [transactions, setTransactions] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [addingTxn, setAddingTxn] = useState(false)
+
+  async function refresh() {
+    setError('')
+    try {
+      const [txns, cats] = await Promise.all([
+        listTransactions({ accountId: account.id }),
+        listCategories(),
+      ])
+      setTransactions(txns)
+      setCategories(cats)
+    } catch {
+      setError('Could not load this account’s transactions. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account.id])
+
+  async function handleCategoryChange(id, category) {
+    await updateTransaction(id, { category: category || null })
+    await refresh()
+  }
+
+  async function handleAddTxn(result) {
+    if (result.split) return // splits aren't offered from this pre-filled form
+    await createTransaction(result.fields)
+    setAddingTxn(false)
+    await refresh()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+        <div className="mb-1 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-stone-900">
+              {typeIcon(account.type)} {account.name}
+            </h2>
+            <p className="text-xs text-stone-400">
+              {typeLabel(account.type)} · {account.owner}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm text-stone-400 hover:text-stone-600">
+            Close
+          </button>
+        </div>
+
+        <p className="my-3 text-2xl font-semibold text-stone-900">{formatValue(account.value, account.currency)}</p>
+
+        <div className="mb-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+          >
+            Edit account
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddingTxn(true)}
+            className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800"
+          >
+            + Add transaction
+          </button>
+        </div>
+
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Transactions</h3>
+
+        {error && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </p>
+        )}
+
+        {loading ? (
+          <p className="py-6 text-center text-sm text-stone-500">Loading…</p>
+        ) : (
+          <TransactionList
+            transactions={transactions}
+            accountName={() => account.name}
+            flat
+            onEntryClick={() => {}}
+            categories={categories}
+            onCategoryChange={handleCategoryChange}
+            emptyMessage="No transactions logged against this account yet."
+          />
+        )}
+
+        {addingTxn && (
+          <TransactionForm
+            prefill={{ account_id: account.id, currency: account.currency, owner: account.owner }}
+            accounts={[account]}
+            categories={categories}
+            onSave={handleAddTxn}
+            onCancel={() => setAddingTxn(false)}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 function groupByType(accounts, typeDefs, fxRates) {
   return typeDefs
     .map((t) => {
@@ -110,7 +236,7 @@ function groupByType(accounts, typeDefs, fxRates) {
     .filter((g) => g.items.length > 0)
 }
 
-function AccountGroupList({ title, groups, onEdit }) {
+function AccountGroupList({ title, groups, onSelect }) {
   if (groups.length === 0) return null
   return (
     <div className="mb-6">
@@ -129,7 +255,7 @@ function AccountGroupList({ title, groups, onEdit }) {
                 <li key={a.id}>
                   <button
                     type="button"
-                    onClick={() => onEdit(a)}
+                    onClick={() => onSelect(a)}
                     className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-stone-50"
                   >
                     <span>

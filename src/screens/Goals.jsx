@@ -140,14 +140,19 @@ export default function Goals() {
             ))}
           </div>
         )
-      ) : payDownGoals.length === 0 ? (
-        <p className="py-10 text-center text-sm text-stone-500">No pay-down goals yet.</p>
       ) : (
-        <div className="space-y-3">
-          {payDownGoals.map((g) => (
-            <PayDownCard key={g.id} goal={g} account={accountById.get(g.linked_account_id)} onClick={() => setDetailGoalId(g.id)} />
-          ))}
-        </div>
+        <>
+          {payDownGoals.length > 0 && <PayDownSummary goals={payDownGoals} accountById={accountById} />}
+          {payDownGoals.length === 0 ? (
+            <p className="py-10 text-center text-sm text-stone-500">No pay-down goals yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {payDownGoals.map((g) => (
+                <PayDownCard key={g.id} goal={g} account={accountById.get(g.linked_account_id)} onClick={() => setDetailGoalId(g.id)} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {editingGoal && (
@@ -224,6 +229,42 @@ function PayDownCard({ goal, account, onClick }) {
   )
 }
 
+function StatTile({ label, value }) {
+  return (
+    <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+      <p className="text-xs text-stone-500">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold text-stone-900">{value}</p>
+    </div>
+  )
+}
+
+function PayDownSummary({ goals, accountById }) {
+  const currentDebtPrincipal = goals.reduce((sum, g) => {
+    const account = accountById.get(g.linked_account_id)
+    if (account) return sum + Number(account.value)
+    if (g.starting_balance != null) return sum + Number(g.starting_balance)
+    return sum
+  }, 0)
+
+  const targetDates = goals.map((g) => g.target_date).filter(Boolean)
+  const debtFreeDate = targetDates.length > 0 ? targetDates.reduce((a, b) => (a > b ? a : b)) : null
+
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3">
+      <div className="rounded-xl border border-stone-200 bg-white p-4">
+        <p className="text-xs text-stone-500">Current Debt Principal</p>
+        <p className="mt-1 text-lg font-semibold text-stone-900">{formatAED(currentDebtPrincipal)}</p>
+      </div>
+      <div className="rounded-xl border border-stone-200 bg-white p-4">
+        <p className="text-xs text-stone-500">Debt Free Date</p>
+        <p className="mt-1 text-lg font-semibold text-stone-900">
+          {debtFreeDate ? formatDate(new Date(`${debtFreeDate}T00:00:00`)) : '—'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContribution }) {
   const isSaveUp = goal.kind === 'save_up'
   const saved = isSaveUp ? contributions.reduce((sum, c) => sum + Number(c.amount), 0) : 0
@@ -268,6 +309,16 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
           </div>
           {isSaveUp && projected && <p className="mt-1 text-xs text-stone-400">Projected done: {formatDate(projected)}</p>}
         </div>
+
+        {isSaveUp && (
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <StatTile label="Total saved" value={formatAED(saved)} />
+            {/* Total spent / Available to spend read $0 / full target until "link spend to goal" (Phase 2) exists — honest, not broken. */}
+            <StatTile label="Total spent" value={formatAED(0)} />
+            <StatTile label="Left to save" value={formatAED(remaining)} />
+            <StatTile label="Available to spend" value={formatAED(goal.target_amount)} />
+          </div>
+        )}
 
         <div className="mb-4 flex gap-2">
           <button
