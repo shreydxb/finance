@@ -16,27 +16,38 @@ Every push to the production branch triggers a build.
 - Edge Function deploys go through Supabase, not Netlify, and cost nothing here.
   Backend-only changes never need a Netlify build.
 
-## Open items (as of 6 Aug 2026)
+## Open items (as of 7 Aug 2026, verified against live DB/deploy)
 
-- **Netlify production branch still points at `claude/epic-1-task-3-continue-fsbdo9`.**
-  Until it's switched to `main`, the live site is missing Home and all of
-  Epic 7's UI. Also check branch deploys are off, not "all branches".
 - **The Telegram webhook secret is deliberately unset.** The function currently
   skips the header check (it logs a warning), so the household allowlist is the
   only gate. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
   *and* re-running `setWebhook` with the identical string, in one sitting — a
-  mismatch is silent apart from 403s in the function log.
-- **No real accounts exist.** Every intake row flags "which account" until they
-  are added, named as they print on receipts (last-4 digits matter for matching).
-- **Receipt accuracy is unproven.** Text intake works end to end; no real
-  photograph has been through the pipeline yet. See the tuning pass in the
-  function README — this is the last open acceptance criterion on Epic 7.
+  mismatch is silent apart from 403s in the function log. (Taskiv #22)
+- **No real accounts exist.** `accounts` table is still 0 rows in production.
+  Every intake row flags "which account" until they are added, named as they
+  print on receipts (last-4 digits matter for matching). (Taskiv #6)
+- **Zero transactions logged in production, ever** — not one, manual or
+  Telegram. Receipt-photo accuracy is unproven; text intake works end to end
+  but no real photograph has been through the pipeline yet. See the tuning
+  pass in the function README.
+- **Pay-down goals were never seeded.** `goals` table has only "Emergency
+  Fund" — the migration ran and the build task is marked done, but the three
+  debt pay-down goals from the plan doc were never inserted. (Taskiv #20)
+- **FIRE assumptions in Settings are dead.** `fire_swr`/`fire_return` are set,
+  `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
+  screen calculates or shows a FIRE number. Decide build-vs-cut. (Taskiv #21)
+- **Supabase Auth: leaked-password protection is disabled** (security
+  advisor WARN). Cheap toggle. (Taskiv #23)
+
+Resolved since the last pass: Netlify's production branch is confirmed
+pointing at `main` (current deploy is commit-matched to `main` HEAD) — no
+longer an open item.
 
 ## Branches
 
-`main` is the trunk and holds Epics 1–7. Netlify's production branch must point
-at `main` — it was originally pinned to `claude/epic-1-task-3-continue-fsbdo9`,
-which is why Epic 7's UI was invisible on the live site for a while.
+`main` is the trunk and holds Epics 1–7. Netlify's production branch points
+at `main` and deploys on push — confirmed via the live deploy record matching
+`main`'s HEAD commit.
 
 ## Supabase
 
