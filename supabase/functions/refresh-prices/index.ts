@@ -27,10 +27,21 @@ interface AccountRow {
   currency: string
 }
 
+// This function is called from the browser (unlike telegram-intake, which is
+// server-to-server), so it must answer the CORS preflight or the real POST is
+// never sent. Origin is `*` because the caller's origin changes per Netlify
+// deploy preview; CORS is not the security boundary here — verify_jwt is, so
+// a caller still needs a valid session token for this project.
+const CORS_HEADERS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
+  'access-control-allow-methods': 'POST, OPTIONS',
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { ...CORS_HEADERS, 'content-type': 'application/json' },
   })
 }
 
@@ -54,6 +65,10 @@ async function fetchCoinGeckoBTC(): Promise<number> {
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS_HEADERS })
+  }
+
   if (request.method !== 'POST') {
     return json({ ok: false, error: 'POST only' }, 405)
   }
