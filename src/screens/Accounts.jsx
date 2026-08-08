@@ -143,15 +143,19 @@ export default function Accounts() {
 }
 
 function InvestmentsView({ accounts, fxRates, onSelect }) {
-  const holdings = accounts.filter((a) => a.type === 'investment')
+  const allHoldings = accounts.filter((a) => a.type === 'investment')
+  const owners = Array.from(new Set(allHoldings.map((a) => a.owner))).sort()
+  const [ownerFilter, setOwnerFilter] = useState('combined')
 
-  if (holdings.length === 0) {
+  if (allHoldings.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-stone-500">
         No investment accounts yet. Add one (type: Investments) to see portfolio breakdown here.
       </p>
     )
   }
+
+  const holdings = ownerFilter === 'combined' ? allHoldings : allHoldings.filter((a) => a.owner === ownerFilter)
 
   const rows = holdings.map((a) => {
     const valueAED = toAED(Number(a.value) || 0, a.currency, fxRates)
@@ -175,6 +179,26 @@ function InvestmentsView({ accounts, fxRates, onSelect }) {
 
   return (
     <div>
+      <div className="mb-4 flex rounded-lg border border-stone-300 p-0.5 text-xs w-fit">
+        <button
+          type="button"
+          onClick={() => setOwnerFilter('combined')}
+          className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === 'combined' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+        >
+          Combined
+        </button>
+        {owners.map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => setOwnerFilter(o)}
+            className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === o ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-6 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-stone-200 bg-white p-4">
           <p className="text-xs text-stone-500">Total invested</p>
@@ -188,42 +212,48 @@ function InvestmentsView({ accounts, fxRates, onSelect }) {
         </div>
       </div>
 
-      <div className="mb-6">
-        <BreakdownBars title="Allocation by holding" groups={allocationGroups} formatValue={formatAED} />
-      </div>
+      {holdings.length === 0 ? (
+        <p className="py-10 text-center text-sm text-stone-500">No investment accounts for {ownerFilter} yet.</p>
+      ) : (
+        <>
+          <div className="mb-6">
+            <BreakdownBars title="Allocation by holding" groups={allocationGroups} formatValue={formatAED} />
+          </div>
 
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Holdings</h3>
-      <div className="rounded-xl border border-stone-200 bg-white">
-        {rows.map((r) => (
-          <button
-            key={r.account.id}
-            type="button"
-            onClick={() => onSelect(r.account)}
-            className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
-          >
-            <span className="min-w-0">
-              <span className="font-medium text-stone-900">{r.account.name}</span>
-              <span className="ml-2 text-stone-400">{r.account.owner}</span>
-              <span className="block truncate text-xs text-stone-400">
-                {r.account.ticker ? `${r.account.ticker} · ` : ''}
-                {r.account.quantity != null ? `${r.account.quantity} @ ${r.account.avg_cost ?? '—'} avg` : 'no ticker/qty tracked'}
-              </span>
-            </span>
-            <span className="shrink-0 pl-2 text-right">
-              <span className="block font-medium text-stone-700">{formatValue(r.account.value, r.account.currency)}</span>
-              {r.hasCostBasis && (
-                <span className={`block text-xs ${r.gainLoss < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {r.gainLoss >= 0 ? '+' : ''}
-                  {r.gainLoss.toFixed(0)} {r.account.currency} ({r.gainLossPct.toFixed(1)}%)
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Holdings</h3>
+          <div className="rounded-xl border border-stone-200 bg-white">
+            {rows.map((r) => (
+              <button
+                key={r.account.id}
+                type="button"
+                onClick={() => onSelect(r.account)}
+                className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+              >
+                <span className="min-w-0">
+                  <span className="font-medium text-stone-900">{r.account.name}</span>
+                  <span className="ml-2 text-stone-400">{r.account.owner}</span>
+                  <span className="block truncate text-xs text-stone-400">
+                    {r.account.ticker ? `${r.account.ticker} · ` : ''}
+                    {r.account.quantity != null ? `${r.account.quantity} @ ${r.account.avg_cost ?? '—'} avg` : 'no ticker/qty tracked'}
+                  </span>
                 </span>
-              )}
-            </span>
-          </button>
-        ))}
-      </div>
-      <p className="mt-2 text-xs text-stone-400">
-        Gain/loss needs Qty and Avg cost filled in per account (Edit account) — accounts without them show value only.
-      </p>
+                <span className="shrink-0 pl-2 text-right">
+                  <span className="block font-medium text-stone-700">{formatValue(r.account.value, r.account.currency)}</span>
+                  {r.hasCostBasis && (
+                    <span className={`block text-xs ${r.gainLoss < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {r.gainLoss >= 0 ? '+' : ''}
+                      {r.gainLoss.toFixed(0)} {r.account.currency} ({r.gainLossPct.toFixed(1)}%)
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-stone-400">
+            Gain/loss needs Qty and Avg cost filled in per account (Edit account) — accounts without them show value only.
+          </p>
+        </>
+      )}
     </div>
   )
 }
