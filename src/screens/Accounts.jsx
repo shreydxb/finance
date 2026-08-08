@@ -12,6 +12,7 @@ import { toAED } from '../lib/settings'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
 import { listCategories } from '../lib/categories'
+import { supabase } from '../lib/supabaseClient'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'
@@ -102,7 +103,7 @@ export default function Accounts() {
       </div>
 
       {screenView === 'investments' ? (
-        <InvestmentsView accounts={accounts} fxRates={fxRates} onSelect={setViewingAccount} />
+        <InvestmentsView accounts={accounts} fxRates={fxRates} onSelect={setViewingAccount} onRefreshed={refresh} />
       ) : (
         <>
           <div className="mb-6">
@@ -142,10 +143,29 @@ export default function Accounts() {
   )
 }
 
-function InvestmentsView({ accounts, fxRates, onSelect }) {
+function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
   const allHoldings = accounts.filter((a) => a.type === 'investment')
   const owners = Array.from(new Set(allHoldings.map((a) => a.owner))).sort()
   const [ownerFilter, setOwnerFilter] = useState('combined')
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshResult, setRefreshResult] = useState(null) // { updated, failed } | { error }
+
+  const refreshablePresent = allHoldings.some((a) => a.currency === 'USD' && a.ticker && a.quantity != null)
+
+  async function handleRefreshPrices() {
+    setRefreshing(true)
+    setRefreshResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('refresh-prices', { method: 'POST' })
+      if (error) throw error
+      setRefreshResult(data)
+      await onRefreshed()
+    } catch {
+      setRefreshResult({ error: 'Could not refresh prices. Try again.' })
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (allHoldings.length === 0) {
     return (
@@ -179,25 +199,48 @@ function InvestmentsView({ accounts, fxRates, onSelect }) {
 
   return (
     <div>
-      <div className="mb-4 flex rounded-lg border border-stone-300 p-0.5 text-xs w-fit">
-        <button
-          type="button"
-          onClick={() => setOwnerFilter('combined')}
-          className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === 'combined' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
-        >
-          Combined
-        </button>
-        {owners.map((o) => (
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex rounded-lg border border-stone-300 p-0.5 text-xs w-fit">
           <button
-            key={o}
             type="button"
-            onClick={() => setOwnerFilter(o)}
-            className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === o ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            onClick={() => setOwnerFilter('combined')}
+            className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === 'combined' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
           >
-            {o}
+            Combined
           </button>
-        ))}
+          {owners.map((o) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => setOwnerFilter(o)}
+              className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === o ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+
+        {refreshablePresent && (
+          <button
+            type="button"
+            onClick={handleRefreshPrices}
+            disabled={refreshing}
+            className="shrink-0 rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+          >
+            {refreshing ? 'Refreshing…' : '🔄 Refresh prices'}
+          </button>
+        )}
       </div>
+
+      {refreshResult && (
+        <p className={`mb-4 rounded-lg px-4 py-2 text-xs ${refreshResult.error || refreshResult.failed?.length ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          {refreshResult.error
+            ? refreshResult.error
+            : `Updated ${refreshResult.updated.length} holding${refreshResult.updated.length === 1 ? '' : 's'}${
+                refreshResult.failed.length ? `; ${refreshResult.failed.length} failed (${refreshResult.failed.map((f) => f.ticker).join(', ')})` : ''
+              }.`}
+        </p>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-stone-200 bg-white p-4">
