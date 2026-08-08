@@ -46,7 +46,7 @@ export default function TransactionList({
   const groups = flat ? [{ date: null, entries: groupBySplit(transactions) }] : groupByDate(transactions)
 
   if (groups.length === 0) {
-    return <p className="py-10 text-center text-sm text-stone-500">{emptyMessage ?? 'No transactions match.'}</p>
+    return <p className="py-10 text-center text-sm text-ink-500">{emptyMessage ?? 'No transactions match.'}</p>
   }
 
   return (
@@ -54,9 +54,9 @@ export default function TransactionList({
       {groups.map((g) => (
         <div key={g.date ?? 'flat'}>
           {g.date && (
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">{formatDateHeading(g.date)}</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{formatDateHeading(g.date)}</h3>
           )}
-          <div className="rounded-xl border border-stone-200 bg-white">
+          <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
             {g.entries.map((entry) => (
               <EntryRow
                 key={entry.kind === 'split' ? entry.splitGroupId : entry.transaction.id}
@@ -86,7 +86,7 @@ function CategorySelect({ transaction, categories, onCategoryChange }) {
       value={transaction.category || ''}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => onCategoryChange(transaction.id, e.target.value)}
-      className="max-w-[9rem] truncate rounded-md border border-transparent bg-transparent py-0.5 pl-0 pr-1 text-sm font-medium text-stone-900 hover:border-stone-300 hover:bg-stone-50 focus:border-stone-400 focus:outline-none"
+      className="max-w-[9rem] truncate rounded-md border border-transparent bg-transparent py-0.5 pl-0 pr-1 text-sm font-medium text-ink-900 hover:border-ink-300 hover:bg-ink-50 focus:border-ink-400 focus:outline-none"
     >
       <option value="">Uncategorised</option>
       {grouped.map(({ group, items }) =>
@@ -109,18 +109,18 @@ function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed, categ
     const t = entry.transaction
     const canInlineEdit = categories && onCategoryChange
     return (
-      <div className="flex items-center border-b border-stone-100 last:border-b-0">
+      <div className="flex items-center border-b border-ink-100 last:border-b-0">
         <button
           type="button"
           onClick={onClick}
-          className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-left text-sm hover:bg-stone-50"
+          className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-left text-sm hover:bg-ink-50"
         >
           <span className="min-w-0">
             <span className="flex items-center gap-2">
               {canInlineEdit ? (
                 <CategorySelect transaction={t} categories={categories} onCategoryChange={onCategoryChange} />
               ) : (
-                <span className="font-medium text-stone-900">{t.category || 'Uncategorised'}</span>
+                <span className="font-medium text-ink-900">{t.category || 'Uncategorised'}</span>
               )}
               {t.source === 'telegram' && <span title="Logged from Telegram">📥</span>}
               {t.needs_review && (
@@ -129,19 +129,19 @@ function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed, categ
                 </span>
               )}
             </span>
-            <span className="block truncate text-xs text-stone-400">
+            <span className="block truncate text-xs text-ink-400">
               {showDate ? `${formatDateHeading(t.date)} · ` : ''}
               {t.owner} · {accountName(t.account_id)}
               {t.note ? ` · ${t.note}` : ''}
             </span>
           </span>
-          <span className="shrink-0 pl-2 font-medium text-stone-700">{formatAmount(t.amount, t.currency)}</span>
+          <span className="shrink-0 pl-2 font-medium text-ink-700">{formatAmount(t.amount, t.currency)}</span>
         </button>
         {onMarkReviewed && t.needs_review && (
           <button
             type="button"
             onClick={() => onMarkReviewed(t.id)}
-            className="mr-3 shrink-0 rounded-lg border border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
+            className="mr-3 shrink-0 rounded-lg border border-ink-300 px-2 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50"
           >
             Looks right
           </button>
@@ -156,18 +156,18 @@ function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed, categ
     <button
       type="button"
       onClick={onClick}
-      className="block w-full border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+      className="block w-full border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
     >
       <span className="flex items-center justify-between">
         <span className="flex items-center gap-2">
-          <span className="font-medium text-stone-900">Split</span>
-          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-stone-500">
+          <span className="font-medium text-ink-900">Split</span>
+          <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-500">
             {entry.lines.length} categories
           </span>
         </span>
-        <span className="font-medium text-stone-700">{formatAmount(total, first.currency)}</span>
+        <span className="font-medium text-ink-700">{formatAmount(total, first.currency)}</span>
       </span>
-      <span className="mt-1 block text-xs text-stone-400">
+      <span className="mt-1 block text-xs text-ink-400">
         {showDate ? `${formatDateHeading(first.date)} · ` : ''}
         {entry.lines.map((l) => l.category).join(', ')} · {first.owner} · {accountName(first.account_id)}
       </span>

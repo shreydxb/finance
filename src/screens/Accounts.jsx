@@ -13,6 +13,7 @@ import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
 import { listCategories } from '../lib/categories'
 import { supabase } from '../lib/supabaseClient'
+import { colorizeGroups } from '../lib/chartPalette'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'
@@ -20,8 +21,6 @@ import NetWorthHero from '../components/NetWorthHero'
 import NetWorthBreakdown from '../components/NetWorthBreakdown'
 import BreakdownBars from '../components/BreakdownBars'
 
-const INVESTMENT_PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
-const INVESTMENT_OTHER_COLOR = '#898781'
 
 function formatAED(n) {
   const sign = n < 0 ? '-' : ''
@@ -61,7 +60,7 @@ export default function Accounts() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading accounts…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading accounts…</div>
   }
 
   return (
@@ -71,24 +70,24 @@ export default function Accounts() {
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
 
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex rounded-lg border border-stone-300 p-0.5 text-xs">
+        <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setScreenView('networth')}
-            className={`rounded-md px-3 py-1.5 font-medium ${screenView === 'networth' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${screenView === 'networth' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Net Worth
           </button>
           <button
             type="button"
             onClick={() => setScreenView('investments')}
-            className={`rounded-md px-3 py-1.5 font-medium ${screenView === 'investments' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${screenView === 'investments' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Investments
           </button>
@@ -96,7 +95,7 @@ export default function Accounts() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800"
+          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
         >
           + Add account
         </button>
@@ -110,13 +109,13 @@ export default function Accounts() {
             <NetWorthBreakdown accounts={accounts} fxRates={fxRates} groupBy={groupBy} onGroupByChange={setGroupBy} />
           </div>
 
-          <h2 className="mb-4 text-lg font-semibold text-stone-900">Accounts</h2>
+          <h2 className="mb-4 text-lg font-semibold text-ink-900">Accounts</h2>
 
           <AccountGroupList title="Assets" groups={assetGroups} onSelect={setViewingAccount} />
           <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={setViewingAccount} />
 
           {accounts.length === 0 && (
-            <p className="py-10 text-center text-sm text-stone-500">
+            <p className="py-10 text-center text-sm text-ink-500">
               No accounts yet. Add your first one — manual entry only, no bank connection needed.
             </p>
           )}
@@ -147,6 +146,8 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
   const allHoldings = accounts.filter((a) => a.type === 'investment')
   const owners = Array.from(new Set(allHoldings.map((a) => a.owner))).sort()
   const [ownerFilter, setOwnerFilter] = useState('combined')
+  // Allocation is a part-of-whole read, so it defaults to the donut.
+  const [allocationShape, setAllocationShape] = useState('donut')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshResult, setRefreshResult] = useState(null) // { updated, failed } | { error }
 
@@ -169,7 +170,7 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
 
   if (allHoldings.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-stone-500">
+      <p className="py-10 text-center text-sm text-ink-500">
         No investment accounts yet. Add one (type: Investments) to see portfolio breakdown here.
       </p>
     )
@@ -192,19 +193,24 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
     .reduce((sum, r) => sum + toAED(r.gainLoss, r.account.currency, fxRates), 0)
   const anyCostBasis = rows.some((r) => r.hasCostBasis)
 
-  const allocationGroups = rows
-    .map((r) => ({ key: r.account.id, label: r.account.name, value: r.valueAED }))
-    .sort((a, b) => b.value - a.value)
-    .map((g, i) => ({ ...g, color: i < INVESTMENT_PALETTE.length ? INVESTMENT_PALETTE[i] : INVESTMENT_OTHER_COLOR }))
+  // Ticker alone is the useful label on an allocation chart — the sector
+  // suffix carried in the account name would blow out the legend width.
+  const allocationGroups = colorizeGroups(
+    rows.map((r) => ({
+      key: r.account.id,
+      label: r.account.ticker || r.account.name,
+      value: r.valueAED,
+    }))
+  )
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex rounded-lg border border-stone-300 p-0.5 text-xs w-fit">
+        <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs w-fit">
           <button
             type="button"
             onClick={() => setOwnerFilter('combined')}
-            className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === 'combined' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-2.5 py-1 font-medium transition-colors ${ownerFilter === 'combined' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Combined
           </button>
@@ -213,7 +219,7 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
               key={o}
               type="button"
               onClick={() => setOwnerFilter(o)}
-              className={`rounded-md px-2.5 py-1 font-medium ${ownerFilter === o ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+              className={`rounded-md px-2.5 py-1 font-medium transition-colors ${ownerFilter === o ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
             >
               {o}
             </button>
@@ -225,7 +231,7 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
             type="button"
             onClick={handleRefreshPrices}
             disabled={refreshing}
-            className="shrink-0 rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+            className="shrink-0 rounded-lg border border-ink-300 px-2.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-ink-50 disabled:opacity-50"
           >
             {refreshing ? 'Refreshing…' : '🔄 Refresh prices'}
           </button>
@@ -233,7 +239,7 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
       </div>
 
       {refreshResult && (
-        <p className={`mb-4 rounded-lg px-4 py-2 text-xs ${refreshResult.error || refreshResult.failed?.length ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+        <p className={`mb-4 rounded-lg px-4 py-2 text-xs ${refreshResult.error || refreshResult.failed?.length ? 'bg-amber-50 text-amber-700' : 'bg-pos-50 text-pos-600'}`}>
           {refreshResult.error
             ? refreshResult.error
             : `Updated ${refreshResult.updated.length} holding${refreshResult.updated.length === 1 ? '' : 's'}${
@@ -243,47 +249,53 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
       )}
 
       <div className="mb-6 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-stone-200 bg-white p-4">
-          <p className="text-xs text-stone-500">Total invested</p>
-          <p className="mt-1 text-lg font-semibold text-stone-900">{formatAED(totalValueAED)}</p>
+        <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+          <p className="text-xs text-ink-500">Total invested</p>
+          <p className="mt-1 text-lg font-semibold text-ink-900">{formatAED(totalValueAED)}</p>
         </div>
-        <div className="rounded-xl border border-stone-200 bg-white p-4">
-          <p className="text-xs text-stone-500">Unrealized gain/loss</p>
-          <p className={`mt-1 text-lg font-semibold ${totalGainLossAED < 0 ? 'text-red-600' : 'text-stone-900'}`}>
+        <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+          <p className="text-xs text-ink-500">Unrealized gain/loss</p>
+          <p className={`mt-1 text-lg font-semibold ${totalGainLossAED < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
             {anyCostBasis ? formatAED(totalGainLossAED) : '—'}
           </p>
         </div>
       </div>
 
       {holdings.length === 0 ? (
-        <p className="py-10 text-center text-sm text-stone-500">No investment accounts for {ownerFilter} yet.</p>
+        <p className="py-10 text-center text-sm text-ink-500">No investment accounts for {ownerFilter} yet.</p>
       ) : (
         <>
           <div className="mb-6">
-            <BreakdownBars title="Allocation by holding" groups={allocationGroups} formatValue={formatAED} />
+            <BreakdownBars
+              title="Allocation by holding"
+              groups={allocationGroups}
+              formatValue={formatAED}
+              shape={allocationShape}
+              onShapeChange={setAllocationShape}
+            />
           </div>
 
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Holdings</h3>
-          <div className="rounded-xl border border-stone-200 bg-white">
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Holdings</h3>
+          <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
             {rows.map((r) => (
               <button
                 key={r.account.id}
                 type="button"
                 onClick={() => onSelect(r.account)}
-                className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
               >
                 <span className="min-w-0">
-                  <span className="font-medium text-stone-900">{r.account.name}</span>
-                  <span className="ml-2 text-stone-400">{r.account.owner}</span>
-                  <span className="block truncate text-xs text-stone-400">
+                  <span className="font-medium text-ink-900">{r.account.name}</span>
+                  <span className="ml-2 text-ink-400">{r.account.owner}</span>
+                  <span className="block truncate text-xs text-ink-400">
                     {r.account.ticker ? `${r.account.ticker} · ` : ''}
                     {r.account.quantity != null ? `${r.account.quantity} @ ${r.account.avg_cost ?? '—'} avg` : 'no ticker/qty tracked'}
                   </span>
                 </span>
                 <span className="shrink-0 pl-2 text-right">
-                  <span className="block font-medium text-stone-700">{formatValue(r.account.value, r.account.currency)}</span>
+                  <span className="block font-medium text-ink-700">{formatValue(r.account.value, r.account.currency)}</span>
                   {r.hasCostBasis && (
-                    <span className={`block text-xs ${r.gainLoss < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <span className={`block text-xs ${r.gainLoss < 0 ? 'text-neg-600' : 'text-pos-600'}`}>
                       {r.gainLoss >= 0 ? '+' : ''}
                       {r.gainLoss.toFixed(0)} {r.account.currency} ({r.gainLossPct.toFixed(1)}%)
                     </span>
@@ -292,7 +304,7 @@ function InvestmentsView({ accounts, fxRates, onSelect, onRefreshed }) {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-stone-400">
+          <p className="mt-2 text-xs text-ink-400">
             Gain/loss needs Qty and Avg cost filled in per account (Edit account) — accounts without them show value only.
           </p>
         </>
@@ -346,47 +358,47 @@ function AccountDetail({ account, onClose, onEdit }) {
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
         <div className="mb-1 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-stone-900">
+            <h2 className="text-lg font-semibold text-ink-900">
               {typeIcon(account.type)} {account.name}
             </h2>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-ink-400">
               {typeLabel(account.type)} · {account.owner}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-sm text-stone-400 hover:text-stone-600">
+          <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
             Close
           </button>
         </div>
 
-        <p className="my-3 text-2xl font-semibold text-stone-900">{formatValue(account.value, account.currency)}</p>
+        <p className="my-3 text-2xl font-semibold text-ink-900">{formatValue(account.value, account.currency)}</p>
 
         <div className="mb-5 flex gap-2">
           <button
             type="button"
             onClick={onEdit}
-            className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            className="flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
           >
             Edit account
           </button>
           <button
             type="button"
             onClick={() => setAddingTxn(true)}
-            className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800"
+            className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
           >
             + Add transaction
           </button>
         </div>
 
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Transactions</h3>
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Transactions</h3>
 
         {error && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+          <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
             {error}
           </p>
         )}
 
         {loading ? (
-          <p className="py-6 text-center text-sm text-stone-500">Loading…</p>
+          <p className="py-6 text-center text-sm text-ink-500">Loading…</p>
         ) : (
           <TransactionList
             transactions={transactions}
@@ -427,15 +439,15 @@ function AccountGroupList({ title, groups, onSelect }) {
   if (groups.length === 0) return null
   return (
     <div className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{title}</h3>
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{title}</h3>
       <div className="space-y-4">
         {groups.map((g) => (
-          <div key={g.type} className="rounded-xl border border-stone-200 bg-white">
-            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-2.5">
-              <span className="text-sm font-medium text-stone-700">
+          <div key={g.type} className="rounded-2xl border border-ink-200 bg-white shadow-card">
+            <div className="flex items-center justify-between border-b border-ink-100 px-4 py-2.5">
+              <span className="text-sm font-medium text-ink-700">
                 {typeIcon(g.type)} {typeLabel(g.type)}
               </span>
-              <span className="text-sm font-semibold text-stone-900">{formatAED(g.subtotalAED)}</span>
+              <span className="text-sm font-semibold text-ink-900">{formatAED(g.subtotalAED)}</span>
             </div>
             <ul>
               {g.items.map((a) => (
@@ -443,13 +455,13 @@ function AccountGroupList({ title, groups, onSelect }) {
                   <button
                     type="button"
                     onClick={() => onSelect(a)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-stone-50"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-ink-50"
                   >
                     <span>
-                      <span className="font-medium text-stone-900">{a.name}</span>
-                      <span className="ml-2 text-stone-400">{a.owner}</span>
+                      <span className="font-medium text-ink-900">{a.name}</span>
+                      <span className="ml-2 text-ink-400">{a.owner}</span>
                     </span>
-                    <span className="text-stone-700">{formatValue(a.value, a.currency)}</span>
+                    <span className="text-ink-700">{formatValue(a.value, a.currency)}</span>
                   </button>
                 </li>
               ))}

@@ -99,12 +99,12 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-stone-900">{isEdit ? 'Edit transaction' : 'Add transaction'}</h2>
+        <h2 className="mb-4 text-lg font-semibold text-ink-900">{isEdit ? 'Edit transaction' : 'Add transaction'}</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="date" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="date" className="mb-1 block text-sm font-medium text-ink-700">
                 Date
               </label>
               <input
@@ -112,18 +112,18 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               />
             </div>
             <div>
-              <label htmlFor="owner" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="owner" className="mb-1 block text-sm font-medium text-ink-700">
                 Owner
               </label>
               <select
                 id="owner"
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {OWNERS.map((o) => (
                   <option key={o} value={o}>
@@ -137,7 +137,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
           <div className="grid grid-cols-[1fr_5rem] gap-3">
             {!split && (
               <div>
-                <label htmlFor="amount" className="mb-1 block text-sm font-medium text-stone-700">
+                <label htmlFor="amount" className="mb-1 block text-sm font-medium text-ink-700">
                   Amount
                 </label>
                 <input
@@ -147,20 +147,20 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                   autoFocus
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                   placeholder="0.00"
                 />
               </div>
             )}
             <div className={split ? 'col-span-2' : ''}>
-              <label htmlFor="currency" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="currency" className="mb-1 block text-sm font-medium text-ink-700">
                 Currency
               </label>
               <select
                 id="currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className={split ? 'w-32 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none' : 'w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none'}
+                className={split ? 'w-32 rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15' : 'w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15'}
               >
                 {['AED', 'USD', 'INR'].map((c) => (
                   <option key={c} value={c}>
@@ -172,14 +172,14 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
           </div>
 
           <div>
-            <label htmlFor="account" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="account" className="mb-1 block text-sm font-medium text-ink-700">
               Account
             </label>
             <select
               id="account"
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -192,7 +192,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
           {!split ? (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <label htmlFor="category" className="block text-sm font-medium text-stone-700">
+                <label htmlFor="category" className="block text-sm font-medium text-ink-700">
                   Category
                 </label>
                 {categories.length > 1 && (
@@ -202,7 +202,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                       if (amount) setSplitLines((lines) => lines.map((l, i) => (i === 0 ? { ...l, amount } : l)))
                       setSplit(true)
                     }}
-                    className="text-xs font-medium text-stone-500 underline hover:text-stone-700"
+                    className="text-xs font-medium text-ink-500 underline hover:text-ink-700"
                   >
                     Split across categories
                   </button>
@@ -212,7 +212,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                 id="category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.name}>
@@ -224,7 +224,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
           ) : (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="block text-sm font-medium text-stone-700">Split</span>
+                <span className="block text-sm font-medium text-ink-700">Split</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -232,7 +232,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                     setCategory(splitLines[0]?.category ?? categories[0]?.name ?? '')
                     setSplit(false)
                   }}
-                  className="text-xs font-medium text-stone-500 underline hover:text-stone-700"
+                  className="text-xs font-medium text-ink-500 underline hover:text-ink-700"
                 >
                   Use one category
                 </button>
@@ -243,7 +243,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                     <select
                       value={line.category}
                       onChange={(e) => updateSplitLine(i, { category: e.target.value })}
-                      className="flex-1 rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                      className="flex-1 rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                     >
                       {categories.map((c) => (
                         <option key={c.id} value={c.name}>
@@ -256,14 +256,14 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                       step="0.01"
                       value={line.amount}
                       onChange={(e) => updateSplitLine(i, { amount: e.target.value })}
-                      className="w-24 rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                      className="w-24 rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                       placeholder="0.00"
                     />
                     {splitLines.length > 2 && (
                       <button
                         type="button"
                         onClick={() => removeSplitLine(i)}
-                        className="px-1 text-stone-400 hover:text-red-600"
+                        className="px-1 text-ink-400 hover:text-neg-600"
                         aria-label="Remove split line"
                       >
                         ✕
@@ -272,17 +272,17 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                   </div>
                 ))}
               </div>
-              <button type="button" onClick={addSplitLine} className="mt-2 text-xs font-medium text-stone-500 underline hover:text-stone-700">
+              <button type="button" onClick={addSplitLine} className="mt-2 text-xs font-medium text-ink-500 underline hover:text-ink-700">
                 + Add category
               </button>
-              <p className="mt-2 text-xs font-medium text-stone-700">
+              <p className="mt-2 text-xs font-medium text-ink-700">
                 Total: {splitTotal.toFixed(2)} {currency}
               </p>
             </div>
           )}
 
           <div>
-            <label htmlFor="note" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="note" className="mb-1 block text-sm font-medium text-ink-700">
               Note
             </label>
             <input
@@ -290,13 +290,13 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="optional"
             />
           </div>
 
           <div>
-            <label htmlFor="tags" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="tags" className="mb-1 block text-sm font-medium text-ink-700">
               Tags
             </label>
             <input
@@ -304,13 +304,13 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
               type="text"
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="comma, separated, optional"
             />
           </div>
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-neg-600">
               {error}
             </p>
           )}
@@ -319,14 +319,14 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
             >
               Cancel
             </button>
@@ -334,7 +334,7 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
               <button
                 type="button"
                 onClick={onDelete}
-                className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-neg-200 px-3 py-2 text-sm font-medium text-neg-600 hover:bg-neg-50"
               >
                 Delete
               </button>

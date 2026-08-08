@@ -66,7 +66,7 @@ export default function Budget() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   const actualByCategory = new Map()
@@ -108,28 +108,28 @@ export default function Budget() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-6 rounded-xl border border-stone-200 bg-white p-6">
-        <p className="text-sm text-stone-500">Left to budget</p>
-        <p className="mt-1 text-4xl font-semibold text-stone-900">{formatAED(leftToBudget)}</p>
-        <p className="mt-2 text-xs text-stone-400">
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-6">
+        <p className="text-sm text-ink-500">Left to budget</p>
+        <p className="mt-1 text-4xl font-semibold text-ink-900">{formatAED(leftToBudget)}</p>
+        <p className="mt-2 text-xs text-ink-400">
           Income logged this month {formatAED(totalIncome)} − budgeted {formatAED(totalBudgeted)} − goal contributions {formatAED(totalContributions)}
         </p>
       </div>
 
-      <div className="mb-6 flex items-center justify-between rounded-xl border border-stone-200 bg-white px-4 py-3">
+      <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-white shadow-card px-4 py-3">
         <button
           type="button"
           onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, -1))}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100"
         >
           ← Prev
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-stone-900">{monthLabel(ym.year, ym.month)}</span>
+          <span className="text-sm font-semibold text-ink-900">{monthLabel(ym.year, ym.month)}</span>
           <button
             type="button"
             onClick={() => setYm(currentYearMonth())}
-            className="rounded-lg border border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
+            className="rounded-lg border border-ink-300 px-2 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50"
           >
             Today
           </button>
@@ -137,14 +137,14 @@ export default function Budget() {
         <button
           type="button"
           onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, 1))}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100"
         >
           Next →
         </button>
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
@@ -154,9 +154,9 @@ export default function Budget() {
         if (items.length === 0) return null
         return (
           <div key={group} className="mb-6">
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{group}</h3>
-            <div className="rounded-xl border border-stone-200 bg-white">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-stone-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
+            <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
                 <span>Category</span>
                 <span className="w-20 text-right">Planned</span>
                 <span className="w-20 text-right">Actual</span>
@@ -167,14 +167,14 @@ export default function Budget() {
                   key={r.category.id}
                   type="button"
                   onClick={() => setEditingCategory(r.category)}
-                  className="grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                  className="grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                 >
-                  <span className="truncate font-medium text-stone-900">
+                  <span className="truncate font-medium text-ink-900">
                     {r.category.icon} {r.category.name}
                   </span>
-                  <span className="w-20 text-right text-stone-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-                  <span className="w-20 text-right text-stone-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-                  <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-red-600' : 'text-stone-900'}`}>
+                  <span className="w-20 text-right text-ink-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
+                  <span className="w-20 text-right text-ink-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
+                  <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
                     {r.remaining.toLocaleString('en-AE', { maximumFractionDigits: 0 })}
                   </span>
                 </button>
@@ -185,26 +185,26 @@ export default function Budget() {
       })}
 
       <div className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Contributions</h3>
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Contributions</h3>
         <ContributionSubsection title="Save up" rows={saveUpContribRows} />
         <ContributionSubsection title="Pay down" rows={payDownContribRows} />
       </div>
 
       {unbudgeted.length > 0 && (
         <div className="mb-6">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Not yet budgeted</h3>
-          <div className="rounded-xl border border-stone-200 bg-white">
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Not yet budgeted</h3>
+          <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
             {unbudgeted.map((r) => (
               <button
                 key={r.category.id}
                 type="button"
                 onClick={() => setEditingCategory(r.category)}
-                className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
               >
-                <span className="font-medium text-stone-900">
+                <span className="font-medium text-ink-900">
                   {r.category.icon} {r.category.name}
                 </span>
-                <span className="text-xs font-medium text-stone-400 underline">Set a limit</span>
+                <span className="text-xs font-medium text-ink-400 underline">Set a limit</span>
               </button>
             ))}
           </div>
@@ -225,30 +225,30 @@ export default function Budget() {
 
 function ContributionSubsection({ title, rows }) {
   return (
-    <div className="mb-3 rounded-xl border border-stone-200 bg-white">
-      <div className="border-b border-stone-100 px-4 py-2 text-xs font-semibold text-stone-500">{title}</div>
+    <div className="mb-3 rounded-2xl border border-ink-200 bg-white shadow-card">
+      <div className="border-b border-ink-100 px-4 py-2 text-xs font-semibold text-ink-500">{title}</div>
       {rows.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-stone-500">
+        <p className="px-4 py-3 text-sm text-ink-500">
           {title === 'Pay down'
             ? 'None of your liability accounts are included in the budget.'
             : 'No save-up goals yet.'}
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-stone-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
             <span>Goal</span>
             <span className="w-20 text-right">Planned</span>
             <span className="w-20 text-right">Actual</span>
             <span className="w-20 text-right">Remaining</span>
           </div>
           {rows.map((r) => (
-            <div key={r.goal.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-stone-100 px-4 py-3 text-sm last:border-b-0">
-              <span className="truncate font-medium text-stone-900">
+            <div key={r.goal.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-sm last:border-b-0">
+              <span className="truncate font-medium text-ink-900">
                 {r.goal.icon} {r.goal.name}
               </span>
-              <span className="w-20 text-right text-stone-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-              <span className="w-20 text-right text-stone-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-              <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-red-600' : 'text-stone-900'}`}>
+              <span className="w-20 text-right text-ink-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
+              <span className="w-20 text-right text-ink-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
+              <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
                 {r.remaining.toLocaleString('en-AE', { maximumFractionDigits: 0 })}
               </span>
             </div>

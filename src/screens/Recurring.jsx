@@ -89,7 +89,7 @@ export default function Recurring() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   const withDue = entries
@@ -103,18 +103,18 @@ export default function Recurring() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex rounded-lg border border-stone-300 p-0.5 text-xs">
+        <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setView('bills')}
-            className={`rounded-md px-3 py-1.5 font-medium ${view === 'bills' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'bills' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Bills & EMIs
           </button>
           <button
             type="button"
             onClick={() => setView('income')}
-            className={`rounded-md px-3 py-1.5 font-medium ${view === 'income' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'income' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Income log
           </button>
@@ -122,30 +122,30 @@ export default function Recurring() {
         <button
           type="button"
           onClick={() => (view === 'bills' ? setEditingEntry('new') : setEditingIncome('new'))}
-          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800"
+          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
         >
           + Add
         </button>
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
 
       {view === 'bills' ? (
         <>
-          {entries.length === 0 && <p className="py-10 text-center text-sm text-stone-500">No recurring bills yet.</p>}
+          {entries.length === 0 && <p className="py-10 text-center text-sm text-ink-500">No recurring bills yet.</p>}
 
           {entries.length > 0 && (
-            <div className="mb-4 flex rounded-lg border border-stone-300 p-0.5 text-xs w-fit">
+            <div className="mb-4 flex rounded-lg bg-ink-100 p-0.5 text-xs w-fit">
               {['list', 'calendar'].map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={() => setLayout(l)}
-                  className={`rounded-md px-2.5 py-1 font-medium capitalize ${layout === l ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+                  className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${layout === l ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
                 >
                   {l}
                 </button>
@@ -158,7 +158,7 @@ export default function Recurring() {
           )}
 
           {layout === 'list' && withDue.length > 0 && (
-            <div className="rounded-xl border border-stone-200 bg-white">
+            <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
               {withDue.map(({ entry, due }) => {
                 const days = daysUntil(due)
                 const dueSoon = days <= 7
@@ -167,25 +167,25 @@ export default function Recurring() {
                     key={entry.id}
                     type="button"
                     onClick={() => setEditingEntry(entry)}
-                    className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                    className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                   >
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
-                        <span className="font-medium text-stone-900">{entry.name}</span>
+                        <span className="font-medium text-ink-900">{entry.name}</span>
                         {dueSoon && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
                             {days === 0 ? 'Due today' : `Due in ${days}d`}
                           </span>
                         )}
                         {entry.autopay && (
-                          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-stone-500">Autopay</span>
+                          <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-500">Autopay</span>
                         )}
                       </span>
-                      <span className="block truncate text-xs text-stone-400">
+                      <span className="block truncate text-xs text-ink-400">
                         {entry.owner} · {formatDate(due)} · {entry.kind}
                       </span>
                     </span>
-                    <span className="shrink-0 pl-2 font-medium text-stone-700">{formatMoney(entry.amount, entry.currency)}</span>
+                    <span className="shrink-0 pl-2 font-medium text-ink-700">{formatMoney(entry.amount, entry.currency)}</span>
                   </button>
                 )
               })}
@@ -194,23 +194,23 @@ export default function Recurring() {
 
           {layout === 'list' && withoutDue.length > 0 && (
             <div className="mt-6">
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">No upcoming due date</h3>
-              <div className="rounded-xl border border-stone-200 bg-white">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">No upcoming due date</h3>
+              <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
                 {withoutDue.map((entry) => (
                   <button
                     key={entry.id}
                     type="button"
                     onClick={() => setEditingEntry(entry)}
-                    className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                    className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                   >
                     <span className="min-w-0">
-                      <span className="font-medium text-stone-900">{entry.name}</span>
-                      <span className="block truncate text-xs text-stone-400">
+                      <span className="font-medium text-ink-900">{entry.name}</span>
+                      <span className="block truncate text-xs text-ink-400">
                         {entry.owner} · {entry.kind}
                         {entry.months?.length > 0 ? ` · ${entry.months.map((m) => MONTH_NAMES[m - 1]).join('/')}` : ' · every month'}
                       </span>
                     </span>
-                    <span className="shrink-0 pl-2 font-medium text-stone-700">{formatMoney(entry.amount, entry.currency)}</span>
+                    <span className="shrink-0 pl-2 font-medium text-ink-700">{formatMoney(entry.amount, entry.currency)}</span>
                   </button>
                 ))}
               </div>
@@ -233,7 +233,7 @@ export default function Recurring() {
             <select
               value={personFilter}
               onChange={(e) => setPersonFilter(e.target.value)}
-              className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="">All people</option>
               {OWNERS.filter((o) => o !== 'Joint').map((o) => (
@@ -245,7 +245,7 @@ export default function Recurring() {
             <select
               value={kindFilter}
               onChange={(e) => setKindFilter(e.target.value)}
-              className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="">All kinds</option>
               {INCOME_KINDS.map((k) => (
@@ -257,26 +257,26 @@ export default function Recurring() {
           </div>
 
           {filteredIncome.length === 0 ? (
-            <p className="py-10 text-center text-sm text-stone-500">No income logged yet.</p>
+            <p className="py-10 text-center text-sm text-ink-500">No income logged yet.</p>
           ) : (
-            <div className="rounded-xl border border-stone-200 bg-white">
+            <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
               {filteredIncome.map((i) => (
                 <button
                   key={i.id}
                   type="button"
                   onClick={() => setEditingIncome(i)}
-                  className="flex w-full items-center justify-between border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                  className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                 >
                   <span className="min-w-0">
-                    <span className="font-medium text-stone-900">
+                    <span className="font-medium text-ink-900">
                       {i.person} · {i.kind.replace('_', ' ')}
                     </span>
-                    <span className="block truncate text-xs text-stone-400">
+                    <span className="block truncate text-xs text-ink-400">
                       {formatDate(new Date(`${i.date}T00:00:00`))}
                       {i.source ? ` · ${i.source}` : ''}
                     </span>
                   </span>
-                  <span className={`shrink-0 pl-2 font-medium ${Number(i.amount) < 0 ? 'text-red-600' : 'text-stone-700'}`}>
+                  <span className={`shrink-0 pl-2 font-medium ${Number(i.amount) < 0 ? 'text-neg-600' : 'text-ink-700'}`}>
                     {formatMoney(i.amount, i.currency)}
                   </span>
                 </button>
@@ -329,15 +329,15 @@ function CalendarView({ entries, cursor, setCursor, onSelect }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <button type="button" onClick={() => shift(-1)} className="rounded-lg px-2 py-1 text-sm font-medium text-stone-600 hover:bg-stone-100">
+        <button type="button" onClick={() => shift(-1)} className="rounded-lg px-2 py-1 text-sm font-medium text-ink-600 hover:bg-ink-100">
           ← Prev
         </button>
-        <span className="text-sm font-semibold text-stone-900">{MONTH_NAMES_FULL[cursor.month - 1]} {cursor.year}</span>
-        <button type="button" onClick={() => shift(1)} className="rounded-lg px-2 py-1 text-sm font-medium text-stone-600 hover:bg-stone-100">
+        <span className="text-sm font-semibold text-ink-900">{MONTH_NAMES_FULL[cursor.month - 1]} {cursor.year}</span>
+        <button type="button" onClick={() => shift(1)} className="rounded-lg px-2 py-1 text-sm font-medium text-ink-600 hover:bg-ink-100">
           Next →
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-stone-400">
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-ink-400">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
           <div key={d}>{d}</div>
         ))}
@@ -346,18 +346,18 @@ function CalendarView({ entries, cursor, setCursor, onSelect }) {
         {cells.map((day, i) => (
           <div
             key={i}
-            className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-stone-200 bg-white' : 'border-transparent'}`}
+            className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-ink-200 bg-white' : 'border-transparent'}`}
           >
             {day && (
               <>
-                <span className="text-[11px] text-stone-400">{day}</span>
+                <span className="text-[11px] text-ink-400">{day}</span>
                 <div className="mt-0.5 space-y-0.5">
                   {(byDay.get(day) || []).map((entry) => (
                     <button
                       key={entry.id}
                       type="button"
                       onClick={() => onSelect(entry)}
-                      className="block w-full truncate rounded bg-stone-100 px-1 py-0.5 text-left text-[10px] font-medium text-stone-700 hover:bg-stone-200"
+                      className="block w-full truncate rounded bg-ink-100 px-1 py-0.5 text-left text-[10px] font-medium text-ink-700 hover:bg-ink-200"
                       title={entry.name}
                     >
                       {entry.name}

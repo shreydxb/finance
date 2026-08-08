@@ -73,21 +73,21 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-stone-900">
+        <h2 className="mb-4 text-lg font-semibold text-ink-900">
           {account ? 'Edit account' : 'Add account'}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <span className="mb-1 block text-sm font-medium text-stone-700">Asset or liability?</span>
+            <span className="mb-1 block text-sm font-medium text-ink-700">Asset or liability?</span>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setKind('asset')}
                 className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                   form.kind === 'asset'
-                    ? 'border-stone-900 bg-stone-900 text-white'
-                    : 'border-stone-300 text-stone-700 hover:bg-stone-50'
+                    ? 'border-ink-900 bg-ink-900 text-white'
+                    : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                 }`}
               >
                 Asset
@@ -97,8 +97,8 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
                 onClick={() => setKind('liability')}
                 className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                   form.kind === 'liability'
-                    ? 'border-stone-900 bg-stone-900 text-white'
-                    : 'border-stone-300 text-stone-700 hover:bg-stone-50'
+                    ? 'border-ink-900 bg-ink-900 text-white'
+                    : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                 }`}
               >
                 Liability
@@ -107,14 +107,14 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           </div>
 
           <div>
-            <label htmlFor="type" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="type" className="mb-1 block text-sm font-medium text-ink-700">
               Type
             </label>
             <select
               id="type"
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               {typeOptions.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -125,7 +125,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           </div>
 
           <div>
-            <label htmlFor="name" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="name" className="mb-1 block text-sm font-medium text-ink-700">
               Name
             </label>
             <input
@@ -134,21 +134,21 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
               required
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="e.g. Zerodha, Car Loan"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="owner" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="owner" className="mb-1 block text-sm font-medium text-ink-700">
                 Owner
               </label>
               <select
                 id="owner"
                 value={form.owner}
                 onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {OWNERS.map((o) => (
                   <option key={o} value={o}>
@@ -158,14 +158,14 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
               </select>
             </div>
             <div>
-              <label htmlFor="currency" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="currency" className="mb-1 block text-sm font-medium text-ink-700">
                 Currency
               </label>
               <select
                 id="currency"
                 value={form.currency}
                 onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -177,7 +177,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           </div>
 
           <div>
-            <label htmlFor="value" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="value" className="mb-1 block text-sm font-medium text-ink-700">
               {form.kind === 'liability' ? 'Amount owed' : 'Value'}
             </label>
             <input
@@ -187,7 +187,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
               required
               value={form.value}
               onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="0.00"
             />
           </div>
@@ -195,7 +195,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           {form.type === 'investment' && (
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label htmlFor="ticker" className="mb-1 block text-sm font-medium text-stone-700">
+                <label htmlFor="ticker" className="mb-1 block text-sm font-medium text-ink-700">
                   Ticker
                 </label>
                 <input
@@ -203,12 +203,12 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
                   type="text"
                   value={form.ticker}
                   onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value }))}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                   placeholder="optional"
                 />
               </div>
               <div>
-                <label htmlFor="quantity" className="mb-1 block text-sm font-medium text-stone-700">
+                <label htmlFor="quantity" className="mb-1 block text-sm font-medium text-ink-700">
                   Qty
                 </label>
                 <input
@@ -217,12 +217,12 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
                   step="any"
                   value={form.quantity}
                   onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                   placeholder="optional"
                 />
               </div>
               <div>
-                <label htmlFor="avg_cost" className="mb-1 block text-sm font-medium text-stone-700">
+                <label htmlFor="avg_cost" className="mb-1 block text-sm font-medium text-ink-700">
                   Avg cost
                 </label>
                 <input
@@ -231,7 +231,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
                   step="any"
                   value={form.avg_cost}
                   onChange={(e) => setForm((f) => ({ ...f, avg_cost: e.target.value }))}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                   placeholder="optional"
                 />
               </div>
@@ -239,7 +239,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           )}
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-neg-600">
               {error}
             </p>
           )}
@@ -248,14 +248,14 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
             >
               Cancel
             </button>
@@ -263,7 +263,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
               <button
                 type="button"
                 onClick={() => onDelete(account.id)}
-                className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-neg-200 px-3 py-2 text-sm font-medium text-neg-600 hover:bg-neg-50"
               >
                 Delete
               </button>

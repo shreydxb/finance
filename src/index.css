@@ -1,5 +1,140 @@
 @import "tailwindcss";
 
+/* ── Design tokens ────────────────────────────────────────────────────────
+   One source of truth for colour, elevation and motion. Screens use these
+   via generated utilities (bg-ink-50, text-brand-600, shadow-card, …) so a
+   palette change happens here, not across nine screens.
+
+   Neutrals are cool-tinted rather than Tailwind's warm `stone` — greys with
+   a slight blue cast read as "financial software" rather than "blog", and
+   they sit better next to the brand blue.                                   */
+@theme {
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceff3;
+  --color-ink-200: #dde2ea;
+  --color-ink-300: #c3ccd9;
+  --color-ink-400: #8b95a7;
+  --color-ink-500: #646e82;
+  --color-ink-600: #4a5465;
+  --color-ink-700: #363d4b;
+  --color-ink-800: #212734;
+  --color-ink-900: #121620;
+
+  --color-brand-50: #eff4ff;
+  --color-brand-100: #dbe6fe;
+  --color-brand-200: #bfd3fe;
+  --color-brand-400: #6096fc;
+  --color-brand-500: #3b7df7;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-900: #172554;
+
+  /* Money semantics. Deliberately not pure red/green: slightly muted reads
+     as considered rather than alarming, which matters when a number is
+     negative for perfectly ordinary reasons. */
+  --color-pos-50: #e7f8f0;
+  --color-pos-500: #0ea472;
+  --color-pos-600: #06835a;
+  --color-neg-50: #fdeced;
+  --color-neg-100: #fbd8da;
+  --color-neg-200: #f6b8bb;
+  --color-neg-500: #e5484d;
+  --color-neg-600: #c62a2f;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', sans-serif;
+
+  /* Two-layer shadows — a tight contact shadow plus a soft ambient one.
+     Single-layer shadows are the fastest way to look like a template. */
+  --shadow-card: 0 1px 2px rgba(18, 22, 32, 0.04), 0 1px 3px rgba(18, 22, 32, 0.06);
+  --shadow-lift: 0 4px 12px rgba(18, 22, 32, 0.08), 0 2px 4px rgba(18, 22, 32, 0.04);
+  --shadow-pop: 0 16px 32px -12px rgba(18, 22, 32, 0.22), 0 4px 8px rgba(18, 22, 32, 0.06);
+  --shadow-hero: 0 24px 48px -16px rgba(29, 78, 216, 0.45);
+
+  --animate-rise: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade: fade 0.35s ease both;
+  --animate-grow: grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Bars/arcs animate from zero width so a chart draws itself in. */
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Currency figures must line up column-to-column; proportional digits make
+   a table of money look ragged. Applied to every figure in the app. */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Children fade up in sequence rather than all at once — the single cheapest
+   trick for making a screen feel composed instead of dumped. */
+@utility stagger {
+  & > * {
+    animation: var(--animate-rise);
+  }
+  & > *:nth-child(1) { animation-delay: 0ms; }
+  & > *:nth-child(2) { animation-delay: 45ms; }
+  & > *:nth-child(3) { animation-delay: 90ms; }
+  & > *:nth-child(4) { animation-delay: 135ms; }
+  & > *:nth-child(5) { animation-delay: 180ms; }
+  & > *:nth-child(6) { animation-delay: 225ms; }
+  & > *:nth-child(n + 7) { animation-delay: 270ms; }
+}
+
 body {
   margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-ink-50);
+  /* App-wide rather than per-figure: almost every number here is money, and
+     lining figures keep columns aligned in every table without each component
+     having to remember. Inter's tabular digits read fine in prose too. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Every interactive element gets a consistent, visible focus ring rather
+   than the per-component `focus:border-*` the app used before. */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respect the OS setting — motion is decoration here, never information. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

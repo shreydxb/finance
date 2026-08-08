@@ -131,18 +131,18 @@ export default function Transactions() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-stone-900">Transactions</h2>
+        <h2 className="text-lg font-semibold text-ink-900">Transactions</h2>
         <button
           type="button"
           onClick={() => setEditing('new')}
           disabled={accounts.length === 0}
-          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
+          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
         >
           + Add
         </button>
@@ -173,7 +173,7 @@ export default function Transactions() {
       <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
@@ -209,19 +209,19 @@ function Filters({ filters, setFilters, categories, accounts }) {
   }
 
   return (
-    <div className="mb-4 space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+    <div className="mb-4 space-y-2 rounded-2xl border border-ink-200 bg-white shadow-card p-3">
       <input
         type="search"
         value={filters.search}
         onChange={(e) => set({ search: e.target.value })}
         placeholder="Search notes…"
-        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+        className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
       />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <select
           value={filters.category}
           onChange={(e) => set({ category: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="">All categories</option>
           {categories.map((c) => (
@@ -233,7 +233,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
         <select
           value={filters.owner}
           onChange={(e) => set({ owner: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="">All owners</option>
           {OWNERS.map((o) => (
@@ -245,7 +245,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
         <select
           value={filters.accountId}
           onChange={(e) => set({ accountId: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="">All accounts</option>
           {accounts.map((a) => (
@@ -257,7 +257,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
         <select
           value={filters.sort}
           onChange={(e) => set({ sort: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="date">Sort: Date</option>
           <option value="amount">Sort: Amount</option>
@@ -268,13 +268,13 @@ function Filters({ filters, setFilters, categories, accounts }) {
           type="date"
           value={filters.dateFrom}
           onChange={(e) => set({ dateFrom: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         />
         <input
           type="date"
           value={filters.dateTo}
           onChange={(e) => set({ dateTo: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         />
       </div>
     </div>

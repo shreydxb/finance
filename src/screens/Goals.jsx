@@ -23,8 +23,11 @@ function formatDate(d) {
 function ProgressBar({ pct }) {
   const clamped = Math.max(0, Math.min(100, pct))
   return (
-    <div className="h-3 w-full overflow-hidden rounded-full bg-stone-100">
-      <div className="h-full rounded-full bg-[#2a78d6]" style={{ width: `${clamped}%` }} />
+    <div className="h-3 w-full overflow-hidden rounded-full bg-ink-100">
+      <div
+        className="h-full origin-left rounded-full bg-gradient-to-r from-brand-500 to-brand-700"
+        style={{ width: `${clamped}%`, animation: 'grow .8s cubic-bezier(.16,1,.3,1) both' }}
+      />
     </div>
   )
 }
@@ -93,24 +96,24 @@ export default function Goals() {
   const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex rounded-lg border border-stone-300 p-0.5 text-xs">
+        <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setTab('save_up')}
-            className={`rounded-md px-3 py-1.5 font-medium ${tab === 'save_up' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${tab === 'save_up' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Save Up
           </button>
           <button
             type="button"
             onClick={() => setTab('pay_down')}
-            className={`rounded-md px-3 py-1.5 font-medium ${tab === 'pay_down' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${tab === 'pay_down' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Pay Down
           </button>
@@ -118,21 +121,21 @@ export default function Goals() {
         <button
           type="button"
           onClick={() => setEditingGoal('new')}
-          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800"
+          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
         >
           + Add goal
         </button>
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
 
       {tab === 'save_up' ? (
         saveUpGoals.length === 0 ? (
-          <p className="py-10 text-center text-sm text-stone-500">No save-up goals yet.</p>
+          <p className="py-10 text-center text-sm text-ink-500">No save-up goals yet.</p>
         ) : (
           <div className="space-y-3">
             {saveUpGoals.map((g) => (
@@ -144,7 +147,7 @@ export default function Goals() {
         <>
           {payDownGoals.length > 0 && <PayDownSummary goals={payDownGoals} accountById={accountById} />}
           {payDownGoals.length === 0 ? (
-            <p className="py-10 text-center text-sm text-stone-500">No pay-down goals yet.</p>
+            <p className="py-10 text-center text-sm text-ink-500">No pay-down goals yet.</p>
           ) : (
             <div className="space-y-3">
               {payDownGoals.map((g) => (
@@ -189,13 +192,13 @@ function SaveUpCard({ goal, saved, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="block w-full rounded-xl border border-stone-200 bg-white p-4 text-left hover:bg-stone-50"
+      className="block w-full rounded-2xl border border-ink-200 bg-white shadow-card p-4 text-left hover:bg-ink-50"
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium text-stone-900">
+        <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
         </span>
-        <span className="text-sm text-stone-500">
+        <span className="text-sm text-ink-500">
           {formatAED(saved)} / {formatAED(goal.target_amount)}
         </span>
       </div>
@@ -213,27 +216,27 @@ function PayDownCard({ goal, account, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="block w-full rounded-xl border border-stone-200 bg-white p-4 text-left hover:bg-stone-50"
+      className="block w-full rounded-2xl border border-ink-200 bg-white shadow-card p-4 text-left hover:bg-ink-50"
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium text-stone-900">
+        <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
         </span>
-        <span className="text-sm text-stone-500">
+        <span className="text-sm text-ink-500">
           {formatAED(current)} left of {formatAED(starting)}
         </span>
       </div>
       <ProgressBar pct={pct} />
-      {!account && <p className="mt-1 text-xs text-red-500">Linked account not found — it may have been deleted.</p>}
+      {!account && <p className="mt-1 text-xs text-neg-500">Linked account not found — it may have been deleted.</p>}
     </button>
   )
 }
 
 function StatTile({ label, value }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-      <p className="text-xs text-stone-500">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-stone-900">{value}</p>
+    <div className="rounded-lg border border-ink-200 bg-ink-50 p-3">
+      <p className="text-xs text-ink-500">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold text-ink-900">{value}</p>
     </div>
   )
 }
@@ -251,13 +254,13 @@ function PayDownSummary({ goals, accountById }) {
 
   return (
     <div className="mb-4 grid grid-cols-2 gap-3">
-      <div className="rounded-xl border border-stone-200 bg-white p-4">
-        <p className="text-xs text-stone-500">Current Debt Principal</p>
-        <p className="mt-1 text-lg font-semibold text-stone-900">{formatAED(currentDebtPrincipal)}</p>
+      <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+        <p className="text-xs text-ink-500">Current Debt Principal</p>
+        <p className="mt-1 text-lg font-semibold text-ink-900">{formatAED(currentDebtPrincipal)}</p>
       </div>
-      <div className="rounded-xl border border-stone-200 bg-white p-4">
-        <p className="text-xs text-stone-500">Debt Free Date</p>
-        <p className="mt-1 text-lg font-semibold text-stone-900">
+      <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+        <p className="text-xs text-ink-500">Debt Free Date</p>
+        <p className="mt-1 text-lg font-semibold text-ink-900">
           {debtFreeDate ? formatDate(new Date(`${debtFreeDate}T00:00:00`)) : '—'}
         </p>
       </div>
@@ -284,17 +287,17 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-stone-900">
+          <h2 className="text-lg font-semibold text-ink-900">
             {goal.icon} {goal.name}
           </h2>
-          <button type="button" onClick={onClose} className="text-sm text-stone-400 hover:text-stone-600">
+          <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
             Close
           </button>
         </div>
 
         <div className="my-4">
           <ProgressBar pct={pct} />
-          <div className="mt-2 flex justify-between text-sm text-stone-600">
+          <div className="mt-2 flex justify-between text-sm text-ink-600">
             {isSaveUp ? (
               <>
                 <span>{formatAED(saved)} saved</span>
@@ -307,7 +310,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
               </>
             )}
           </div>
-          {isSaveUp && projected && <p className="mt-1 text-xs text-stone-400">Projected done: {formatDate(projected)}</p>}
+          {isSaveUp && projected && <p className="mt-1 text-xs text-ink-400">Projected done: {formatDate(projected)}</p>}
         </div>
 
         {isSaveUp && (
@@ -324,7 +327,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
           <button
             type="button"
             onClick={onEdit}
-            className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            className="flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
           >
             Edit
           </button>
@@ -332,7 +335,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
             <button
               type="button"
               onClick={onAddContribution}
-              className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800"
+              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
             >
               + Log contribution
             </button>
@@ -341,18 +344,18 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
 
         {isSaveUp && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Contributions</h3>
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Contributions</h3>
             {contributions.length === 0 ? (
-              <p className="text-sm text-stone-500">No contributions logged yet.</p>
+              <p className="text-sm text-ink-500">No contributions logged yet.</p>
             ) : (
-              <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200">
+              <ul className="divide-y divide-ink-100 rounded-2xl border border-ink-200">
                 {contributions.map((c) => (
                   <li key={c.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                    <span className="text-stone-600">
+                    <span className="text-ink-600">
                       {formatDate(new Date(`${c.date}T00:00:00`))}
                       {c.note ? ` · ${c.note}` : ''}
                     </span>
-                    <span className="font-medium text-stone-900">{formatAED(c.amount)}</span>
+                    <span className="font-medium text-ink-900">{formatAED(c.amount)}</span>
                   </li>
                 ))}
               </ul>
@@ -361,7 +364,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
         )}
 
         {!isSaveUp && !account && (
-          <p className="text-sm text-red-500">
+          <p className="text-sm text-neg-500">
             This goal's linked account no longer exists — the value shown falls back to the starting balance.
           </p>
         )}
