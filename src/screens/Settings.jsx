@@ -94,26 +94,26 @@ export default function Settings() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
 
-      <div className="mb-6 rounded-xl border border-stone-200 bg-white p-5">
-        <h2 className="mb-1 text-lg font-semibold text-stone-900">Household split</h2>
-        <p className="mb-4 text-sm text-stone-500">
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+        <h2 className="mb-1 text-lg font-semibold text-ink-900">Household split</h2>
+        <p className="mb-4 text-sm text-ink-500">
           Target contribution ratio, used by Cash Flow's person breakdown. Currently {Math.round(split.shrey * 100)}/
           {Math.round(split.tarika * 100)}.
         </p>
         <form onSubmit={handleSaveSplit} className="flex items-end gap-3">
           <div>
-            <label htmlFor="shrey-split" className="mb-1 block text-xs font-medium text-stone-700">
+            <label htmlFor="shrey-split" className="mb-1 block text-xs font-medium text-ink-700">
               Shrey %
             </label>
             <input
@@ -121,11 +121,11 @@ export default function Settings() {
               type="number"
               value={splitDraft.shrey}
               onChange={(e) => setSplitDraft((s) => ({ ...s, shrey: e.target.value }))}
-              className="w-20 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
           <div>
-            <label htmlFor="tarika-split" className="mb-1 block text-xs font-medium text-stone-700">
+            <label htmlFor="tarika-split" className="mb-1 block text-xs font-medium text-ink-700">
               Tarika %
             </label>
             <input
@@ -133,40 +133,40 @@ export default function Settings() {
               type="number"
               value={splitDraft.tarika}
               onChange={(e) => setSplitDraft((s) => ({ ...s, tarika: e.target.value }))}
-              className="w-20 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
           <button
             type="submit"
             disabled={savingSplit}
-            className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
+            className="rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
           >
             {savingSplit ? 'Saving…' : 'Save'}
           </button>
         </form>
         {splitError && (
-          <p role="alert" className="mt-2 text-sm text-red-600">
+          <p role="alert" className="mt-2 text-sm text-neg-600">
             {splitError}
           </p>
         )}
       </div>
 
-      <div className="mb-6 rounded-xl border border-stone-200 bg-white p-5">
-        <h2 className="mb-1 text-lg font-semibold text-stone-900">Four-account structure</h2>
-        <p className="mb-4 text-sm text-stone-500">
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+        <h2 className="mb-1 text-lg font-semibold text-ink-900">Four-account structure</h2>
+        <p className="mb-4 text-sm text-ink-500">
           Label which bucket each account belongs to. Descriptive only — no money moves automatically.
         </p>
         {accounts.length === 0 ? (
-          <p className="text-sm text-stone-500">No accounts yet.</p>
+          <p className="text-sm text-ink-500">No accounts yet.</p>
         ) : (
           <div className="space-y-2">
             {accounts.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-sm font-medium text-stone-900">{a.name}</span>
+                <span className="min-w-0 truncate text-sm font-medium text-ink-900">{a.name}</span>
                 <select
                   value={a.bucket ?? ''}
                   onChange={(e) => handleBucketChange(a.id, e.target.value)}
-                  className="rounded-lg border border-stone-300 px-2 py-1.5 text-sm focus:border-stone-500 focus:outline-none"
+                  className="rounded-lg border border-ink-300 px-2 py-1.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 >
                   {BUCKETS.map((b) => (
                     <option key={b.value} value={b.value}>
@@ -183,11 +183,11 @@ export default function Settings() {
       <TelegramIntake accounts={accounts} />
 
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-stone-900">Categories</h2>
+        <h2 className="text-lg font-semibold text-ink-900">Categories</h2>
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800"
+          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
         >
           + Add category
         </button>
@@ -199,17 +199,17 @@ export default function Settings() {
           if (items.length === 0) return null
           return (
             <div key={group}>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{group}</h3>
-              <div className="rounded-xl border border-stone-200 bg-white">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
+              <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
                 {items.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => setEditing(c)}
-                    className="flex w-full items-center gap-2 border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
+                    className="flex w-full items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                   >
                     <span>{c.icon || '❓'}</span>
-                    <span className="font-medium text-stone-900">{c.name}</span>
+                    <span className="font-medium text-ink-900">{c.name}</span>
                   </button>
                 ))}
               </div>
@@ -317,10 +317,10 @@ function TelegramIntake({ accounts }) {
   const configured = people.filter((p) => p.telegramUserId.trim()).length
 
   return (
-    <div className="mb-6 rounded-xl border border-stone-200 bg-white p-5">
-      <h2 className="mb-1 text-lg font-semibold text-stone-900">Telegram intake</h2>
-      <p className="mb-4 text-sm text-stone-500">
-        Who the bot accepts spends from. Send <code className="rounded bg-stone-100 px-1">/id</code> to the bot in your
+    <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+      <h2 className="mb-1 text-lg font-semibold text-ink-900">Telegram intake</h2>
+      <p className="mb-4 text-sm text-ink-500">
+        Who the bot accepts spends from. Send <code className="rounded bg-ink-100 px-1">/id</code> to the bot in your
         group to get each number. {configured < 2 && 'Until both are filled in, the bot ignores everything.'}
       </p>
 
@@ -328,7 +328,7 @@ function TelegramIntake({ accounts }) {
         {people.map((person, i) => (
           <div key={PERSON_KEYS[i]} className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor={`tg-person-${i}`} className="mb-1 block text-xs font-medium text-stone-700">
+              <label htmlFor={`tg-person-${i}`} className="mb-1 block text-xs font-medium text-ink-700">
                 Person {i + 1}
               </label>
               <input
@@ -337,11 +337,11 @@ function TelegramIntake({ accounts }) {
                 value={person.person}
                 onChange={(e) => updatePerson(i, { person: e.target.value })}
                 placeholder="Name"
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               />
             </div>
             <div>
-              <label htmlFor={`tg-id-${i}`} className="mb-1 block text-xs font-medium text-stone-700">
+              <label htmlFor={`tg-id-${i}`} className="mb-1 block text-xs font-medium text-ink-700">
                 Telegram user id
               </label>
               <input
@@ -351,7 +351,7 @@ function TelegramIntake({ accounts }) {
                 value={person.telegramUserId}
                 onChange={(e) => updatePerson(i, { telegramUserId: e.target.value })}
                 placeholder="e.g. 123456789"
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               />
             </div>
           </div>
@@ -359,7 +359,7 @@ function TelegramIntake({ accounts }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="tg-threshold" className="mb-1 block text-xs font-medium text-stone-700">
+            <label htmlFor="tg-threshold" className="mb-1 block text-xs font-medium text-ink-700">
               Auto-log above
             </label>
             <div className="flex items-center gap-2">
@@ -370,20 +370,20 @@ function TelegramIntake({ accounts }) {
                 max="100"
                 value={threshold}
                 onChange={(e) => setThreshold(e.target.value)}
-                className="w-20 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               />
-              <span className="text-sm text-stone-500">% confidence</span>
+              <span className="text-sm text-ink-500">% confidence</span>
             </div>
           </div>
           <div>
-            <label htmlFor="tg-default-account" className="mb-1 block text-xs font-medium text-stone-700">
+            <label htmlFor="tg-default-account" className="mb-1 block text-xs font-medium text-ink-700">
               Fallback account
             </label>
             <select
               id="tg-default-account"
               value={defaultAccountId}
               onChange={(e) => setDefaultAccountId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="">Flag for review instead</option>
               {accounts.map((a) => (
@@ -395,7 +395,7 @@ function TelegramIntake({ accounts }) {
           </div>
         </div>
 
-        <p className="text-xs text-stone-400">
+        <p className="text-xs text-ink-400">
           Below the threshold — or when the amount, category or account can&apos;t be resolved — the spend is still
           logged, flagged “Needs review”, and the bot asks you to confirm or fix it.
         </p>
@@ -404,16 +404,16 @@ function TelegramIntake({ accounts }) {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
+            className="rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
-          {status && <span className="text-sm text-stone-500">{status}</span>}
+          {status && <span className="text-sm text-ink-500">{status}</span>}
         </div>
       </form>
 
       {error && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-neg-600">
           {error}
         </p>
       )}

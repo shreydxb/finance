@@ -68,17 +68,17 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-stone-900">{isEdit ? 'Edit goal' : 'Add goal'}</h2>
+        <h2 className="mb-4 text-lg font-semibold text-ink-900">{isEdit ? 'Edit goal' : 'Add goal'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isEdit && (
             <div>
-              <span className="mb-1 block text-sm font-medium text-stone-700">Type</span>
+              <span className="mb-1 block text-sm font-medium text-ink-700">Type</span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setKind('save_up')}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                    kind === 'save_up' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-700 hover:bg-stone-50'
+                    kind === 'save_up' ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                   }`}
                 >
                   Save up
@@ -87,7 +87,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                   type="button"
                   onClick={() => setKind('pay_down')}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                    kind === 'pay_down' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-700 hover:bg-stone-50'
+                    kind === 'pay_down' ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                   }`}
                 >
                   Pay down
@@ -98,7 +98,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
 
           <div className="grid grid-cols-[1fr_5rem] gap-3">
             <div>
-              <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-ink-700">
                 Name
               </label>
               <input
@@ -107,12 +107,12 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 placeholder="e.g. Emergency Fund"
               />
             </div>
             <div>
-              <label htmlFor="g-icon" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="g-icon" className="mb-1 block text-sm font-medium text-ink-700">
                 Icon
               </label>
               <input
@@ -120,7 +120,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                 type="text"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-center text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 placeholder="🎯"
               />
             </div>
@@ -129,7 +129,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
           {kind === 'save_up' ? (
             <>
               <div>
-                <label htmlFor="g-target" className="mb-1 block text-sm font-medium text-stone-700">
+                <label htmlFor="g-target" className="mb-1 block text-sm font-medium text-ink-700">
                   Target amount (AED)
                 </label>
                 <input
@@ -138,12 +138,12 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                   step="0.01"
                   value={targetAmount}
                   onChange={(e) => setTargetAmount(e.target.value)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                   placeholder="0.00"
                 />
               </div>
               <div>
-                <label htmlFor="g-target-date" className="mb-1 block text-sm font-medium text-stone-700">
+                <label htmlFor="g-target-date" className="mb-1 block text-sm font-medium text-ink-700">
                   Target date (optional)
                 </label>
                 <input
@@ -151,27 +151,27 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                   type="date"
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 />
               </div>
             </>
           ) : (
             <div>
-              <label htmlFor="g-account" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="g-account" className="mb-1 block text-sm font-medium text-ink-700">
                 Liability account
               </label>
               {isEdit ? (
-                <p className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-600">
+                <p className="rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-600">
                   {liabilityAccounts.find((a) => a.id === linkedAccountId)?.name ?? 'Linked account'} (can't change after creation)
                 </p>
               ) : liabilityAccounts.length === 0 ? (
-                <p className="text-sm text-stone-500">No liability accounts yet — add one in Accounts first.</p>
+                <p className="text-sm text-ink-500">No liability accounts yet — add one in Accounts first.</p>
               ) : (
                 <select
                   id="g-account"
                   value={linkedAccountId}
                   onChange={(e) => setLinkedAccountId(e.target.value)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 >
                   {liabilityAccounts.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -180,13 +180,13 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                   ))}
                 </select>
               )}
-              <p className="mt-1 text-xs text-stone-400">Progress tracks that account's balance going down, starting from its value now.</p>
+              <p className="mt-1 text-xs text-ink-400">Progress tracks that account's balance going down, starting from its value now.</p>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="g-monthly" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="g-monthly" className="mb-1 block text-sm font-medium text-ink-700">
                 Monthly plan (optional)
               </label>
               <input
@@ -195,12 +195,12 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                 step="0.01"
                 value={monthlyPlan}
                 onChange={(e) => setMonthlyPlan(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 placeholder="0.00"
               />
             </div>
             <div>
-              <label htmlFor="g-priority" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="g-priority" className="mb-1 block text-sm font-medium text-ink-700">
                 Priority (optional)
               </label>
               <input
@@ -209,14 +209,14 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                 min="1"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 placeholder="1"
               />
             </div>
           </div>
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-neg-600">
               {error}
             </p>
           )}
@@ -225,14 +225,14 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
             >
               Cancel
             </button>
@@ -240,7 +240,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
               <button
                 type="button"
                 onClick={onDelete}
-                className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-neg-200 px-3 py-2 text-sm font-medium text-neg-600 hover:bg-neg-50"
               >
                 Delete
               </button>

@@ -25,14 +25,30 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-1 text-xl font-semibold text-stone-900">Our Money v4</h1>
-        <p className="mb-6 text-sm text-stone-500">Sign in to continue</p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-900 px-4">
+      {/* Same radial wash as the net-worth hero, so the first screen someone
+          sees already establishes the app's palette. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(90% 60% at 50% 0%, rgba(37,99,235,.5) 0%, transparent 60%), radial-gradient(70% 50% at 50% 100%, rgba(14,164,114,.25) 0%, transparent 60%)',
+        }}
+      />
+      <div className="animate-rise relative w-full max-w-sm rounded-2xl border border-white/10 bg-white p-8 shadow-pop">
+        <span
+          aria-hidden="true"
+          className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-ink-900 text-base font-bold text-white"
+        >
+          ◈
+        </span>
+        <h1 className="mb-1 text-xl font-semibold tracking-tight text-ink-900">Our Money</h1>
+        <p className="mb-6 text-sm text-ink-500">Sign in to continue</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink-700">
               Email
             </label>
             <input
@@ -42,12 +58,12 @@ export default function Login() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-ink-700">
               Password
             </label>
             <input
@@ -57,12 +73,12 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-neg-600">
               {error}
             </p>
           )}
@@ -70,7 +86,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
+            className="w-full rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
           >
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>

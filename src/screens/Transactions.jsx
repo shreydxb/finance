@@ -12,40 +12,7 @@ import {
 import { listAccounts, OWNERS } from '../lib/accounts'
 import { listCategories } from '../lib/categories'
 import TransactionForm from '../components/TransactionForm'
-
-function formatDateHeading(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00`)
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-}
-
-function formatAmount(amount, currency) {
-  return `${currency} ${Number(amount).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`
-}
-
-function groupByDate(transactions) {
-  const byDate = new Map()
-  for (const t of transactions) {
-    if (!byDate.has(t.date)) byDate.set(t.date, [])
-    byDate.get(t.date).push(t)
-  }
-  return Array.from(byDate.entries()).map(([date, items]) => ({ date, entries: groupBySplit(items) }))
-}
-
-function groupBySplit(items) {
-  const entries = []
-  const seenSplitGroups = new Set()
-  for (const t of items) {
-    if (t.split_group_id) {
-      if (seenSplitGroups.has(t.split_group_id)) continue
-      seenSplitGroups.add(t.split_group_id)
-      const lines = items.filter((x) => x.split_group_id === t.split_group_id)
-      entries.push({ kind: 'split', splitGroupId: t.split_group_id, lines })
-    } else {
-      entries.push({ kind: 'single', transaction: t })
-    }
-  }
-  return entries
-}
+import TransactionList from '../components/TransactionList'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -98,7 +65,6 @@ export default function Transactions() {
   }, [accounts])
 
   const flat = filters.sort === 'amount'
-  const groups = flat ? [{ date: null, entries: groupBySplit(transactions) }] : groupByDate(transactions)
 
   function openEdit(entry) {
     if (entry.kind === 'split') {
@@ -149,6 +115,11 @@ export default function Transactions() {
     await refresh()
   }
 
+  async function handleCategoryChange(id, category) {
+    await updateTransaction(id, { category: category || null })
+    await refresh()
+  }
+
   async function handleDelete() {
     if (editing.splitGroup) {
       await deleteSplitGroup(editing.split_group_id)
@@ -160,18 +131,18 @@ export default function Transactions() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-stone-900">Transactions</h2>
+        <h2 className="text-lg font-semibold text-ink-900">Transactions</h2>
         <button
           type="button"
           onClick={() => setEditing('new')}
           disabled={accounts.length === 0}
-          className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
+          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
         >
           + Add
         </button>
@@ -202,36 +173,21 @@ export default function Transactions() {
       <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
 
-      {groups.length === 0 && !error && (
-        <p className="py-10 text-center text-sm text-stone-500">No transactions match. Try adjusting filters.</p>
-      )}
-
-      <div className="space-y-6">
-        {groups.map((g) => (
-          <div key={g.date ?? 'flat'}>
-            {g.date && (
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">{formatDateHeading(g.date)}</h3>
-            )}
-            <div className="rounded-xl border border-stone-200 bg-white">
-              {g.entries.map((entry) => (
-                <EntryRow
-                  key={entry.kind === 'split' ? entry.splitGroupId : entry.transaction.id}
-                  entry={entry}
-                  accountName={accountName}
-                  showDate={flat}
-                  onClick={() => openEdit(entry)}
-                  onMarkReviewed={handleMarkReviewed}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      <TransactionList
+        transactions={transactions}
+        accountName={accountName}
+        flat={flat}
+        onEntryClick={openEdit}
+        onMarkReviewed={handleMarkReviewed}
+        categories={categories}
+        onCategoryChange={handleCategoryChange}
+        emptyMessage="No transactions match. Try adjusting filters."
+      />
 
       {editing && (
         <TransactionForm
@@ -247,91 +203,25 @@ export default function Transactions() {
   )
 }
 
-function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed }) {
-  if (entry.kind === 'single') {
-    const t = entry.transaction
-    return (
-      <div className="flex items-center border-b border-stone-100 last:border-b-0">
-        <button
-          type="button"
-          onClick={onClick}
-          className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-left text-sm hover:bg-stone-50"
-        >
-          <span className="min-w-0">
-            <span className="flex items-center gap-2">
-              <span className="font-medium text-stone-900">{t.category || 'Uncategorised'}</span>
-              {t.source === 'telegram' && <span title="Logged from Telegram">📥</span>}
-              {t.needs_review && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
-                  Needs review
-                </span>
-              )}
-            </span>
-            <span className="block truncate text-xs text-stone-400">
-              {showDate ? `${formatDateHeading(t.date)} · ` : ''}
-              {t.owner} · {accountName(t.account_id)}
-              {t.note ? ` · ${t.note}` : ''}
-            </span>
-          </span>
-          <span className="shrink-0 pl-2 font-medium text-stone-700">{formatAmount(t.amount, t.currency)}</span>
-        </button>
-        {t.needs_review && (
-          <button
-            type="button"
-            onClick={() => onMarkReviewed(t.id)}
-            className="mr-3 shrink-0 rounded-lg border border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
-          >
-            Looks right
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  const total = entry.lines.reduce((sum, l) => sum + Number(l.amount), 0)
-  const first = entry.lines[0]
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="block w-full border-b border-stone-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-stone-50"
-    >
-      <span className="flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <span className="font-medium text-stone-900">Split</span>
-          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-stone-500">
-            {entry.lines.length} categories
-          </span>
-        </span>
-        <span className="font-medium text-stone-700">{formatAmount(total, first.currency)}</span>
-      </span>
-      <span className="mt-1 block text-xs text-stone-400">
-        {showDate ? `${formatDateHeading(first.date)} · ` : ''}
-        {entry.lines.map((l) => l.category).join(', ')} · {first.owner} · {accountName(first.account_id)}
-      </span>
-    </button>
-  )
-}
-
 function Filters({ filters, setFilters, categories, accounts }) {
   function set(patch) {
     setFilters((f) => ({ ...f, ...patch }))
   }
 
   return (
-    <div className="mb-4 space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+    <div className="mb-4 space-y-2 rounded-2xl border border-ink-200 bg-white shadow-card p-3">
       <input
         type="search"
         value={filters.search}
         onChange={(e) => set({ search: e.target.value })}
         placeholder="Search notes…"
-        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+        className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
       />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <select
           value={filters.category}
           onChange={(e) => set({ category: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="">All categories</option>
           {categories.map((c) => (
@@ -343,7 +233,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
         <select
           value={filters.owner}
           onChange={(e) => set({ owner: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="">All owners</option>
           {OWNERS.map((o) => (
@@ -355,7 +245,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
         <select
           value={filters.accountId}
           onChange={(e) => set({ accountId: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="">All accounts</option>
           {accounts.map((a) => (
@@ -367,7 +257,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
         <select
           value={filters.sort}
           onChange={(e) => set({ sort: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         >
           <option value="date">Sort: Date</option>
           <option value="amount">Sort: Amount</option>
@@ -378,13 +268,13 @@ function Filters({ filters, setFilters, categories, accounts }) {
           type="date"
           value={filters.dateFrom}
           onChange={(e) => set({ dateFrom: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         />
         <input
           type="date"
           value={filters.dateTo}
           onChange={(e) => set({ dateTo: e.target.value })}
-          className="rounded-lg border border-stone-300 px-2 py-2 text-sm focus:border-stone-500 focus:outline-none"
+          className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         />
       </div>
     </div>

@@ -22,26 +22,33 @@ Every push to the production branch triggers a build.
   skips the header check (it logs a warning), so the household allowlist is the
   only gate. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
   *and* re-running `setWebhook` with the identical string, in one sitting — a
-  mismatch is silent apart from 403s in the function log. (Taskiv #22)
-- **No real accounts exist.** `accounts` table is still 0 rows in production.
-  Every intake row flags "which account" until they are added, named as they
-  print on receipts (last-4 digits matter for matching). (Taskiv #6)
+  mismatch is silent apart from 403s in the function log. Needs the bot token
+  and Supabase dashboard/Management-API access no available tool exposes.
+  (Taskiv #22)
+- **No real accounts exist.** `accounts` table has 2 placeholder rows (an
+  "Example" cash account, a Zerodha row) and no liability accounts — still
+  not the real starting balances. Every intake row flags "which account"
+  until they are added, named as they print on receipts (last-4 digits
+  matter for matching). (Taskiv #6)
 - **Zero transactions logged in production, ever** — not one, manual or
   Telegram. Receipt-photo accuracy is unproven; text intake works end to end
   but no real photograph has been through the pipeline yet. See the tuning
   pass in the function README.
-- **Pay-down goals were never seeded.** `goals` table has only "Emergency
-  Fund" — the migration ran and the build task is marked done, but the three
-  debt pay-down goals from the plan doc were never inserted. (Taskiv #20)
 - **FIRE assumptions in Settings are dead.** `fire_swr`/`fire_return` are set,
   `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
-  screen calculates or shows a FIRE number. Decide build-vs-cut. (Taskiv #21)
+  screen calculates or shows a FIRE number. Deliberately not built this pass
+  (Shrey hasn't given a real monthly-expense figure yet). (Taskiv #21)
 - **Supabase Auth: leaked-password protection is disabled** (security
-  advisor WARN). Cheap toggle. (Taskiv #23)
+  advisor WARN). Cheap toggle, but no tool in this session's Supabase MCP
+  reaches Auth config — needs the dashboard. (Taskiv #23)
 
 Resolved since the last pass: Netlify's production branch is confirmed
-pointing at `main` (current deploy is commit-matched to `main` HEAD) — no
-longer an open item.
+pointing at `main` (current deploy is commit-matched to `main` HEAD). The 3
+missing pay-down goals (0% CC loan, car-down-payment EMI, car loan) are now
+seeded (migration `012_seed_paydown_goals.sql`, applied live) — Taskiv #20
+done. `linked_account_id`/`starting_balance` on those goals stay null until
+real liability accounts exist (task #6); link them by hand via the Goals
+edit form once they do, no migration needed for that step.
 
 ## Branches
 

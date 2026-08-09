@@ -82,7 +82,7 @@ export default function Home({ onNavigate }) {
   if (error) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       </div>
@@ -90,7 +90,7 @@ export default function Home({ onNavigate }) {
   }
 
   if (!data) {
-    return <div className="px-6 py-10 text-center text-sm text-stone-500">Loading…</div>
+    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
   const { fxRates } = data
@@ -119,19 +119,21 @@ export default function Home({ onNavigate }) {
   const isEmpty = data.accounts.length === 0 && data.recent.length === 0
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    // `stagger` fades each direct child up in sequence, so the dashboard
+    // assembles itself rather than appearing all at once.
+    <div className="stagger mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <NetWorthHero accounts={data.accounts} fxRates={fxRates} />
 
       {isEmpty && (
-        <div className="mt-6 rounded-xl border border-stone-200 bg-white p-5 text-sm text-stone-600">
-          <p className="mb-1 font-medium text-stone-900">Nothing here yet</p>
+        <div className="mt-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5 text-sm text-ink-600">
+          <p className="mb-1 font-medium text-ink-900">Nothing here yet</p>
           <p>
             Add an account to see your net worth, then log spends from the Transactions tab or straight from Telegram.
           </p>
           <button
             type="button"
             onClick={() => onNavigate?.('Accounts')}
-            className="mt-3 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800"
+            className="mt-3 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
           >
             Add an account
           </button>
@@ -142,7 +144,7 @@ export default function Home({ onNavigate }) {
         <button
           type="button"
           onClick={() => onNavigate?.('Transactions')}
-          className="mt-6 flex w-full items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 hover:bg-amber-100"
+          className="mt-6 flex w-full items-center justify-between rounded-2xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 hover:bg-amber-100"
         >
           <span>
             {data.reviewCount} {data.reviewCount === 1 ? 'transaction needs' : 'transactions need'} a review
@@ -152,7 +154,7 @@ export default function Home({ onNavigate }) {
       )}
 
       <Section title={data.label} action="Cash Flow" onAction={() => onNavigate?.('Cash Flow')}>
-        <div className="grid grid-cols-3 divide-x divide-stone-200 rounded-xl border border-stone-200 bg-white">
+        <div className="grid grid-cols-3 divide-x divide-ink-200 rounded-2xl border border-ink-200 bg-white shadow-card">
           <Stat label="Spent" value={formatAED(spent)} />
           <Stat
             label="Budget"
@@ -230,10 +232,17 @@ function Section({ title, action, onAction, children }) {
   return (
     <section className="mt-6">
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">{title}</h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">{title}</h2>
         {action && (
-          <button type="button" onClick={onAction} className="text-xs font-medium text-stone-500 underline hover:text-stone-700">
-            {action} →
+          <button
+            type="button"
+            onClick={onAction}
+            className="group text-xs font-medium text-ink-500 transition-colors hover:text-brand-600"
+          >
+            {action}{' '}
+            <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-0.5">
+              →
+            </span>
           </button>
         )}
       </div>
@@ -244,35 +253,37 @@ function Section({ title, action, onAction, children }) {
 
 function Stat({ label, value, hint, tone = 'plain' }) {
   return (
-    <div className="px-4 py-3">
-      <p className="text-xs text-stone-500">{label}</p>
-      <p className={`mt-0.5 text-lg font-semibold ${tone === 'bad' ? 'text-red-600' : 'text-stone-900'}`}>{value}</p>
-      {hint && <p className="text-xs text-stone-400">{hint}</p>}
+    <div className="px-4 py-3.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{label}</p>
+      <p className={`mt-1 text-lg font-semibold tracking-tight ${tone === 'bad' ? 'text-neg-600' : 'text-ink-900'}`}>
+        {value}
+      </p>
+      {hint && <p className="mt-0.5 text-xs text-ink-400">{hint}</p>}
     </div>
   )
 }
 
 function Rows({ children }) {
-  return <div className="rounded-xl border border-stone-200 bg-white">{children}</div>
+  return <div className="rounded-2xl border border-ink-200 bg-white shadow-card">{children}</div>
 }
 
 function Row({ left, sub, right, rightSub, urgent, badge }) {
   return (
-    <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3 text-sm last:border-b-0">
+    <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 text-sm last:border-b-0">
       <span className="min-w-0">
         <span className="flex items-center gap-2">
-          <span className="font-medium text-stone-900">{left}</span>
+          <span className="font-medium text-ink-900">{left}</span>
           {badge && (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
               {badge}
             </span>
           )}
         </span>
-        {sub && <span className="block truncate text-xs text-stone-400">{sub}</span>}
+        {sub && <span className="block truncate text-xs text-ink-400">{sub}</span>}
       </span>
       <span className="shrink-0 pl-2 text-right">
-        <span className="block font-medium text-stone-700">{right}</span>
-        {rightSub && <span className={`block text-xs ${urgent ? 'text-red-600' : 'text-stone-400'}`}>{rightSub}</span>}
+        <span className="block font-medium text-ink-700">{right}</span>
+        {rightSub && <span className={`block text-xs ${urgent ? 'text-neg-600' : 'text-ink-400'}`}>{rightSub}</span>}
       </span>
     </div>
   )
@@ -280,7 +291,7 @@ function Row({ left, sub, right, rightSub, urgent, badge }) {
 
 function Empty({ children }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white px-4 py-5 text-center text-sm text-stone-500">
+    <div className="rounded-2xl border border-ink-200 bg-white shadow-card px-4 py-5 text-center text-sm text-ink-500">
       {children}
     </div>
   )
@@ -301,19 +312,22 @@ function GoalRow({ goal, saved, account }) {
       : 0
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4">
+    <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
       <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="font-medium text-stone-900">
+        <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
         </span>
-        <span className="text-stone-500">
+        <span className="text-ink-500">
           {isSaveUp
             ? `${formatAED(saved)} / ${formatAED(goal.target_amount)}`
             : `${formatAED(current)} left of ${formatAED(starting)}`}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-stone-100">
-        <div className="h-full rounded-full bg-[#2a78d6]" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+      <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+        <div
+          className="h-full origin-left rounded-full bg-gradient-to-r from-brand-500 to-brand-700"
+          style={{ width: `${Math.max(0, Math.min(100, pct))}%`, animation: 'grow .8s cubic-bezier(.16,1,.3,1) both' }}
+        />
       </div>
     </div>
   )

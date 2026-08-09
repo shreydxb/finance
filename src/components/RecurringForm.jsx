@@ -59,10 +59,10 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-stone-900">{entry ? 'Edit recurring' : 'Add recurring'}</h2>
+        <h2 className="mb-4 text-lg font-semibold text-ink-900">{entry ? 'Edit recurring' : 'Add recurring'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="r-name" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="r-name" className="mb-1 block text-sm font-medium text-ink-700">
               Name
             </label>
             <input
@@ -71,21 +71,21 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="e.g. Car Loan EMI"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="r-kind" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="r-kind" className="mb-1 block text-sm font-medium text-ink-700">
                 Kind
               </label>
               <select
                 id="r-kind"
                 value={kind}
                 onChange={(e) => setKind(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {RECURRING_KINDS.map((k) => (
                   <option key={k} value={k}>
@@ -95,14 +95,14 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
               </select>
             </div>
             <div>
-              <label htmlFor="r-owner" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="r-owner" className="mb-1 block text-sm font-medium text-ink-700">
                 Owner
               </label>
               <select
                 id="r-owner"
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {OWNERS.map((o) => (
                   <option key={o} value={o}>
@@ -115,7 +115,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
 
           <div className="grid grid-cols-[1fr_5rem] gap-3">
             <div>
-              <label htmlFor="r-amount" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="r-amount" className="mb-1 block text-sm font-medium text-ink-700">
                 Amount
               </label>
               <input
@@ -124,19 +124,19 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 placeholder="0.00"
               />
             </div>
             <div>
-              <label htmlFor="r-currency" className="mb-1 block text-sm font-medium text-stone-700">
+              <label htmlFor="r-currency" className="mb-1 block text-sm font-medium text-ink-700">
                 Currency
               </label>
               <select
                 id="r-currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {['AED', 'USD', 'INR'].map((c) => (
                   <option key={c} value={c}>
@@ -148,7 +148,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
           </div>
 
           <div>
-            <label htmlFor="r-day" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="r-day" className="mb-1 block text-sm font-medium text-ink-700">
               Day of month
             </label>
             <input
@@ -158,14 +158,14 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
               max="31"
               value={dayOfMonth}
               onChange={(e) => setDayOfMonth(e.target.value)}
-              className="w-24 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-24 rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="e.g. 6"
             />
-            <p className="mt-1 text-xs text-stone-400">Leave blank if you don't know the exact day yet.</p>
+            <p className="mt-1 text-xs text-ink-400">Leave blank if you don't know the exact day yet.</p>
           </div>
 
           <div>
-            <span className="mb-1 block text-sm font-medium text-stone-700">Months</span>
+            <span className="mb-1 block text-sm font-medium text-ink-700">Months</span>
             <div className="grid grid-cols-6 gap-1.5">
               {MONTH_NAMES.map((label, i) => {
                 const m = i + 1
@@ -176,7 +176,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
                     type="button"
                     onClick={() => toggleMonth(m)}
                     className={`rounded-lg border px-1 py-1.5 text-xs font-medium ${
-                      active ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-700 hover:bg-stone-50'
+                      active ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                     }`}
                   >
                     {label}
@@ -184,18 +184,18 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
                 )
               })}
             </div>
-            <p className="mt-1 text-xs text-stone-400">Leave all unselected for "every month".</p>
+            <p className="mt-1 text-xs text-ink-400">Leave all unselected for "every month".</p>
           </div>
 
           <div>
-            <label htmlFor="r-linked" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="r-linked" className="mb-1 block text-sm font-medium text-ink-700">
               Linked account
             </label>
             <select
               id="r-linked"
               value={linkedAccountId}
               onChange={(e) => setLinkedAccountId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="">None</option>
               {accounts.map((a) => (
@@ -207,7 +207,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
           </div>
 
           <div>
-            <label htmlFor="r-end" className="mb-1 block text-sm font-medium text-stone-700">
+            <label htmlFor="r-end" className="mb-1 block text-sm font-medium text-ink-700">
               Ends after (optional)
             </label>
             <input
@@ -215,17 +215,17 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-stone-700">
-            <input type="checkbox" checked={autopay} onChange={(e) => setAutopay(e.target.checked)} className="h-4 w-4 rounded border-stone-300" />
+          <label className="flex items-center gap-2 text-sm text-ink-700">
+            <input type="checkbox" checked={autopay} onChange={(e) => setAutopay(e.target.checked)} className="h-4 w-4 rounded border-ink-300" />
             Autopay
           </label>
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-neg-600">
               {error}
             </p>
           )}
@@ -234,14 +234,14 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
             >
               Cancel
             </button>
@@ -249,7 +249,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
               <button
                 type="button"
                 onClick={onDelete}
-                className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-neg-200 px-3 py-2 text-sm font-medium text-neg-600 hover:bg-neg-50"
               >
                 Delete
               </button>
