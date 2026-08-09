@@ -1,8 +1,14 @@
 import { useState } from 'react'
 
-export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, onDelete }) {
+/**
+ * `fixedKind` locks the form to one kind with no toggle shown — used now that
+ * Goals (save_up) and Debts (pay_down) are separate screens, so which kind
+ * you're creating is implied by which screen you're on, not a choice inside
+ * the form.
+ */
+export default function GoalForm({ goal, fixedKind, liabilityAccounts, onSave, onCancel, onDelete }) {
   const isEdit = Boolean(goal)
-  const [kind, setKind] = useState(goal?.kind ?? 'save_up')
+  const [kind, setKind] = useState(goal?.kind ?? fixedKind ?? 'save_up')
   const [name, setName] = useState(goal?.name ?? '')
   const [icon, setIcon] = useState(goal?.icon ?? '')
   const [targetAmount, setTargetAmount] = useState(goal ? String(goal.target_amount) : '')
@@ -68,9 +74,11 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-ink-900">{isEdit ? 'Edit goal' : 'Add goal'}</h2>
+        <h2 className="mb-4 text-lg font-semibold text-ink-900">
+          {isEdit ? `Edit ${kind === 'save_up' ? 'goal' : 'debt'}` : fixedKind === 'pay_down' ? 'Add debt' : 'Add goal'}
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isEdit && (
+          {!isEdit && !fixedKind && (
             <div>
               <span className="mb-1 block text-sm font-medium text-ink-700">Type</span>
               <div className="grid grid-cols-2 gap-2">

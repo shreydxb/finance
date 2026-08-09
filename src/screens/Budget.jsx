@@ -168,10 +168,10 @@ export default function Budget() {
                   <span className="truncate font-medium text-ink-900">
                     {r.category.icon} {r.category.name}
                   </span>
-                  <span className="w-20 text-right text-ink-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-                  <span className="w-20 text-right text-ink-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-                  <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
-                    {r.remaining.toLocaleString('en-AE', { maximumFractionDigits: 0 })}
+                  <span className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
+                  <span className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
+                  <span className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
+                    {fmt(r.remaining)}
                   </span>
                 </button>
               ))}
@@ -182,8 +182,8 @@ export default function Budget() {
 
       <div className="mb-6">
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Contributions</h3>
-        <ContributionSubsection title="Save up" rows={saveUpContribRows} />
-        <ContributionSubsection title="Pay down" rows={payDownContribRows} />
+        <ContributionSubsection title="Save up" rows={saveUpContribRows} fmt={fmt} />
+        <ContributionSubsection title="Pay down" rows={payDownContribRows} fmt={fmt} />
       </div>
 
       {unbudgeted.length > 0 && (
@@ -219,7 +219,7 @@ export default function Budget() {
   )
 }
 
-function ContributionSubsection({ title, rows }) {
+function ContributionSubsection({ title, rows, fmt }) {
   return (
     <div className="mb-3 rounded-2xl border border-ink-200 bg-surface shadow-card">
       <div className="border-b border-ink-100 px-4 py-2 text-xs font-semibold text-ink-500">{title}</div>
@@ -242,10 +242,10 @@ function ContributionSubsection({ title, rows }) {
               <span className="truncate font-medium text-ink-900">
                 {r.goal.icon} {r.goal.name}
               </span>
-              <span className="w-20 text-right text-ink-600">{r.planned.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-              <span className="w-20 text-right text-ink-600">{r.actual.toLocaleString('en-AE', { maximumFractionDigits: 0 })}</span>
-              <span className={`w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
-                {r.remaining.toLocaleString('en-AE', { maximumFractionDigits: 0 })}
+              <span className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
+              <span className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
+              <span className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
+                {fmt(r.remaining)}
               </span>
             </div>
           ))}

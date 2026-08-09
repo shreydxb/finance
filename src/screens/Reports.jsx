@@ -19,6 +19,7 @@ import {
 import { CHART_PALETTE, colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import BreakdownBars from '../components/BreakdownBars'
+import SankeyChart from '../components/SankeyChart'
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -116,6 +117,14 @@ export default function Reports() {
     return groupsFromMap(sumByCategoryAED(transactions, fxRates))
   }, [transactions, fxRates, groupingMode, categoryGroupByName])
 
+  // Always by category-group (Needs/Wants/Savings), regardless of Spending's
+  // own toggle — a Sankey with 8+ individual-category destinations turns into
+  // an unreadable tangle, where 3-6 groups reads as an actual flow.
+  const sankeyDestGroups = useMemo(
+    () => groupsFromMap(sumByGroupAED(transactions, fxRates, categoryGroupByName)),
+    [transactions, fxRates, categoryGroupByName]
+  )
+
   const stats = useMemo(() => transactionStats(transactions), [transactions])
   const trendGroups = useMemo(
     () => monthlyTrend(trendTransactions, fxRates, TREND_MONTHS, new Date(`${to}T00:00:00`)).map((b) => ({ key: b.key, label: b.label, value: b.value, color: CHART_PALETTE[0] })),
@@ -209,19 +218,34 @@ export default function Reports() {
       </div>
 
       {section === 'cashflow' && (
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="space-y-5">
           <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
-            <h3 className="mb-4 text-sm font-semibold text-ink-900">In vs out</h3>
-            <FlowBar label="Income" value={totalIncome} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-pos-500)" fmt={fmt} />
-            <FlowBar label="Expenses" value={totalExpenses} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-neg-500)" fmt={fmt} />
-            <div className="mt-4 border-t border-ink-100 pt-3">
-              <FlowBar label="Savings" value={Math.max(0, savings)} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-brand-500)" fmt={fmt} />
-            </div>
-            {totalIncome === 0 && totalExpenses === 0 && (
-              <p className="mt-3 text-xs text-ink-400">Nothing logged for {label} yet.</p>
+            <h3 className="mb-1 text-sm font-semibold text-ink-900">Where it came from, where it went</h3>
+            <p className="mb-4 text-xs text-ink-400">{label}</p>
+            {totalIncome === 0 && totalExpenses === 0 ? (
+              <p className="py-10 text-center text-sm text-ink-500">Nothing logged for {label} yet.</p>
+            ) : (
+              <SankeyChart
+                sources={incomeBySource}
+                destinations={sankeyDestGroups}
+                hubLabel="Income"
+                hubValue={totalIncome}
+                formatValue={fmt}
+              />
             )}
           </div>
-          <PersonBreakdown incomeByPerson={incomeByPerson} totalIncome={totalIncome} target={splitTarget} />
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+              <h3 className="mb-4 text-sm font-semibold text-ink-900">In vs out</h3>
+              <FlowBar label="Income" value={totalIncome} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-pos-500)" fmt={fmt} />
+              <FlowBar label="Expenses" value={totalExpenses} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-neg-500)" fmt={fmt} />
+              <div className="mt-4 border-t border-ink-100 pt-3">
+                <FlowBar label="Savings" value={Math.max(0, savings)} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-brand-500)" fmt={fmt} />
+              </div>
+            </div>
+            <PersonBreakdown incomeByPerson={incomeByPerson} totalIncome={totalIncome} target={splitTarget} />
+          </div>
         </div>
       )}
 

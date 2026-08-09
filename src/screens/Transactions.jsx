@@ -11,6 +11,8 @@ import {
 } from '../lib/transactions'
 import { listAccounts, OWNERS } from '../lib/accounts'
 import { listCategories } from '../lib/categories'
+import { transactionStats, transactionsToCSV } from '../lib/reports'
+import { usePrefs } from '../lib/PrefsContext'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'
 
@@ -26,6 +28,7 @@ const EMPTY_FILTERS = {
 }
 
 export default function Transactions() {
+  const { fmt } = usePrefs()
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
   const [categories, setCategories] = useState([])
@@ -69,6 +72,18 @@ export default function Transactions() {
   }, [accounts])
 
   const flat = filters.sort === 'amount'
+  const stats = transactionStats(transactions)
+
+  function downloadCSV() {
+    const csv = transactionsToCSV(transactions)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'transactions.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   function openEdit(entry) {
     if (entry.kind === 'split') {
@@ -139,9 +154,9 @@ export default function Transactions() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-ink-900">Transactions</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-ink-900">Transactions</h2>
         <button
           type="button"
           onClick={() => setEditing('new')}
@@ -174,24 +189,47 @@ export default function Transactions() {
         </div>
       )}
 
-      <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
-
       {error && (
         <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
       )}
 
-      <TransactionList
-        transactions={transactions}
-        accountName={accountName}
-        flat={flat}
-        onEntryClick={openEdit}
-        onMarkReviewed={handleMarkReviewed}
-        categories={categories}
-        onCategoryChange={handleCategoryChange}
-        emptyMessage="No transactions match. Try adjusting filters."
-      />
+      <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
+        <div>
+          <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
+
+          <TransactionList
+            transactions={transactions}
+            accountName={accountName}
+            flat={flat}
+            onEntryClick={openEdit}
+            onMarkReviewed={handleMarkReviewed}
+            categories={categories}
+            onCategoryChange={handleCategoryChange}
+            emptyMessage="No transactions match. Try adjusting filters."
+          />
+        </div>
+
+        <aside className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-card lg:sticky lg:top-24 lg:h-fit">
+          <h3 className="mb-3 text-sm font-semibold text-ink-900">Summary</h3>
+          <dl className="space-y-2.5 text-sm">
+            <SummaryStat label="Transactions" value={stats.count} />
+            <SummaryStat label="Largest" value={fmt(stats.largest)} />
+            <SummaryStat label="Average" value={fmt(stats.average)} />
+            <SummaryStat label="First transaction" value={stats.first ?? '—'} />
+            <SummaryStat label="Last transaction" value={stats.last ?? '—'} />
+          </dl>
+          <button
+            type="button"
+            onClick={downloadCSV}
+            disabled={transactions.length === 0}
+            className="mt-4 w-full rounded-lg border border-ink-300 px-3 py-1.5 text-xs font-medium text-ink-600 transition-colors hover:bg-ink-100 disabled:opacity-50"
+          >
+            Download CSV
+          </button>
+        </aside>
+      </div>
 
       {editing && (
         <TransactionForm
@@ -203,6 +241,15 @@ export default function Transactions() {
           onDelete={handleDelete}
         />
       )}
+    </div>
+  )
+}
+
+function SummaryStat({ label, value }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <dt className="text-ink-500">{label}</dt>
+      <dd className="tnum font-medium text-ink-900">{value}</dd>
     </div>
   )
 }

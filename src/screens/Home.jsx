@@ -110,7 +110,9 @@ export default function Home({ onNavigate }) {
     savedByGoal.set(c.goal_id, (savedByGoal.get(c.goal_id) || 0) + Number(c.amount))
   }
   const accountById = new Map(data.accounts.map((a) => [a.id, a]))
-  const topGoals = data.goals.slice(0, TOP_GOALS)
+  // This widget is "what you're saving toward" — debts have their own Home
+  // tile via... nowhere yet, but at minimum they shouldn't masquerade as goals.
+  const topGoals = data.goals.filter((g) => g.kind === 'save_up').slice(0, TOP_GOALS)
 
   const investmentAccounts = data.accounts.filter((a) => a.type === 'investment')
   const investmentsTotal = investmentAccounts.reduce(
