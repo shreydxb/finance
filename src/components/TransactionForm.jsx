@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { OWNERS } from '../lib/accounts'
+import { matchRule } from '../lib/categoryRules'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -9,7 +10,17 @@ function sumSplits(lines) {
   return lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0)
 }
 
-export default function TransactionForm({ transaction, prefill, accounts, categories, onSave, onCancel, onDelete }) {
+export default function TransactionForm({
+  transaction,
+  prefill,
+  accounts,
+  categories,
+  rules = [],
+  onSave,
+  onCancel,
+  onDelete,
+  onCreateRule,
+}) {
   const isEdit = Boolean(transaction)
   const isSplitEdit = isEdit && transaction.splitGroup
 
@@ -17,9 +28,16 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
   const [amount, setAmount] = useState(transaction && !isSplitEdit ? String(transaction.amount) : '')
   const [currency, setCurrency] = useState(transaction?.currency ?? prefill?.currency ?? 'AED')
   const [accountId, setAccountId] = useState(transaction?.account_id ?? prefill?.account_id ?? accounts[0]?.id ?? '')
-  const [category, setCategory] = useState(transaction && !isSplitEdit ? transaction.category : categories[0]?.name ?? '')
+  const initialNote = transaction?.note ?? ''
+  const initialRuleMatch = !isEdit ? matchRule(rules, initialNote) : null
+  const [category, setCategory] = useState(
+    transaction && !isSplitEdit ? transaction.category : initialRuleMatch?.category ?? categories[0]?.name ?? ''
+  )
   const [owner, setOwner] = useState(transaction?.owner ?? prefill?.owner ?? OWNERS[0])
-  const [note, setNote] = useState(transaction?.note ?? '')
+  const [note, setNote] = useState(initialNote)
+  const [categoryTouched, setCategoryTouched] = useState(false)
+  const [appliedRule, setAppliedRule] = useState(initialRuleMatch)
+  const [saveAsRule, setSaveAsRule] = useState(false)
   const [tagsInput, setTagsInput] = useState(transaction?.tags?.join(', ') ?? '')
   const [split, setSplit] = useState(Boolean(isSplitEdit))
   const [splitLines, setSplitLines] = useState(
@@ -45,6 +63,14 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
 
   function removeSplitLine(index) {
     setSplitLines((lines) => lines.filter((_, i) => i !== index))
+  }
+
+  function handleNoteChange(value) {
+    setNote(value)
+    if (isEdit || split || categoryTouched) return
+    const match = matchRule(rules, value)
+    setAppliedRule(match)
+    if (match) setCategory(match.category)
   }
 
   async function handleSubmit(e) {
@@ -88,6 +114,9 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
         })
       } else {
         await onSave({ split: false, fields: { ...baseFields, amount: Number(amount), category } })
+        if (saveAsRule && onCreateRule && note.trim()) {
+          await onCreateRule(note.trim(), category)
+        }
       }
     } catch {
       setError('Could not save. Try again.')
@@ -211,7 +240,10 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
               <select
                 id="category"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  setCategoryTouched(true)
+                  setCategory(e.target.value)
+                }}
                 className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               >
                 {categories.map((c) => (
@@ -220,6 +252,11 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
                   </option>
                 ))}
               </select>
+              {!isEdit && appliedRule && (
+                <p className="mt-1 text-xs text-ink-500">
+                  Auto-applied by rule: “{appliedRule.pattern}” → {appliedRule.category}
+                </p>
+              )}
             </div>
           ) : (
             <div>
@@ -289,11 +326,23 @@ export default function TransactionForm({ transaction, prefill, accounts, catego
               id="note"
               type="text"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => handleNoteChange(e.target.value)}
               className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
               placeholder="optional"
             />
           </div>
+
+          {!isEdit && !split && note.trim() && category && onCreateRule && (
+            <label className="flex items-start gap-2 text-xs text-ink-600">
+              <input
+                type="checkbox"
+                checked={saveAsRule}
+                onChange={(e) => setSaveAsRule(e.target.checked)}
+                className="mt-0.5"
+              />
+              Always categorize notes containing “{note.trim()}” as {category}
+            </label>
+          )}
 
           <div>
             <label htmlFor="tags" className="mb-1 block text-sm font-medium text-ink-700">

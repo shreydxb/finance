@@ -33,6 +33,10 @@ export function groupBySplit(items) {
 }
 
 /** Grouped-by-date (or flat) transaction list, shared by Transactions.jsx and the account detail view. */
+export function entryKey(entry) {
+  return entry.kind === 'split' ? entry.splitGroupId : entry.transaction.id
+}
+
 export default function TransactionList({
   transactions,
   accountName,
@@ -42,6 +46,9 @@ export default function TransactionList({
   emptyMessage,
   categories,
   onCategoryChange,
+  selectable = false,
+  selectedIds,
+  onToggleSelect,
 }) {
   const groups = flat ? [{ date: null, entries: groupBySplit(transactions) }] : groupByDate(transactions)
 
@@ -59,7 +66,7 @@ export default function TransactionList({
           <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
             {g.entries.map((entry) => (
               <EntryRow
-                key={entry.kind === 'split' ? entry.splitGroupId : entry.transaction.id}
+                key={entryKey(entry)}
                 entry={entry}
                 accountName={accountName}
                 showDate={flat}
@@ -67,6 +74,9 @@ export default function TransactionList({
                 onMarkReviewed={onMarkReviewed}
                 categories={categories}
                 onCategoryChange={onCategoryChange}
+                selectable={selectable}
+                selected={selectable && selectedIds?.has(entryKey(entry))}
+                onToggleSelect={onToggleSelect}
               />
             ))}
           </div>
@@ -104,12 +114,37 @@ function CategorySelect({ transaction, categories, onCategoryChange }) {
   )
 }
 
-function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed, categories, onCategoryChange }) {
+function SelectCheckbox({ selected, onToggle }) {
+  return (
+    <input
+      type="checkbox"
+      checked={Boolean(selected)}
+      onClick={(e) => e.stopPropagation()}
+      onChange={onToggle}
+      className="ml-4 shrink-0"
+      aria-label="Select transaction"
+    />
+  )
+}
+
+function EntryRow({
+  entry,
+  accountName,
+  showDate,
+  onClick,
+  onMarkReviewed,
+  categories,
+  onCategoryChange,
+  selectable,
+  selected,
+  onToggleSelect,
+}) {
   if (entry.kind === 'single') {
     const t = entry.transaction
     const canInlineEdit = categories && onCategoryChange
     return (
       <div className="flex items-center border-b border-ink-100 last:border-b-0">
+        {selectable && <SelectCheckbox selected={selected} onToggle={() => onToggleSelect(entryKey(entry))} />}
         <button
           type="button"
           onClick={onClick}
@@ -153,24 +188,23 @@ function EntryRow({ entry, accountName, showDate, onClick, onMarkReviewed, categ
   const total = entry.lines.reduce((sum, l) => sum + Number(l.amount), 0)
   const first = entry.lines[0]
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="block w-full border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
-    >
-      <span className="flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <span className="font-medium text-ink-900">Split</span>
-          <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-500">
-            {entry.lines.length} categories
+    <div className="flex items-center border-b border-ink-100 last:border-b-0">
+      {selectable && <SelectCheckbox selected={selected} onToggle={() => onToggleSelect(entryKey(entry))} />}
+      <button type="button" onClick={onClick} className="block min-w-0 flex-1 px-4 py-3 text-left text-sm hover:bg-ink-50">
+        <span className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <span className="font-medium text-ink-900">Split</span>
+            <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-500">
+              {entry.lines.length} categories
+            </span>
           </span>
+          <span className="font-medium text-ink-700">{formatAmount(total, first.currency)}</span>
         </span>
-        <span className="font-medium text-ink-700">{formatAmount(total, first.currency)}</span>
-      </span>
-      <span className="mt-1 block text-xs text-ink-400">
-        {showDate ? `${formatDateHeading(first.date)} · ` : ''}
-        {entry.lines.map((l) => l.category).join(', ')} · {first.owner} · {accountName(first.account_id)}
-      </span>
-    </button>
+        <span className="mt-1 block text-xs text-ink-400">
+          {showDate ? `${formatDateHeading(first.date)} · ` : ''}
+          {entry.lines.map((l) => l.category).join(', ')} · {first.owner} · {accountName(first.account_id)}
+        </span>
+      </button>
+    </div>
   )
 }
