@@ -6,15 +6,11 @@ import { listIncome } from '../lib/income'
 import { listGoals, listAllContributions } from '../lib/goals'
 import { getSetting, toAED } from '../lib/settings'
 import { currentYearMonth, monthRange, monthLabel, shiftMonth } from '../lib/period'
+import { usePrefs } from '../lib/PrefsContext'
 import BudgetLimitForm from '../components/BudgetLimitForm'
 
-function formatAED(n) {
-  const sign = n < 0 ? '-' : ''
-  const abs = Math.abs(n)
-  return `AED ${sign}${abs.toLocaleString('en-AE', { maximumFractionDigits: 0 })}`
-}
-
 export default function Budget() {
+  const { fmt } = usePrefs()
   const [ym, setYm] = useState(currentYearMonth())
   const [categories, setCategories] = useState([])
   const [budgets, setBudgets] = useState([])
@@ -108,15 +104,15 @@ export default function Budget() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-6">
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-6">
         <p className="text-sm text-ink-500">Left to budget</p>
-        <p className="mt-1 text-4xl font-semibold text-ink-900">{formatAED(leftToBudget)}</p>
+        <p className="mt-1 text-4xl font-semibold text-ink-900">{fmt(leftToBudget)}</p>
         <p className="mt-2 text-xs text-ink-400">
-          Income logged this month {formatAED(totalIncome)} − budgeted {formatAED(totalBudgeted)} − goal contributions {formatAED(totalContributions)}
+          Income logged this month {fmt(totalIncome)} − budgeted {fmt(totalBudgeted)} − goal contributions {fmt(totalContributions)}
         </p>
       </div>
 
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-white shadow-card px-4 py-3">
+      <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-surface shadow-card px-4 py-3">
         <button
           type="button"
           onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, -1))}
@@ -155,7 +151,7 @@ export default function Budget() {
         return (
           <div key={group} className="mb-6">
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
-            <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+            <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
               <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
                 <span>Category</span>
                 <span className="w-20 text-right">Planned</span>
@@ -193,7 +189,7 @@ export default function Budget() {
       {unbudgeted.length > 0 && (
         <div className="mb-6">
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Not yet budgeted</h3>
-          <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+          <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
             {unbudgeted.map((r) => (
               <button
                 key={r.category.id}
@@ -225,7 +221,7 @@ export default function Budget() {
 
 function ContributionSubsection({ title, rows }) {
   return (
-    <div className="mb-3 rounded-2xl border border-ink-200 bg-white shadow-card">
+    <div className="mb-3 rounded-2xl border border-ink-200 bg-surface shadow-card">
       <div className="border-b border-ink-100 px-4 py-2 text-xs font-semibold text-ink-500">{title}</div>
       {rows.length === 0 ? (
         <p className="px-4 py-3 text-sm text-ink-500">

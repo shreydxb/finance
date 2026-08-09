@@ -105,7 +105,7 @@ export default function Settings() {
         </p>
       )}
 
-      <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
         <h2 className="mb-1 text-lg font-semibold text-ink-900">Household split</h2>
         <p className="mb-4 text-sm text-ink-500">
           Target contribution ratio, used by Cash Flow's person breakdown. Currently {Math.round(split.shrey * 100)}/
@@ -139,7 +139,7 @@ export default function Settings() {
           <button
             type="submit"
             disabled={savingSplit}
-            className="rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
+            className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
           >
             {savingSplit ? 'Saving…' : 'Save'}
           </button>
@@ -151,7 +151,7 @@ export default function Settings() {
         )}
       </div>
 
-      <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
         <h2 className="mb-1 text-lg font-semibold text-ink-900">Four-account structure</h2>
         <p className="mb-4 text-sm text-ink-500">
           Label which bucket each account belongs to. Descriptive only — no money moves automatically.
@@ -187,7 +187,7 @@ export default function Settings() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
         >
           + Add category
         </button>
@@ -200,7 +200,7 @@ export default function Settings() {
           return (
             <div key={group}>
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
-              <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+              <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
                 {items.map((c) => (
                   <button
                     key={c.id}
@@ -317,7 +317,7 @@ function TelegramIntake({ accounts }) {
   const configured = people.filter((p) => p.telegramUserId.trim()).length
 
   return (
-    <div className="mb-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+    <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
       <h2 className="mb-1 text-lg font-semibold text-ink-900">Telegram intake</h2>
       <p className="mb-4 text-sm text-ink-500">
         Who the bot accepts spends from. Send <code className="rounded bg-ink-100 px-1">/id</code> to the bot in your
@@ -404,7 +404,7 @@ function TelegramIntake({ accounts }) {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
+            className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

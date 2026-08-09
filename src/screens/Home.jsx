@@ -7,17 +7,12 @@ import { listGoals, listAllContributions } from '../lib/goals'
 import { listAccounts } from '../lib/accounts'
 import { getSetting, toAED } from '../lib/settings'
 import { currentYearMonth, monthLabel, monthRange } from '../lib/period'
+import { usePrefs } from '../lib/PrefsContext'
 import NetWorthHero from '../components/NetWorthHero'
 
 const DUE_SOON_DAYS = 14
 const RECENT_LIMIT = 5
 const TOP_GOALS = 3
-
-function formatAED(n) {
-  const sign = n < 0 ? '-' : ''
-  const abs = Math.abs(n)
-  return `AED ${sign}${abs.toLocaleString('en-AE', { maximumFractionDigits: 0 })}`
-}
 
 function formatDay(dateStr) {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
@@ -31,6 +26,7 @@ function formatDueIn(days) {
 }
 
 export default function Home({ onNavigate }) {
+  const { fmt } = usePrefs()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
@@ -116,121 +112,107 @@ export default function Home({ onNavigate }) {
   const accountById = new Map(data.accounts.map((a) => [a.id, a]))
   const topGoals = data.goals.slice(0, TOP_GOALS)
 
+  const investmentAccounts = data.accounts.filter((a) => a.type === 'investment')
+  const investmentsTotal = investmentAccounts.reduce(
+    (sum, a) => sum + toAED(Number(a.value) || 0, a.currency, fxRates),
+    0
+  )
+  const investmentCount = investmentAccounts.length
+
   const isEmpty = data.accounts.length === 0 && data.recent.length === 0
 
   return (
-    // `stagger` fades each direct child up in sequence, so the dashboard
-    // assembles itself rather than appearing all at once.
-    <div className="stagger mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <NetWorthHero accounts={data.accounts} fxRates={fxRates} />
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      {/* Desktop-first dashboard: hero + month stats span the top, then the
+          three feeds sit side by side instead of stacking into a long phone
+          column. Collapses to one column under lg. */}
+      <div className="stagger">
+        <NetWorthHero accounts={data.accounts} fxRates={fxRates} />
 
-      {isEmpty && (
-        <div className="mt-6 rounded-2xl border border-ink-200 bg-white shadow-card p-5 text-sm text-ink-600">
-          <p className="mb-1 font-medium text-ink-900">Nothing here yet</p>
-          <p>
-            Add an account to see your net worth, then log spends from the Transactions tab or straight from Telegram.
-          </p>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('Accounts')}
-            className="mt-3 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-          >
-            Add an account
-          </button>
-        </div>
-      )}
-
-      {data.reviewCount > 0 && (
-        <button
-          type="button"
-          onClick={() => onNavigate?.('Transactions')}
-          className="mt-6 flex w-full items-center justify-between rounded-2xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 hover:bg-amber-100"
-        >
-          <span>
-            {data.reviewCount} {data.reviewCount === 1 ? 'transaction needs' : 'transactions need'} a review
-          </span>
-          <span aria-hidden="true">→</span>
-        </button>
-      )}
-
-      <Section title={data.label} action="Cash Flow" onAction={() => onNavigate?.('Cash Flow')}>
-        <div className="grid grid-cols-3 divide-x divide-ink-200 rounded-2xl border border-ink-200 bg-white shadow-card">
-          <Stat label="Spent" value={formatAED(spent)} />
-          <Stat
-            label="Budget"
-            value={budgeted > 0 ? formatAED(budgeted) : '—'}
-            hint={budgeted > 0 ? `${formatAED(Math.max(0, budgeted - spent))} left` : 'not set'}
-          />
-          <Stat
-            label="Savings rate"
-            value={savingsRate === null ? '—' : `${savingsRate.toFixed(0)}%`}
-            hint={earned > 0 ? `of ${formatAED(earned)}` : 'no income logged'}
-            tone={savingsRate !== null && savingsRate < 0 ? 'bad' : 'plain'}
-          />
-        </div>
-      </Section>
-
-      <Section title="Due soon" action="Recurring" onAction={() => onNavigate?.('Recurring')}>
-        {dueSoon.length === 0 ? (
-          <Empty>Nothing due in the next {DUE_SOON_DAYS} days.</Empty>
-        ) : (
-          <Rows>
-            {dueSoon.map(({ entry, days }) => (
-              <Row
-                key={entry.id}
-                left={entry.name}
-                sub={`${entry.kind === 'emi' ? 'EMI' : 'Bill'}${entry.autopay ? ' · autopay' : ''}`}
-                right={formatAED(entry.amount)}
-                rightSub={formatDueIn(days)}
-                urgent={days <= 3}
-              />
-            ))}
-          </Rows>
-        )}
-      </Section>
-
-      <Section title="Recent" action="Transactions" onAction={() => onNavigate?.('Transactions')}>
-        {data.recent.length === 0 ? (
-          <Empty>No transactions yet.</Empty>
-        ) : (
-          <Rows>
-            {data.recent.map((t) => (
-              <Row
-                key={t.id}
-                left={t.category || 'Uncategorised'}
-                sub={[t.owner, t.note].filter(Boolean).join(' · ')}
-                right={`${t.currency} ${Number(t.amount).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`}
-                rightSub={formatDay(t.date)}
-                badge={t.needs_review ? 'Needs review' : null}
-              />
-            ))}
-          </Rows>
-        )}
-      </Section>
-
-      <Section title="Goals" action="Goals" onAction={() => onNavigate?.('Goals')}>
-        {topGoals.length === 0 ? (
-          <Empty>No goals yet.</Empty>
-        ) : (
-          <div className="space-y-2">
-            {topGoals.map((g) => (
-              <GoalRow
-                key={g.id}
-                goal={g}
-                saved={savedByGoal.get(g.id) || 0}
-                account={accountById.get(g.linked_account_id)}
-              />
-            ))}
+        {isEmpty && (
+          <div className="mt-6 rounded-2xl border border-ink-200 bg-surface p-5 text-sm text-ink-600 shadow-card">
+            <p className="mb-1 font-medium text-ink-900">Nothing here yet</p>
+            <p>Add an account to see your net worth, then log spends from the Transactions tab or straight from Telegram.</p>
+            <button type="button" onClick={() => onNavigate?.('Accounts')}
+              className="mt-3 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700">
+              Add an account
+            </button>
           </div>
         )}
-      </Section>
+
+        {data.reviewCount > 0 && (
+          <button type="button" onClick={() => onNavigate?.('Transactions')}
+            className="mt-6 flex w-full items-center justify-between rounded-2xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 transition-colors hover:bg-amber-100">
+            <span>{data.reviewCount} {data.reviewCount === 1 ? 'transaction needs' : 'transactions need'} a review</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        )}
+
+        <Section title={data.label} action="Reports" onAction={() => onNavigate?.('Reports')}>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Spent" value={fmt(spent)} />
+            <StatCard label="Budget" value={budgeted > 0 ? fmt(budgeted) : '—'}
+              hint={budgeted > 0 ? `${fmt(Math.max(0, budgeted - spent))} left` : 'not set'} />
+            <StatCard label="Savings rate" value={savingsRate === null ? '—' : `${savingsRate.toFixed(0)}%`}
+              hint={earned > 0 ? `of ${fmt(earned)}` : 'no income logged'}
+              tone={savingsRate !== null && savingsRate < 0 ? 'bad' : 'plain'} />
+            <StatCard label="Investments" value={fmt(investmentsTotal)} hint={`${investmentCount} holdings`} />
+          </div>
+        </Section>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+          <Section title="Due soon" action="Recurring" onAction={() => onNavigate?.('Recurring')} inGrid>
+            {dueSoon.length === 0 ? (
+              <Empty>Nothing due in the next {DUE_SOON_DAYS} days.</Empty>
+            ) : (
+              <Rows>
+                {dueSoon.slice(0, 6).map(({ entry, days }) => (
+                  <Row key={entry.id} left={entry.name}
+                    sub={`${entry.kind === 'emi' ? 'EMI' : 'Bill'}${entry.autopay ? ' · autopay' : ''}`}
+                    right={fmt(toAED(Number(entry.amount) || 0, entry.currency, fxRates))}
+                    rightSub={formatDueIn(days)} urgent={days <= 3} />
+                ))}
+              </Rows>
+            )}
+          </Section>
+
+          <Section title="Recent" action="Transactions" onAction={() => onNavigate?.('Transactions')} inGrid>
+            {data.recent.length === 0 ? (
+              <Empty>No transactions yet.</Empty>
+            ) : (
+              <Rows>
+                {data.recent.map((t) => (
+                  <Row key={t.id} left={t.category || 'Uncategorised'}
+                    sub={[t.owner, t.note].filter(Boolean).join(' · ')}
+                    right={fmt(toAED(Number(t.amount) || 0, t.currency, fxRates))}
+                    rightSub={formatDay(t.date)}
+                    badge={t.needs_review ? 'Needs review' : null} />
+                ))}
+              </Rows>
+            )}
+          </Section>
+
+          <Section title="Goals" action="Goals" onAction={() => onNavigate?.('Goals')} inGrid>
+            {topGoals.length === 0 ? (
+              <Empty>No goals yet.</Empty>
+            ) : (
+              <div className="space-y-2">
+                {topGoals.map((g) => (
+                  <GoalRow key={g.id} goal={g} saved={savedByGoal.get(g.id) || 0}
+                    account={accountById.get(g.linked_account_id)} fmt={fmt} />
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
+      </div>
     </div>
   )
 }
 
-function Section({ title, action, onAction, children }) {
+function Section({ title, action, onAction, children, inGrid }) {
   return (
-    <section className="mt-6">
+    <section className={inGrid ? '' : 'mt-6'}>
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">{title}</h2>
         {action && (
@@ -251,20 +233,20 @@ function Section({ title, action, onAction, children }) {
   )
 }
 
-function Stat({ label, value, hint, tone = 'plain' }) {
+function StatCard({ label, value, hint, tone = 'plain' }) {
   return (
-    <div className="px-4 py-3.5">
+    <div className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-card">
       <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{label}</p>
-      <p className={`mt-1 text-lg font-semibold tracking-tight ${tone === 'bad' ? 'text-neg-600' : 'text-ink-900'}`}>
+      <p className={`tnum mt-1 text-lg font-semibold tracking-tight ${tone === 'bad' ? 'text-neg-600' : 'text-ink-900'}`}>
         {value}
       </p>
-      {hint && <p className="mt-0.5 text-xs text-ink-400">{hint}</p>}
+      {hint && <p className="tnum mt-0.5 text-xs text-ink-400">{hint}</p>}
     </div>
   )
 }
 
 function Rows({ children }) {
-  return <div className="rounded-2xl border border-ink-200 bg-white shadow-card">{children}</div>
+  return <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">{children}</div>
 }
 
 function Row({ left, sub, right, rightSub, urgent, badge }) {
@@ -282,7 +264,7 @@ function Row({ left, sub, right, rightSub, urgent, badge }) {
         {sub && <span className="block truncate text-xs text-ink-400">{sub}</span>}
       </span>
       <span className="shrink-0 pl-2 text-right">
-        <span className="block font-medium text-ink-700">{right}</span>
+        <span className="tnum block font-medium text-ink-700">{right}</span>
         {rightSub && <span className={`block text-xs ${urgent ? 'text-neg-600' : 'text-ink-400'}`}>{rightSub}</span>}
       </span>
     </div>
@@ -291,13 +273,13 @@ function Row({ left, sub, right, rightSub, urgent, badge }) {
 
 function Empty({ children }) {
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white shadow-card px-4 py-5 text-center text-sm text-ink-500">
+    <div className="rounded-2xl border border-ink-200 bg-surface shadow-card px-4 py-5 text-center text-sm text-ink-500">
       {children}
     </div>
   )
 }
 
-function GoalRow({ goal, saved, account }) {
+function GoalRow({ goal, saved, account, fmt }) {
   // Save-up progress comes from logged contributions; pay-down progress is how
   // far the linked account's balance has fallen from where it started.
   const isSaveUp = goal.kind === 'save_up'
@@ -312,15 +294,13 @@ function GoalRow({ goal, saved, account }) {
       : 0
 
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+    <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-4">
       <div className="mb-2 flex items-center justify-between text-sm">
         <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
         </span>
-        <span className="text-ink-500">
-          {isSaveUp
-            ? `${formatAED(saved)} / ${formatAED(goal.target_amount)}`
-            : `${formatAED(current)} left of ${formatAED(starting)}`}
+        <span className="tnum text-xs text-ink-500">
+          {isSaveUp ? `${fmt(saved)} / ${fmt(goal.target_amount)}` : `${fmt(current)} left of ${fmt(starting)}`}
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">

@@ -2,13 +2,8 @@ import { useMemo } from 'react'
 import { typeLabel } from '../lib/accounts'
 import { toAED } from '../lib/settings'
 import { colorizeGroups } from '../lib/chartPalette'
+import { usePrefs } from '../lib/PrefsContext'
 import BreakdownBars from './BreakdownBars'
-
-function formatAED(n) {
-  const sign = n < 0 ? '-' : ''
-  const abs = Math.abs(n)
-  return `${sign}AED ${abs.toLocaleString('en-AE', { maximumFractionDigits: 0 })}`
-}
 
 function buildGroups(accounts, fxRates, groupBy) {
   const byKey = new Map()
@@ -23,6 +18,7 @@ function buildGroups(accounts, fxRates, groupBy) {
 }
 
 export default function NetWorthBreakdown({ accounts, fxRates, groupBy, onGroupByChange }) {
+  const { fmt } = usePrefs()
   const groups = useMemo(() => buildGroups(accounts, fxRates, groupBy), [accounts, fxRates, groupBy])
 
   return (
@@ -35,7 +31,7 @@ export default function NetWorthBreakdown({ accounts, fxRates, groupBy, onGroupB
       ]}
       activeTab={groupBy}
       onTabChange={onGroupByChange}
-      formatValue={formatAED}
+      formatValue={fmt}
       emptyMessage="Add accounts to see a breakdown."
     />
   )

@@ -107,14 +107,14 @@ export default function Recurring() {
           <button
             type="button"
             onClick={() => setView('bills')}
-            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'bills' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'bills' ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Bills & EMIs
           </button>
           <button
             type="button"
             onClick={() => setView('income')}
-            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'income' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'income' ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Income log
           </button>
@@ -122,7 +122,7 @@ export default function Recurring() {
         <button
           type="button"
           onClick={() => (view === 'bills' ? setEditingEntry('new') : setEditingIncome('new'))}
-          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
         >
           + Add
         </button>
@@ -145,7 +145,7 @@ export default function Recurring() {
                   key={l}
                   type="button"
                   onClick={() => setLayout(l)}
-                  className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${layout === l ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
+                  className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${layout === l ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
                 >
                   {l}
                 </button>
@@ -158,7 +158,7 @@ export default function Recurring() {
           )}
 
           {layout === 'list' && withDue.length > 0 && (
-            <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+            <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
               {withDue.map(({ entry, due }) => {
                 const days = daysUntil(due)
                 const dueSoon = days <= 7
@@ -195,7 +195,7 @@ export default function Recurring() {
           {layout === 'list' && withoutDue.length > 0 && (
             <div className="mt-6">
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">No upcoming due date</h3>
-              <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+              <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
                 {withoutDue.map((entry) => (
                   <button
                     key={entry.id}
@@ -259,7 +259,7 @@ export default function Recurring() {
           {filteredIncome.length === 0 ? (
             <p className="py-10 text-center text-sm text-ink-500">No income logged yet.</p>
           ) : (
-            <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+            <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
               {filteredIncome.map((i) => (
                 <button
                   key={i.id}
@@ -346,7 +346,7 @@ function CalendarView({ entries, cursor, setCursor, onSelect }) {
         {cells.map((day, i) => (
           <div
             key={i}
-            className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-ink-200 bg-white' : 'border-transparent'}`}
+            className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-ink-200 bg-surface' : 'border-transparent'}`}
           >
             {day && (
               <>

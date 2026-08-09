@@ -40,7 +40,7 @@ export default function IncomeForm({ income, onSave, onCancel, onDelete }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="w-full max-w-sm rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{income ? 'Edit income' : 'Add income'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -158,7 +158,7 @@ export default function IncomeForm({ income, onSave, onCancel, onDelete }) {
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>

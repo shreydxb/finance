@@ -27,7 +27,7 @@ export default function BreakdownBars({
   const canDonut = !hasNegative && groups.length > 1
 
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white p-5 shadow-card">
+    <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink-900">{title}</h2>
         <div className="flex items-center gap-2">
@@ -39,7 +39,7 @@ export default function BreakdownBars({
                   type="button"
                   onClick={() => onTabChange(tab.key)}
                   className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
-                    activeTab === tab.key ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'
+                    activeTab === tab.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'
                   }`}
                 >
                   {tab.label}
@@ -59,7 +59,7 @@ export default function BreakdownBars({
                   onClick={() => onShapeChange(s.key)}
                   aria-label={s.aria}
                   className={`rounded-md px-2 py-1 font-medium transition-colors ${
-                    shape === s.key ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'
+                    shape === s.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'
                   }`}
                 >
                   {s.label}

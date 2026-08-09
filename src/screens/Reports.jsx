@@ -17,13 +17,8 @@ import {
   shiftYear,
 } from '../lib/period'
 import { CHART_PALETTE, colorizeGroups } from '../lib/chartPalette'
+import { usePrefs } from '../lib/PrefsContext'
 import BreakdownBars from '../components/BreakdownBars'
-
-function formatAED(n) {
-  const sign = n < 0 ? '-' : ''
-  const abs = Math.abs(n)
-  return `AED ${sign}${abs.toLocaleString('en-AE', { maximumFractionDigits: 0 })}`
-}
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -44,14 +39,17 @@ function groupsFromMap(map) {
 
 const TREND_MONTHS = 6
 
-export default function CashFlow() {
+export default function Reports() {
+  const { fmt } = usePrefs()
+  const [section, setSection] = useState('cashflow') // cashflow | spending | income
   const [mode, setMode] = useState('month')
   const [monthCursor, setMonthCursor] = useState(currentYearMonth())
   const [quarterCursor, setQuarterCursor] = useState(currentQuarter())
   const [yearCursor, setYearCursor] = useState(new Date().getFullYear())
-  const [breakdownView, setBreakdownView] = useState('category')
   const [groupingMode, setGroupingMode] = useState('category') // category | group | merchant
   const [subView, setSubView] = useState('breakdown') // breakdown | trends
+  const [spendShape, setSpendShape] = useState('bars')
+  const [incomeShape, setIncomeShape] = useState('donut')
 
   const [transactions, setTransactions] = useState([])
   const [income, setIncome] = useState([])
@@ -82,7 +80,7 @@ export default function CashFlow() {
       setFxRates(fx || { AED: 1 })
       if (split) setSplitTarget(split)
     } catch {
-      setError('Could not load cash flow. Check your connection and try again.')
+      setError('Could not load reports. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -94,7 +92,7 @@ export default function CashFlow() {
   }, [from, to])
 
   useEffect(() => {
-    if (subView !== 'trends') return
+    if (section !== 'spending' || subView !== 'trends') return
     setTrendLoading(true)
     const trendFrom = new Date(cursor.year ?? new Date(to).getFullYear(), (cursor.month ?? 12) - TREND_MONTHS, 1)
     const fromStr = `${trendFrom.getFullYear()}-${String(trendFrom.getMonth() + 1).padStart(2, '0')}-01`
@@ -103,7 +101,7 @@ export default function CashFlow() {
       .catch(() => setTrendTransactions([]))
       .finally(() => setTrendLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subView, to])
+  }, [section, subView, to])
 
   const totalIncome = useMemo(() => totalAED(income, fxRates), [income, fxRates])
   const totalExpenses = useMemo(() => totalAED(transactions, fxRates), [transactions, fxRates])
@@ -132,6 +130,18 @@ export default function CashFlow() {
     return map
   }, [income, fxRates])
 
+  // `source` is the free-text label (e.g. "Emirates Salary"); `kind` is the
+  // enum (salary/bonus/…). Source is the more useful axis, with kind as the
+  // fallback when a row was logged without one.
+  const incomeBySource = useMemo(() => {
+    const map = new Map()
+    for (const i of income) {
+      const key = i.source?.trim() || i.kind || 'Other'
+      map.set(key, (map.get(key) || 0) + toAED(Number(i.amount) || 0, i.currency, fxRates))
+    }
+    return groupsFromMap(map)
+  }, [income, fxRates])
+
   function downloadCSV() {
     const csv = transactionsToCSV(transactions)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -153,127 +163,134 @@ export default function CashFlow() {
     return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
+  const SECTIONS = [
+    { key: 'cashflow', label: 'Cash Flow' },
+    { key: 'spending', label: 'Spending' },
+    { key: 'income', label: 'Income' },
+  ]
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-white shadow-card px-4 py-3">
-        <button type="button" onClick={() => shift(-1)} className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100">
-          ← Prev
-        </button>
+    <div className="stagger mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold tracking-tight text-ink-900">Reports</h2>
         <div className="flex items-center gap-2">
+          <button type="button" onClick={() => shift(-1)} aria-label="Previous period"
+            className="rounded-lg border border-ink-300 px-2.5 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100">←</button>
           <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
             {['month', 'quarter', 'year'].map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`rounded-md px-2 py-1 font-medium capitalize transition-colors ${mode === m ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
-              >
-                {m}
-              </button>
+              <button key={m} type="button" onClick={() => setMode(m)}
+                className={`rounded-md px-2 py-1 font-medium capitalize transition-colors ${mode === m ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}>{m}</button>
             ))}
           </div>
-          <span className="text-sm font-semibold text-ink-900">{label}</span>
+          <span className="min-w-[7rem] text-center text-sm font-semibold text-ink-900">{label}</span>
+          <button type="button" onClick={() => shift(1)} aria-label="Next period"
+            className="rounded-lg border border-ink-300 px-2.5 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100">→</button>
         </div>
-        <button type="button" onClick={() => shift(1)} className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100">
-          Next →
-        </button>
+      </div>
+
+      {/* Monarch's own Reports structure: one period selector, three lenses. */}
+      <div className="mb-5 flex w-fit rounded-lg bg-ink-100 p-0.5 text-sm">
+        {SECTIONS.map((s) => (
+          <button key={s.key} type="button" onClick={() => setSection(s.key)}
+            className={`rounded-md px-3.5 py-1.5 font-medium transition-colors ${section === s.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}>{s.label}</button>
+        ))}
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
+        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">{error}</p>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Income" value={formatAED(totalIncome)} />
-        <StatCard label="Expenses" value={formatAED(totalExpenses)} />
-        <StatCard label="Savings" value={formatAED(savings)} tone={savings < 0 ? 'bad' : 'good'} />
-        <StatCard label="Savings rate" value={savingsRate === null ? '—' : `${savingsRate.toFixed(0)}%`} tone={savingsRate !== null && savingsRate < 0 ? 'bad' : 'good'} />
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Income" value={fmt(totalIncome)} />
+        <StatCard label="Expenses" value={fmt(totalExpenses)} />
+        <StatCard label="Savings" value={fmt(savings)} tone={savings < 0 ? 'bad' : 'good'} />
+        <StatCard label="Savings rate" value={savingsRate === null ? '—' : `${savingsRate.toFixed(0)}%`}
+          tone={savingsRate !== null && savingsRate < 0 ? 'bad' : 'good'} />
       </div>
 
-      <div className="mb-4">
-        <div className="mb-2 flex rounded-lg bg-ink-100 p-0.5 text-xs w-fit">
-          <button
-            type="button"
-            onClick={() => setBreakdownView('category')}
-            className={`rounded-md px-2.5 py-1 font-medium transition-colors ${breakdownView === 'category' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
-          >
-            By category
-          </button>
-          <button
-            type="button"
-            onClick={() => setBreakdownView('person')}
-            className={`rounded-md px-2.5 py-1 font-medium transition-colors ${breakdownView === 'person' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
-          >
-            By person
-          </button>
-        </div>
-
-        {breakdownView === 'category' ? (
-          <>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs w-fit">
-                {['breakdown', 'trends'].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setSubView(v)}
-                    className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${subView === v ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={downloadCSV}
-                className="rounded-lg border border-ink-300 px-2.5 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50"
-              >
-                Download CSV
-              </button>
+      {section === 'cashflow' && (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+            <h3 className="mb-4 text-sm font-semibold text-ink-900">In vs out</h3>
+            <FlowBar label="Income" value={totalIncome} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-pos-500)" fmt={fmt} />
+            <FlowBar label="Expenses" value={totalExpenses} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-neg-500)" fmt={fmt} />
+            <div className="mt-4 border-t border-ink-100 pt-3">
+              <FlowBar label="Savings" value={Math.max(0, savings)} max={Math.max(totalIncome, totalExpenses, 1)} color="var(--color-brand-500)" fmt={fmt} />
             </div>
-
-            {subView === 'breakdown' ? (
-              <BreakdownBars
-                title="Expenses"
-                groups={catGroups}
-                formatValue={formatAED}
-                emptyMessage="No expenses logged for this period."
-                tabs={[
-                  { key: 'category', label: 'Category' },
-                  { key: 'group', label: 'Group' },
-                  { key: 'merchant', label: 'Merchant' },
-                ]}
-                activeTab={groupingMode}
-                onTabChange={setGroupingMode}
-              />
-            ) : trendLoading ? (
-              <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-5">
-                <p className="py-6 text-center text-sm text-ink-500">Loading trend…</p>
-              </div>
-            ) : (
-              <BreakdownBars
-                title={`Spend, last ${TREND_MONTHS} months`}
-                groups={trendGroups}
-                formatValue={formatAED}
-                emptyMessage="No expenses logged in this window."
-              />
+            {totalIncome === 0 && totalExpenses === 0 && (
+              <p className="mt-3 text-xs text-ink-400">Nothing logged for {label} yet.</p>
             )}
-
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard label="Transactions" value={String(stats.count)} />
-              <StatCard label="Largest" value={formatAED(stats.largest)} />
-              <StatCard label="Average" value={formatAED(stats.average)} />
-              <StatCard
-                label="First → Last"
-                value={stats.first ? `${stats.first.slice(5)} → ${stats.last.slice(5)}` : '—'}
-              />
-            </div>
-          </>
-        ) : (
+          </div>
           <PersonBreakdown incomeByPerson={incomeByPerson} totalIncome={totalIncome} target={splitTarget} />
-        )}
+        </div>
+      )}
+
+      {section === 'spending' && (
+        <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+              {['breakdown', 'trends'].map((v) => (
+                <button key={v} type="button" onClick={() => setSubView(v)}
+                  className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${subView === v ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}>{v}</button>
+              ))}
+            </div>
+            <button type="button" onClick={downloadCSV}
+              className="rounded-lg border border-ink-300 px-2.5 py-1 text-xs font-medium text-ink-600 transition-colors hover:bg-ink-100">
+              Download CSV
+            </button>
+          </div>
+
+          {subView === 'breakdown' ? (
+            <BreakdownBars title="Expenses" groups={catGroups} formatValue={fmt}
+              emptyMessage="No expenses logged for this period."
+              shape={spendShape} onShapeChange={setSpendShape}
+              tabs={[
+                { key: 'category', label: 'Category' },
+                { key: 'group', label: 'Group' },
+                { key: 'merchant', label: 'Merchant' },
+              ]}
+              activeTab={groupingMode} onTabChange={setGroupingMode} />
+          ) : trendLoading ? (
+            <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+              <p className="py-6 text-center text-sm text-ink-500">Loading trend…</p>
+            </div>
+          ) : (
+            <BreakdownBars title={`Spend, last ${TREND_MONTHS} months`} groups={trendGroups} formatValue={fmt}
+              emptyMessage="No expenses logged in this window." />
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Transactions" value={String(stats.count)} />
+            <StatCard label="Largest" value={fmt(stats.largest)} />
+            <StatCard label="Average" value={fmt(stats.average)} />
+            <StatCard label="First → Last" value={stats.first ? `${stats.first.slice(5)} → ${stats.last.slice(5)}` : '—'} />
+          </div>
+        </div>
+      )}
+
+      {section === 'income' && (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <BreakdownBars title="Income by source" groups={incomeBySource} formatValue={fmt}
+            emptyMessage="No income logged for this period."
+            shape={incomeShape} onShapeChange={setIncomeShape} />
+          <PersonBreakdown incomeByPerson={incomeByPerson} totalIncome={totalIncome} target={splitTarget} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Horizontal magnitude bar — the in/out comparison on the Cash Flow lens. */
+function FlowBar({ label, value, max, color, fmt }) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="font-medium text-ink-700">{label}</span>
+        <span className="tnum font-semibold text-ink-900">{fmt(value)}</span>
+      </div>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-ink-100">
+        <div className="h-full origin-left rounded-full"
+          style={{ width: `${Math.min(100, (Math.abs(value) / max) * 100)}%`, backgroundColor: color, animation: 'grow .7s cubic-bezier(.16,1,.3,1) both' }} />
       </div>
     </div>
   )
@@ -282,7 +299,7 @@ export default function CashFlow() {
 function StatCard({ label, value, tone }) {
   const toneClass = tone === 'bad' ? 'text-neg-600' : tone === 'good' ? 'text-ink-900' : 'text-ink-900'
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+    <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-4">
       <p className="text-xs text-ink-500">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${toneClass}`}>{value}</p>
     </div>
@@ -297,14 +314,14 @@ function PersonBreakdown({ incomeByPerson, totalIncome, target }) {
 
   if (totalIncome <= 0) {
     return (
-      <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+      <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
         <p className="py-6 text-center text-sm text-ink-500">No income logged for this period yet.</p>
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-5">
+    <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
       <h2 className="mb-4 text-sm font-semibold text-ink-900">Contribution vs 69/31 target</h2>
       <div className="space-y-4">
         {people.map((p) => {

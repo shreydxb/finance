@@ -45,7 +45,11 @@ export default function Transactions() {
         countNeedsReview(),
       ])
       setTransactions(txns)
-      setAccounts(accts)
+      // You don't spend from a stock holding — a share of NVDA is not an
+      // account you can put a grocery bill against. Investments are excluded
+      // here entirely (they live on their own tab), which also stops 41 stock
+      // rows burying the 4 accounts actually used day to day.
+      setAccounts(accts.filter((a) => a.type !== 'investment'))
       setCategories(cats)
       setReviewCount(pending)
     } catch {
@@ -142,7 +146,7 @@ export default function Transactions() {
           type="button"
           onClick={() => setEditing('new')}
           disabled={accounts.length === 0}
-          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
+          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
         >
           + Add
         </button>
@@ -209,7 +213,7 @@ function Filters({ filters, setFilters, categories, accounts }) {
   }
 
   return (
-    <div className="mb-4 space-y-2 rounded-2xl border border-ink-200 bg-white shadow-card p-3">
+    <div className="mb-4 space-y-2 rounded-2xl border border-ink-200 bg-surface shadow-card p-3">
       <input
         type="search"
         value={filters.search}

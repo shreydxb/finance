@@ -9,12 +9,9 @@ import {
   projectedCompletionDate,
 } from '../lib/goals'
 import { listAccounts } from '../lib/accounts'
+import { usePrefs } from '../lib/PrefsContext'
 import GoalForm from '../components/GoalForm'
 import ContributionForm from '../components/ContributionForm'
-
-function formatAED(n) {
-  return `AED ${Number(n).toLocaleString('en-AE', { maximumFractionDigits: 0 })}`
-}
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -33,6 +30,7 @@ function ProgressBar({ pct }) {
 }
 
 export default function Goals() {
+  const { fmt } = usePrefs()
   const [tab, setTab] = useState('save_up')
   const [goals, setGoals] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -106,14 +104,14 @@ export default function Goals() {
           <button
             type="button"
             onClick={() => setTab('save_up')}
-            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${tab === 'save_up' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${tab === 'save_up' ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Save Up
           </button>
           <button
             type="button"
             onClick={() => setTab('pay_down')}
-            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${tab === 'pay_down' ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${tab === 'pay_down' ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}
           >
             Pay Down
           </button>
@@ -121,7 +119,7 @@ export default function Goals() {
         <button
           type="button"
           onClick={() => setEditingGoal('new')}
-          className="rounded-lg bg-ink-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
         >
           + Add goal
         </button>
@@ -139,19 +137,19 @@ export default function Goals() {
         ) : (
           <div className="space-y-3">
             {saveUpGoals.map((g) => (
-              <SaveUpCard key={g.id} goal={g} saved={savedByGoal.get(g.id) || 0} onClick={() => setDetailGoalId(g.id)} />
+              <SaveUpCard key={g.id} goal={g} saved={savedByGoal.get(g.id) || 0} onClick={() => setDetailGoalId(g.id)} fmt={fmt} />
             ))}
           </div>
         )
       ) : (
         <>
-          {payDownGoals.length > 0 && <PayDownSummary goals={payDownGoals} accountById={accountById} />}
+          {payDownGoals.length > 0 && <PayDownSummary goals={payDownGoals} accountById={accountById} fmt={fmt} />}
           {payDownGoals.length === 0 ? (
             <p className="py-10 text-center text-sm text-ink-500">No pay-down goals yet.</p>
           ) : (
             <div className="space-y-3">
               {payDownGoals.map((g) => (
-                <PayDownCard key={g.id} goal={g} account={accountById.get(g.linked_account_id)} onClick={() => setDetailGoalId(g.id)} />
+                <PayDownCard key={g.id} goal={g} account={accountById.get(g.linked_account_id)} onClick={() => setDetailGoalId(g.id)} fmt={fmt} />
               ))}
             </div>
           )}
@@ -170,6 +168,7 @@ export default function Goals() {
 
       {detailGoal && !editingGoal && (
         <GoalDetail
+          fmt={fmt}
           goal={detailGoal}
           account={accountById.get(detailGoal.linked_account_id)}
           contributions={contributions.filter((c) => c.goal_id === detailGoal.id)}
@@ -186,20 +185,20 @@ export default function Goals() {
   )
 }
 
-function SaveUpCard({ goal, saved, onClick }) {
+function SaveUpCard({ goal, saved, onClick, fmt }) {
   const pct = goal.target_amount > 0 ? (saved / goal.target_amount) * 100 : 0
   return (
     <button
       type="button"
       onClick={onClick}
-      className="block w-full rounded-2xl border border-ink-200 bg-white shadow-card p-4 text-left hover:bg-ink-50"
+      className="block w-full rounded-2xl border border-ink-200 bg-surface shadow-card p-4 text-left hover:bg-ink-50"
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
         </span>
         <span className="text-sm text-ink-500">
-          {formatAED(saved)} / {formatAED(goal.target_amount)}
+          {fmt(saved)} / {fmt(goal.target_amount)}
         </span>
       </div>
       <ProgressBar pct={pct} />
@@ -207,7 +206,7 @@ function SaveUpCard({ goal, saved, onClick }) {
   )
 }
 
-function PayDownCard({ goal, account, onClick }) {
+function PayDownCard({ goal, account, onClick, fmt }) {
   const starting = Number(goal.starting_balance) || 0
   const current = account ? Number(account.value) : starting
   const paidOff = Math.max(0, starting - current)
@@ -216,14 +215,14 @@ function PayDownCard({ goal, account, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="block w-full rounded-2xl border border-ink-200 bg-white shadow-card p-4 text-left hover:bg-ink-50"
+      className="block w-full rounded-2xl border border-ink-200 bg-surface shadow-card p-4 text-left hover:bg-ink-50"
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
         </span>
         <span className="text-sm text-ink-500">
-          {formatAED(current)} left of {formatAED(starting)}
+          {fmt(current)} left of {fmt(starting)}
         </span>
       </div>
       <ProgressBar pct={pct} />
@@ -241,7 +240,7 @@ function StatTile({ label, value }) {
   )
 }
 
-function PayDownSummary({ goals, accountById }) {
+function PayDownSummary({ goals, accountById, fmt }) {
   const currentDebtPrincipal = goals.reduce((sum, g) => {
     const account = accountById.get(g.linked_account_id)
     if (account) return sum + Number(account.value)
@@ -254,11 +253,11 @@ function PayDownSummary({ goals, accountById }) {
 
   return (
     <div className="mb-4 grid grid-cols-2 gap-3">
-      <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+      <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-4">
         <p className="text-xs text-ink-500">Current Debt Principal</p>
-        <p className="mt-1 text-lg font-semibold text-ink-900">{formatAED(currentDebtPrincipal)}</p>
+        <p className="mt-1 text-lg font-semibold text-ink-900">{fmt(currentDebtPrincipal)}</p>
       </div>
-      <div className="rounded-2xl border border-ink-200 bg-white shadow-card p-4">
+      <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-4">
         <p className="text-xs text-ink-500">Debt Free Date</p>
         <p className="mt-1 text-lg font-semibold text-ink-900">
           {debtFreeDate ? formatDate(new Date(`${debtFreeDate}T00:00:00`)) : '—'}
@@ -268,7 +267,7 @@ function PayDownSummary({ goals, accountById }) {
   )
 }
 
-function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContribution }) {
+function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContribution, fmt }) {
   const isSaveUp = goal.kind === 'save_up'
   const saved = isSaveUp ? contributions.reduce((sum, c) => sum + Number(c.amount), 0) : 0
   const pct = isSaveUp
@@ -285,7 +284,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <div className="mb-1 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ink-900">
             {goal.icon} {goal.name}
@@ -300,13 +299,13 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
           <div className="mt-2 flex justify-between text-sm text-ink-600">
             {isSaveUp ? (
               <>
-                <span>{formatAED(saved)} saved</span>
-                <span>{formatAED(goal.target_amount)} target</span>
+                <span>{fmt(saved)} saved</span>
+                <span>{fmt(goal.target_amount)} target</span>
               </>
             ) : (
               <>
-                <span>{formatAED(account ? Number(account.value) : 0)} left</span>
-                <span>{formatAED(goal.starting_balance)} starting</span>
+                <span>{fmt(account ? Number(account.value) : 0)} left</span>
+                <span>{fmt(goal.starting_balance)} starting</span>
               </>
             )}
           </div>
@@ -315,11 +314,11 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
 
         {isSaveUp && (
           <div className="mb-4 grid grid-cols-2 gap-2">
-            <StatTile label="Total saved" value={formatAED(saved)} />
+            <StatTile label="Total saved" value={fmt(saved)} />
             {/* Total spent / Available to spend read $0 / full target until "link spend to goal" (Phase 2) exists — honest, not broken. */}
-            <StatTile label="Total spent" value={formatAED(0)} />
-            <StatTile label="Left to save" value={formatAED(remaining)} />
-            <StatTile label="Available to spend" value={formatAED(goal.target_amount)} />
+            <StatTile label="Total spent" value={fmt(0)} />
+            <StatTile label="Left to save" value={fmt(remaining)} />
+            <StatTile label="Available to spend" value={fmt(goal.target_amount)} />
           </div>
         )}
 
@@ -335,7 +334,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
             <button
               type="button"
               onClick={onAddContribution}
-              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+              className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
             >
               + Log contribution
             </button>
@@ -355,7 +354,7 @@ function GoalDetail({ goal, account, contributions, onEdit, onClose, onAddContri
                       {formatDate(new Date(`${c.date}T00:00:00`))}
                       {c.note ? ` · ${c.note}` : ''}
                     </span>
-                    <span className="font-medium text-ink-900">{formatAED(c.amount)}</span>
+                    <span className="font-medium text-ink-900">{fmt(c.amount)}</span>
                   </li>
                 ))}
               </ul>

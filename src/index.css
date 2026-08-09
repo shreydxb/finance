@@ -9,6 +9,10 @@
    a slight blue cast read as "financial software" rather than "blog", and
    they sit better next to the brand blue.                                   */
 @theme {
+  /* The ink scale runs light-to-dark and is used semantically: ink-50 is the
+     page, ink-200 borders, ink-500 secondary text, ink-900 primary text.
+     Dark mode inverts the scale's values (see `.dark` below) so every screen
+     flips without a single `dark:` variant. */
   --color-ink-50: #f6f7f9;
   --color-ink-100: #eceff3;
   --color-ink-200: #dde2ea;
@@ -19,6 +23,16 @@
   --color-ink-700: #363d4b;
   --color-ink-800: #212734;
   --color-ink-900: #121620;
+
+  /* Card/panel background. Separate from the ink scale because it is not
+     always literally white — in dark mode it sits *above* the page, not
+     below it, so it can't just be ink-50. */
+  --color-surface: #ffffff;
+
+  /* Deliberately dark in BOTH themes — the net-worth hero and the login card
+     are always-dark surfaces carrying white text. Using ink-900 for these was
+     a bug: it inverts to near-white in dark mode and the white text vanished. */
+  --color-night: #121620;
 
   --color-brand-50: #eff4ff;
   --color-brand-100: #dbe6fe;
@@ -54,6 +68,55 @@
   --animate-rise: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-fade: fade 0.35s ease both;
   --animate-grow: grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Dark mode.
+   Only token values change — no component carries a `dark:` variant, so a
+   screen cannot be "half converted". The scale is inverted rather than merely
+   darkened: ink-50 becomes the darkest value and ink-900 the lightest, so
+   `bg-ink-50` is still "the page" and `text-ink-900` is still "primary text".
+   Values are desaturated blue-greys, not pure greys, to match the light
+   palette's cool cast, and never pure black — #000 makes shadows invisible
+   and text edges harsh on OLED. */
+.dark {
+  --color-ink-50: #0e1219;
+  --color-ink-100: #1a2130;
+  --color-ink-200: #29313f;
+  --color-ink-300: #3a4457;
+  --color-ink-400: #6e7b91;
+  --color-ink-500: #94a1b5;
+  --color-ink-600: #b2bccc;
+  --color-ink-700: #ccd4e0;
+  --color-ink-800: #e3e8ef;
+  --color-ink-900: #f4f6f9;
+
+  --color-surface: #161c27;
+  /* Lifted rather than identical, so the hero still separates from the page. */
+  --color-night: #1c2434;
+
+  /* Brand and semantics lift slightly: mid-tone saturated colours that read
+     well on white lose contrast against a dark surface. */
+  --color-brand-500: #5b95ff;
+  --color-brand-600: #4285f4;
+  --color-brand-700: #2f6fd8;
+  --color-brand-200: #9dc0ff;
+
+  --color-pos-500: #24c088;
+  --color-pos-600: #34d399;
+  --color-pos-50: #10281f;
+  --color-neg-500: #f2686d;
+  --color-neg-600: #f87a7f;
+  --color-neg-50: #2a1417;
+  --color-neg-100: #3a1b1f;
+  --color-neg-200: #4d2429;
+
+  /* Shadows do almost nothing on dark backgrounds; depth comes from the
+     surface being lighter than the page, so they are deepened and kept
+     subtle rather than removed entirely. */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lift: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 16px 32px -12px rgba(0, 0, 0, 0.7), 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-hero: 0 24px 48px -16px rgba(0, 0, 0, 0.6);
 }
 
 @keyframes rise {

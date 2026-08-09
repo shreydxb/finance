@@ -58,7 +58,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{entry ? 'Edit recurring' : 'Add recurring'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -176,7 +176,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
                     type="button"
                     onClick={() => toggleMonth(m)}
                     className={`rounded-lg border px-1 py-1.5 text-xs font-medium ${
-                      active ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
+                      active ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                     }`}
                   >
                     {label}
@@ -234,7 +234,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>

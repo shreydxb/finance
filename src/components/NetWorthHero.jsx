@@ -1,11 +1,6 @@
 import { useNetWorth } from '../lib/useNetWorth'
+import { usePrefs } from '../lib/PrefsContext'
 import AnimatedNumber from './AnimatedNumber'
-
-function formatAED(n) {
-  const sign = n < 0 ? '-' : ''
-  const abs = Math.abs(n)
-  return `${sign}AED ${abs.toLocaleString('en-AE', { maximumFractionDigits: 0 })}`
-}
 
 /**
  * The single most-looked-at number in the app, so it gets the only dark,
@@ -13,11 +8,12 @@ function formatAED(n) {
  * what makes it read as "the headline" without needing a bigger font.
  */
 export default function NetWorthHero({ accounts, fxRates }) {
+  const { fmt } = usePrefs()
   const { assets, liabilities, netWorth } = useNetWorth(accounts, fxRates)
   const equityShare = assets > 0 ? Math.max(0, Math.min(100, ((assets - liabilities) / assets) * 100)) : 0
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-ink-900 p-6 shadow-hero">
+    <div className="relative overflow-hidden rounded-2xl bg-night p-6 shadow-hero">
       {/* Two soft radial washes give the flat navy depth without an image. */}
       <div
         aria-hidden="true"
@@ -32,7 +28,7 @@ export default function NetWorthHero({ accounts, fxRates }) {
         <p className="text-sm font-medium text-brand-200">Net worth</p>
         <AnimatedNumber
           value={netWorth}
-          format={formatAED}
+          format={fmt}
           className="tnum mt-1 block text-4xl font-semibold tracking-tight text-white sm:text-5xl"
         />
 
@@ -47,10 +43,10 @@ export default function NetWorthHero({ accounts, fxRates }) {
 
         <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <span className="text-white/70">
-            Assets <span className="tnum font-semibold text-white">{formatAED(assets)}</span>
+            Assets <span className="tnum font-semibold text-white">{fmt(assets)}</span>
           </span>
           <span className="text-white/70">
-            Liabilities <span className="tnum font-semibold text-white">{formatAED(liabilities)}</span>
+            Liabilities <span className="tnum font-semibold text-white">{fmt(liabilities)}</span>
           </span>
         </div>
       </div>

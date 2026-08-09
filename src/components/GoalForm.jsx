@@ -67,7 +67,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{isEdit ? 'Edit goal' : 'Add goal'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isEdit && (
@@ -78,7 +78,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                   type="button"
                   onClick={() => setKind('save_up')}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                    kind === 'save_up' ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
+                    kind === 'save_up' ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                   }`}
                 >
                   Save up
@@ -87,7 +87,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
                   type="button"
                   onClick={() => setKind('pay_down')}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                    kind === 'pay_down' ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
+                    kind === 'pay_down' ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-300 text-ink-700 hover:bg-ink-50'
                   }`}
                 >
                   Pay down
@@ -225,7 +225,7 @@ export default function GoalForm({ goal, liabilityAccounts, onSave, onCancel, on
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save'}
             </button>

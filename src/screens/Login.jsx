@@ -25,7 +25,7 @@ export default function Login() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-900 px-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-night px-4">
       {/* Same radial wash as the net-worth hero, so the first screen someone
           sees already establishes the app's palette. */}
       <div
@@ -36,10 +36,10 @@ export default function Login() {
             'radial-gradient(90% 60% at 50% 0%, rgba(37,99,235,.5) 0%, transparent 60%), radial-gradient(70% 50% at 50% 100%, rgba(14,164,114,.25) 0%, transparent 60%)',
         }}
       />
-      <div className="animate-rise relative w-full max-w-sm rounded-2xl border border-white/10 bg-white p-8 shadow-pop">
+      <div className="animate-rise relative w-full max-w-sm rounded-2xl border border-white/10 bg-surface p-8 shadow-pop">
         <span
           aria-hidden="true"
-          className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-ink-900 text-base font-bold text-white"
+          className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-night text-base font-bold text-white"
         >
           ◈
         </span>
@@ -86,7 +86,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-ink-900 px-3 py-2 text-sm font-medium text-white transition transition-colors hover:bg-ink-800 disabled:opacity-50"
+            className="w-full rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
           >
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>

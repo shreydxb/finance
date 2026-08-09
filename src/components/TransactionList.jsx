@@ -56,7 +56,7 @@ export default function TransactionList({
           {g.date && (
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{formatDateHeading(g.date)}</h3>
           )}
-          <div className="rounded-2xl border border-ink-200 bg-white shadow-card">
+          <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
             {g.entries.map((entry) => (
               <EntryRow
                 key={entry.kind === 'split' ? entry.splitGroupId : entry.transaction.id}
