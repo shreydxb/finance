@@ -11,19 +11,26 @@ task, sourced from the confirmed `project_brief` context entry in Taskiv
 (project `Our Money v4`, entry id `f7f736e9-2c45-4a97-94e8-56dcc8639136`). Keep it in
 sync with Taskiv decisions as the plan evolves.
 
-## Screens (Phase 1 scope)
+## Screens (current — 10 tabs, drifted from Phase 1 scope below as real usage demanded it)
 
-- **Home** — spend/budget/savings-rate at a glance, due bills, recent transactions, top goals
-- **Accounts** — Assets (Cash/Investments/Real Estate/Vehicles/Valuables/Other), Liabilities (Credit Card/Loan/Mortgage/Other). Manual entry is first-class. Net worth chart on top.
-- **Transactions** — category, split, notes, tags, owner. Telegram/AI intake writes here directly.
-- **Cash Flow** — Income/Expense/Savings/Savings-rate cards, category + person breakdown (69/31 split matters here)
+- **Home** — desktop-dashboard layout: spend/budget/savings-rate at a glance, due bills, recent transactions, top save-up goals
+- **Accounts** — Cash/Real Estate/Vehicles/Valuables/Other assets + Liabilities (Credit Card/Loan/Mortgage/Other). Excludes investment accounts (they moved to their own tab) but still counts them in net worth totals. Net worth history chart (`nw_daily`), Summary and Composition (type/owner) panels, Monarch-style.
+- **Investments** — split out of Accounts once real portfolio data (India equities, US/gold, US/metals) made it worth its own tab. Combined/Shrey/Tarika owner filter, allocation breakdown, per-holding gain/loss, manually-triggered price refresh (`refresh-prices` Edge Function, US stocks + BTC only).
+- **Transactions** — category, split, notes, tags, owner, Summary sidebar (count/largest/average/first-last, CSV export). Telegram/AI intake writes here directly. Excludes investment accounts from the account picker.
+- **Reports** (renamed from Cash Flow) — Cash Flow/Spending/Income sub-tabs. Cash Flow leads with a Sankey diagram (income sources → hub → spend destinations). Spending has breakdown/trends toggle + CSV export.
 - **Budget** — Planned vs Actual vs Remaining, grouped Fixed/Non-monthly/Flexible
 - **Recurring** — bill/EMI calendar: car loan, CC EMIs, mobile EMI, rent cheques, LIC premiums
-- **Goals** — Save up (Emergency Fund + others) and Pay down (debts) as two modes of one feature
+- **Goals** — save_up kind only now (Emergency Fund, house downpayment, vacation, etc). Pay-down debts moved out to their own screen.
+- **Debts** — split out of Goals: car EMI, credit cards, other loans (pay_down kind). Same `goals` table, `kind` column — presentation-only split.
 - **Settings** — names, currencies/FX, FIRE assumptions, category management, four-account mapping
 
-No dedicated Cards tab in Phase 1 (deliberate — folded into Accounts as liabilities +
-Recurring for due dates). See decisions log in Taskiv for rationale.
+No dedicated Cards tab (deliberate — folded into Accounts as liabilities + Recurring
+for due dates). See decisions log in Taskiv for rationale.
+
+Also shipped, cutting across all screens: dark mode (CSS custom-property value
+inversion under `.dark`, not per-component variants) and a global AED/USD/INR
+currency toggle (AED-pivot conversion at render time only, device-local via
+`PrefsContext`/localStorage, never synced between the two users' devices).
 
 ## Data model
 
@@ -44,6 +51,9 @@ income (id, person, source, kind: salary/bonus/dividend/interest/trading_pnl/oth
           amount, currency, date)
 settings (key, value -- fx rates, fire_expense/swr/return, 69/31 split, four-account mapping)
 nw_snapshots (id, month, total_aed, by_owner json, by_type json)
+nw_daily (id, day, total_aed, assets_aed, liabilities_aed, by_owner json, by_type json,
+          created_at) -- additive sibling to nw_snapshots; one row/day, upserted on
+          Accounts load, recorded from now forward only (never backfilled/estimated)
 forecast_events (id, kind: house/child/retirement/custom, target_date, params json) -- Phase 2
 ```
 

@@ -16,7 +16,17 @@ Every push to the production branch triggers a build.
 - Edge Function deploys go through Supabase, not Netlify, and cost nothing here.
   Backend-only changes never need a Netlify build.
 
-## Open items (as of 8 Aug 2026, verified against live DB/deploy)
+## Screens
+
+10 nav tabs: Home, Accounts, Investments, Transactions, Reports, Budget, Recurring,
+Goals, Debts, Settings. Investments and Debts were split out of Accounts and Goals
+respectively once real data made the combined screens too crowded; Reports (was Cash
+Flow) gained Cash Flow/Spending/Income sub-tabs and leads with a Sankey diagram. Dark
+mode and a global AED/USD/INR currency toggle apply across all of them — both
+device-local (localStorage via `PrefsContext`), not synced between Shrey's and
+Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
+
+## Open items (as of 9 Aug 2026, verified against live DB/deploy)
 
 - **`refresh-prices` has never completed a successful run.** The Edge Function
   is deployed (version 2) and the button is live on Accounts → Investments,
