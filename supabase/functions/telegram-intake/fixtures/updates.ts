@@ -37,6 +37,16 @@ export function photoUpdate(caption: string | null = null, from = SHREY_ID): Tel
   }
 }
 
+export function documentUpdate(caption: string | null = null, from = SHREY_ID): TelegramUpdate {
+  return {
+    update_id: nextMessageId,
+    message: baseMessage(from, {
+      caption: caption ?? undefined,
+      document: { file_id: 'doc-1', file_name: 'invoice.pdf', mime_type: 'application/pdf' },
+    }),
+  }
+}
+
 export function voiceUpdate(from = TARIKA_ID): TelegramUpdate {
   return {
     update_id: nextMessageId,

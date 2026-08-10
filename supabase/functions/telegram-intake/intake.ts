@@ -283,6 +283,18 @@ async function extractFromMessage(
     return extractFromImage({ dataUrl, caption: message.caption ?? null }, ctx, deps.model)
   }
 
+  if (message.document) {
+    // Without this check, a PDF/file falls through to the text branch below
+    // and the caption alone ("here's my invoice") gets logged as a spend with
+    // no amount — a silent garbage row, not a helpful failure.
+    await deps.messenger.sendMessage(
+      message.chat.id,
+      "I can't read PDFs or other files yet — send a photo of it instead, or type the amount.",
+      { replyToMessageId: message.message_id }
+    )
+    throw new UnsupportedMessage('document received but not supported')
+  }
+
   const voice = message.voice ?? message.audio
   if (voice) {
     if (!deps.transcriber) {
@@ -462,12 +474,18 @@ export interface Resolved {
   accountName: string | null
   owner: string | null
   needsReview: boolean
+  /** Names of accounts that tied on the match score, when that's why accountId is null. */
+  tiedAccountNames: string[]
 }
 
 export function resolve(extraction: Extraction, household: HouseholdContext, senderId: number): Resolved {
   const matched = matchAccount(extraction.paid_with, household.accounts)
   const accountId = matched?.id ?? household.defaultAccountId
   const account = household.accounts.find((a) => a.id === accountId) ?? null
+  // A tie ("...1657" matches two sub-ledgers on the same physical card) is worth
+  // naming in the review prompt — "which account" alone forces a household member
+  // to guess blind at what the bot was even confused about.
+  const tiedAccountNames = matched ? [] : matchAccountTies(extraction.paid_with, household.accounts).map((a) => a.name)
 
   const owner = resolveOwner(extraction.paid_by, household, senderId)
 
@@ -478,7 +496,7 @@ export function resolve(extraction: Extraction, household: HouseholdContext, sen
     extraction.category === null ||
     accountId === null
 
-  return { accountId, accountName: account?.name ?? null, owner, needsReview }
+  return { accountId, accountName: account?.name ?? null, owner, needsReview, tiedAccountNames }
 }
 
 function resolveOwner(paidBy: string | null, household: HouseholdContext, senderId: number): string | null {
@@ -498,9 +516,18 @@ const WEAK_ACCOUNT_TOKENS = new Set([
 
 /** Maps a free-text payment hint ("VISA ****1234", "ENBD credit card") to an account. */
 export function matchAccount(guess: string | null, accounts: AccountRef[]): AccountRef | null {
-  if (!guess) return null
+  return bestAccountMatch(guess, accounts).best
+}
+
+/** The accounts a guess tied on, when that tie is why matchAccount abstained. Empty otherwise. */
+export function matchAccountTies(guess: string | null, accounts: AccountRef[]): AccountRef[] {
+  return bestAccountMatch(guess, accounts).tied
+}
+
+function bestAccountMatch(guess: string | null, accounts: AccountRef[]): { best: AccountRef | null; tied: AccountRef[] } {
+  if (!guess) return { best: null, tied: [] }
   const wanted = simplify(guess)
-  if (wanted === '') return null
+  if (wanted === '') return { best: null, tied: [] }
 
   const wantedTokens = wanted.split(' ').filter(Boolean)
   const wantedDigits = digitRuns(guess)
@@ -509,15 +536,17 @@ export function matchAccount(guess: string | null, accounts: AccountRef[]): Acco
     account,
     score: scoreAccount(account, wanted, wantedTokens, wantedDigits),
   }))
-  const best = scored.reduce<{ account: AccountRef; score: number } | null>(
-    (top, entry) => (!top || entry.score > top.score ? entry : top),
+  const top = scored.reduce<{ account: AccountRef; score: number } | null>(
+    (best, entry) => (!best || entry.score > best.score ? entry : best),
     null
   )
 
-  if (!best || best.score < 12) return null
-  // A tie means we genuinely can't tell the two apart — better to flag for review.
-  const tied = scored.some((entry) => entry.account !== best.account && entry.score === best.score)
-  return tied ? null : best.account
+  if (!top || top.score < 12) return { best: null, tied: [] }
+  // A tie means we genuinely can't tell the two apart — better to flag for review
+  // and name the candidates than to guess, e.g. two sub-ledgers on one card number.
+  const tiedWith = scored.filter((entry) => entry.account !== top.account && entry.score === top.score)
+  if (tiedWith.length === 0) return { best: top.account, tied: [] }
+  return { best: null, tied: [top.account, ...tiedWith.map((e) => e.account)] }
 }
 
 function scoreAccount(account: AccountRef, wanted: string, wantedTokens: string[], wantedDigits: string[]): number {
@@ -607,7 +636,13 @@ function missingFields(extraction: Extraction, resolved: Resolved): string[] {
   const gaps: string[] = []
   if (extraction.amount === null) gaps.push('the amount')
   if (extraction.category === null) gaps.push('the category')
-  if (resolved.accountId === null) gaps.push('which account')
+  if (resolved.accountId === null) {
+    gaps.push(
+      resolved.tiedAccountNames.length
+        ? `which account — could be ${resolved.tiedAccountNames.join(' or ')}`
+        : 'which account'
+    )
+  }
   return gaps
 }
 

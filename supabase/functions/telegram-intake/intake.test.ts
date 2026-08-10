@@ -6,6 +6,7 @@ import { TODAY } from './fixtures/receipts.ts'
 import {
   callbackUpdate,
   CHAT_ID,
+  documentUpdate,
   photoUpdate,
   replyUpdate,
   SHREY_ID,
@@ -14,7 +15,7 @@ import {
   textUpdate,
   voiceUpdate,
 } from './fixtures/updates.ts'
-import { errorHint, handleUpdate, matchAccount } from './intake.ts'
+import { errorHint, handleUpdate, matchAccount, matchAccountTies } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
 
 function json(fields: Record<string, unknown>): string {
@@ -233,6 +234,16 @@ test('without a transcription key a voice note is answered, not swallowed', asyn
   assert.equal(outcome.status, 'ignored')
   assert.equal(h.store.rows.size, 0)
   assert.match(h.messenger.last().text ?? '', /Voice notes aren't switched on/)
+})
+
+test('a PDF or other document is refused, never logged as a garbage row', async () => {
+  const h = harness()
+  const outcome = await handleUpdate(documentUpdate("Hello! I've attached my noon document"), h.deps)
+
+  assert.equal(outcome.status, 'ignored')
+  assert.equal(h.store.rows.size, 0, 'the caption alone must never become a spend')
+  assert.match(h.messenger.last().text ?? '', /can't read PDFs/)
+  assert.equal(h.model.calls.length, 0)
 })
 
 test('paid_by naming the other person overrides the sender', async () => {
@@ -460,6 +471,37 @@ test('/help explains the three ways to send a spend', async () => {
 
   assert.match(h.messenger.last().text ?? '', /voice note/)
   assert.equal(h.store.rows.size, 0)
+})
+
+test('matchAccountTies names the accounts a tie was between, matching the real ...1657 case', () => {
+  // Two sub-ledgers on one physical card — exactly what broke in production:
+  // "paid with card ...1657" is genuinely ambiguous between them.
+  const twoOnSameCard: typeof ACCOUNTS = [
+    { id: 'acc-a', name: 'Car Down-Payment EMI (ENBD Noon CC ...1657)', type: 'credit_card', owner: 'Shrey' },
+    { id: 'acc-b', name: 'Mobile EMI (ENBD Noon CC ...1657)', type: 'credit_card', owner: 'Shrey' },
+  ]
+  assert.equal(matchAccount('card ending 1657', twoOnSameCard), null, 'still abstains rather than guessing')
+  assert.deepEqual(
+    matchAccountTies('card ending 1657', twoOnSameCard).map((a) => a.id).sort(),
+    ['acc-a', 'acc-b']
+  )
+})
+
+test('a tied account match is named in the review prompt, not left as a bare "account unknown"', async () => {
+  const twoOnSameCard = household()
+  twoOnSameCard.accounts = [
+    { id: 'acc-a', name: 'Car Down-Payment EMI (ENBD Noon CC ...1657)', type: 'credit_card', owner: 'Shrey' },
+    { id: 'acc-b', name: 'Mobile EMI (ENBD Noon CC ...1657)', type: 'credit_card', owner: 'Shrey' },
+  ]
+  const store = new FakeStore(twoOnSameCard)
+  const h = harness(json({ amount: 43.05, category: 'Shopping', paid_with: 'card ending 1657', confidence: 0.95 }))
+  h.deps.store = store
+
+  await handleUpdate(textUpdate('43.05 to Noon, card ending 1657'), h.deps)
+
+  const reply = h.messenger.last().text ?? ''
+  assert.match(reply, /Car Down-Payment EMI/)
+  assert.match(reply, /Mobile EMI/)
 })
 
 test('matchAccount maps payment hints to accounts, and abstains when unsure', () => {
