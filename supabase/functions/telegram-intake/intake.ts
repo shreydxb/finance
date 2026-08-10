@@ -10,10 +10,11 @@
 //      needs_review rather than discarding.
 //   2. Corrections update the row they belong to. They never create a second one.
 
+import { todayInTz } from '../_shared/dates.ts'
 import { extractCorrection, extractFromImage, extractFromText, ExtractionError } from './extract.ts'
 import { promptContextFrom } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
-import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from './telegram.ts'
+import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import type {
   AccountRef,
   Extraction,
@@ -27,7 +28,7 @@ import type {
   TelegramUpdate,
   Transcriber,
   TransactionRow,
-} from './types.ts'
+} from '../_shared/types.ts'
 
 export interface IntakeDeps {
   store: IntakeStore
@@ -78,6 +79,8 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     deps.log?.('rejected sender', { senderId, chatId: message.chat.id })
     return { status: 'ignored', reason: `sender ${senderId} is not in the household allowlist` }
   }
+
+  await captureChatId(message, deps)
 
   if (text === '/start' || text === '/help') {
     await deps.messenger.sendMessage(message.chat.id, HELP_TEXT, { replyToMessageId: message.message_id })
@@ -134,6 +137,41 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
 
   await announce(row.id, extraction, resolved, message, deps)
   return { status: 'logged', transactionId: row.id, needsReview: resolved.needsReview }
+}
+
+const TG_CHAT_ID_SETTING = 'tg_chat_id'
+
+/**
+ * Records which Telegram chat the household uses, so a scheduled push (which
+ * has no inbound update to read chat.id from) has somewhere to send to.
+ *
+ * Capture-once, never overwrite: a second chat showing up is worth noticing
+ * rather than silently following, since a push job blindly trusting whichever
+ * chat spoke most recently could end up mailing account balances to the wrong
+ * place. Failure here is never allowed to cost the household a logged spend,
+ * so every step is best-effort.
+ */
+async function captureChatId(message: TelegramMessage, deps: IntakeDeps): Promise<void> {
+  try {
+    const existing = (await deps.store.getSetting(TG_CHAT_ID_SETTING)) as { chat_id?: number } | null
+    if (existing?.chat_id != null) {
+      if (existing.chat_id !== message.chat.id) {
+        deps.log?.('chat id capture: a second chat spoke to the bot, leaving the stored one untouched', {
+          stored: existing.chat_id,
+          seen: message.chat.id,
+        })
+      }
+      return
+    }
+    await deps.store.putSetting(TG_CHAT_ID_SETTING, {
+      chat_id: message.chat.id,
+      chat_type: message.chat.type,
+      title: message.chat.title ?? null,
+      captured_at: new Date().toISOString(),
+    })
+  } catch (error) {
+    deps.log?.('chat id capture failed (non-fatal)', { error: String(error) })
+  }
 }
 
 class UnsupportedMessage extends Error {}
@@ -471,5 +509,5 @@ export function extractionFromRow(row: TransactionRow, household: HouseholdConte
 
 function today(deps: IntakeDeps): string {
   const now = deps.now ? deps.now() : new Date()
-  return now.toISOString().slice(0, 10)
+  return todayInTz(now)
 }

@@ -1,6 +1,6 @@
 // In-memory stand-ins for Telegram, OpenRouter, Groq and Postgres.
 
-import { buildHouseholdContext } from '../store.ts'
+import { buildHouseholdContext } from '../../_shared/store.ts'
 import type {
   AccountRef,
   CategoryRef,
@@ -14,7 +14,7 @@ import type {
   TelegramMessage,
   Transcriber,
   TransactionRow,
-} from '../types.ts'
+} from '../../_shared/types.ts'
 import { SHREY_ID, TARIKA_ID } from './updates.ts'
 
 export const CATEGORIES: CategoryRef[] = [
@@ -52,6 +52,9 @@ export function household(overrides: Partial<{ threshold: number; defaultAccount
 export class FakeStore implements IntakeStore {
   rows = new Map<string, TransactionRow>()
   context: HouseholdContext
+  settings = new Map<string, unknown>()
+  putSettingCalls: Array<{ key: string; value: unknown }> = []
+  failPutSetting = false
   private sequence = 0
 
   constructor(context: HouseholdContext = household()) {
@@ -103,6 +106,17 @@ export class FakeStore implements IntakeStore {
       }
     }
     return Promise.resolve(null)
+  }
+
+  getSetting(key: string): Promise<unknown | null> {
+    return Promise.resolve(this.settings.has(key) ? this.settings.get(key) : null)
+  }
+
+  putSetting(key: string, value: unknown): Promise<void> {
+    this.putSettingCalls.push({ key, value })
+    if (this.failPutSetting) return Promise.reject(new Error('settings write failed'))
+    this.settings.set(key, value)
+    return Promise.resolve()
   }
 
   only(): TransactionRow {

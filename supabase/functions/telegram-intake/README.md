@@ -35,18 +35,30 @@ Two invariants the code is built around, both covered by tests:
 | File | What it does |
 | --- | --- |
 | `index.ts` | HTTP entry: webhook secret, dependency wiring, always answers 200 |
-| `intake.ts` | The flow: allowlist, confidence gate, confirm/fix loop, replies |
+| `intake.ts` | The flow: allowlist, chat-id capture, confidence gate, confirm/fix loop, replies |
 | `extract.ts` | OpenRouter call + the hardening that validates whatever comes back |
 | `transcribe.ts` | Groq Whisper for voice notes |
 | `prompt.ts` | The extraction prompt (categories, currency rules, confidence rubric) |
-| `store.ts` | Postgres over PostgREST with the service-role key |
-| `telegram.ts` | Bot API client |
 | `config.ts` | Secrets → typed config, with defaults |
 | `demo.ts` | Runs the whole flow locally against mocked payloads |
 | `fixtures/` | Mock Telegram updates, fakes, and the receipt-response corpus |
 
-There are no external imports — just `fetch` — so the same modules run under
-Deno on Supabase and under `node --test` locally.
+Shared with `telegram-push` (the bot-expansion push function) live in
+`supabase/functions/_shared/`, not here:
+
+| File | What it does |
+| --- | --- |
+| `_shared/store.ts` | Postgres over PostgREST with the service-role key |
+| `_shared/telegram.ts` | Bot API client |
+| `_shared/types.ts` | Shared types (Telegram payloads, Extraction, HouseholdContext, …) |
+| `_shared/dates.ts` | `todayInTz` — resolves "today" in Asia/Dubai, not UTC |
+
+`_shared/` never imports from a specific function's directory — that one-way
+dependency is what makes it safe for `telegram-push` to reuse without pulling
+in `telegram-intake`'s config or secrets shape.
+
+There are no external imports anywhere — just `fetch` — so the same modules
+run under Deno on Supabase and under `node --test` locally.
 
 ## Setup
 

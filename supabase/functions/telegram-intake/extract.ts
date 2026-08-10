@@ -13,7 +13,7 @@
 
 import { buildCorrectionUserPrompt, buildImageUserPrompt, buildSystemPrompt, buildTextUserPrompt } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
-import type { ChatMessage, Extraction, ModelClient } from './types.ts'
+import type { ChatMessage, Extraction, ModelClient } from '../_shared/types.ts'
 
 export class ExtractionError extends Error {}
 

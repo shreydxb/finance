@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient'
 
 export async function listTransactions(filters = {}) {
-  let query = supabase.from('transactions').select('*')
+  let query = supabase.from('transactions').select('*').is('deleted_at', null)
 
   if (filters.category) query = query.eq('category', filters.category)
   if (filters.owner) query = query.eq('owner', filters.owner)
@@ -49,6 +49,7 @@ export async function countNeedsReview() {
     .from('transactions')
     .select('id', { count: 'exact', head: true })
     .eq('needs_review', true)
+    .is('deleted_at', null)
   if (error) throw error
   return count ?? 0
 }

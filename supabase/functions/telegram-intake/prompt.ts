@@ -2,7 +2,7 @@
 // Whisper transcript of a voice note, and the caption/OCR of a receipt photo all
 // land on the same instructions, so behaviour can't drift between them.
 
-import type { Extraction, HouseholdContext } from './types.ts'
+import type { Extraction, HouseholdContext } from '../_shared/types.ts'
 
 export interface PromptContext {
   today: string

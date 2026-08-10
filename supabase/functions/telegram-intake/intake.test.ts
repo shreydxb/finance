@@ -107,6 +107,54 @@ test('high confidence auto-logs with a one-line FYI and no buttons', async () =>
   assert.equal(sent.opts?.inlineKeyboard, undefined)
 })
 
+test('the first allowlisted message captures the chat id for future pushes', async () => {
+  const h = harness()
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.equal(h.store.putSettingCalls.length, 1)
+  assert.equal(h.store.putSettingCalls[0].key, 'tg_chat_id')
+  assert.equal((h.store.putSettingCalls[0].value as { chat_id: number }).chat_id, CHAT_ID)
+})
+
+test('a second message does not re-capture an already-stored chat id', async () => {
+  const h = harness([CLEAN, CLEAN])
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+  await handleUpdate(textUpdate('50 aed coffee'), h.deps)
+
+  assert.equal(h.store.putSettingCalls.length, 1)
+})
+
+test('a message from a different chat than the stored one is logged, not followed', async () => {
+  const h = harness()
+  h.store.settings.set('tg_chat_id', { chat_id: -999 })
+  const logs: Array<[string, Record<string, unknown> | undefined]> = []
+  h.deps.log = (message, data) => logs.push([message, data])
+
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.equal(h.store.putSettingCalls.length, 0)
+  assert.deepEqual(h.store.settings.get('tg_chat_id'), { chat_id: -999 })
+  assert.ok(logs.some(([msg]) => msg.includes('second chat')))
+})
+
+test('a settings-write failure while capturing the chat id still logs the spend', async () => {
+  const h = harness()
+  h.store.failPutSetting = true
+
+  const outcome = await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.only().amount, 84)
+})
+
+test('the prompt is told the Gulf calendar date, not the UTC one, across the midnight boundary', async () => {
+  const h = harness()
+  h.deps.now = () => new Date('2026-08-10T21:30:00Z') // 01:30 next day in Asia/Dubai
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.match(h.model.lastPromptText(), /Today's date is 2026-08-11/)
+})
+
 test('low confidence still writes the row, then asks with Confirm/Fix', async () => {
   const h = harness(json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.6 }))
   const outcome = await handleUpdate(textUpdate('lunch somewhere'), h.deps)

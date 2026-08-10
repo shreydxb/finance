@@ -16,10 +16,10 @@ import { loadConfig } from './config.ts'
 import { OpenRouterClient } from './extract.ts'
 import { handleUpdate } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
-import { PostgrestStore } from './store.ts'
-import { TelegramClient } from './telegram.ts'
+import { PostgrestStore } from '../_shared/store.ts'
+import { TelegramClient } from '../_shared/telegram.ts'
 import { GroqWhisper } from './transcribe.ts'
-import type { DownloadedFile, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from './types.ts'
+import type { DownloadedFile, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from '../_shared/types.ts'
 
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token'
 

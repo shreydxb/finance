@@ -2,7 +2,7 @@
 // transcript is then fed to the *same* text extraction as a typed message.
 // There is deliberately no separate voice extraction path to drift out of sync.
 
-import type { DownloadedFile, Transcriber } from './types.ts'
+import type { DownloadedFile, Transcriber } from '../_shared/types.ts'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
 

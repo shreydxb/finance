@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { ACCOUNTS, CATEGORIES } from './fixtures/fakes.ts'
+import { ACCOUNTS, CATEGORIES } from '../telegram-intake/fixtures/fakes.ts'
 import { buildHouseholdContext, PostgrestStore, SETTINGS_KEYS } from './store.ts'
 
 function context(settings: { key: string; value: unknown }[], fallbackTelegramIds: number[] = []) {
@@ -74,6 +74,24 @@ test('PostgREST calls are shaped the way Supabase expects', async () => {
   // A correction may reply to either the household's message or the bot's prompt.
   assert.match(calls[1].url, /telegram_chat_id=eq\.-100/)
   assert.match(calls[1].url, /or=\(telegram_msg_id\.eq\.4242,telegram_prompt_msg_id\.eq\.4242\)/)
+
+  await store.putSetting('tg_chat_id', { chat_id: -100 })
+  assert.equal(calls[2].url, 'https://project.supabase.co/rest/v1/settings')
+  assert.equal(calls[2].init.method, 'POST')
+  assert.equal(
+    (calls[2].init.headers as Record<string, string>).prefer,
+    'resolution=merge-duplicates,return=representation'
+  )
+  assert.deepEqual(JSON.parse(String(calls[2].init.body)), { key: 'tg_chat_id', value: { chat_id: -100 } })
+})
+
+test('getSetting returns null for a missing key rather than throwing', async () => {
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: (() => Promise.resolve(new Response('[]', { status: 200 }))) as unknown as typeof fetch,
+  })
+  assert.equal(await store.getSetting('tg_chat_id'), null)
 })
 
 test('a PostgREST error is surfaced, not swallowed', async () => {

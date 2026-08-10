@@ -1,7 +1,7 @@
 // Hand-written Telegram payloads. Used by the tests and by demo.ts, so the
 // pipeline can be exercised end to end without the live bot.
 
-import type { TelegramMessage, TelegramUpdate } from '../types.ts'
+import type { TelegramMessage, TelegramUpdate } from '../../_shared/types.ts'
 
 export const SHREY_ID = 111111111
 export const TARIKA_ID = 222222222

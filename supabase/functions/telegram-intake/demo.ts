@@ -22,7 +22,7 @@ import {
   voiceUpdate,
 } from './fixtures/updates.ts'
 import { handleUpdate } from './intake.ts'
-import type { TelegramUpdate, TransactionRow } from './types.ts'
+import type { TelegramUpdate, TransactionRow } from '../_shared/types.ts'
 
 const TODAY = new Date().toISOString().slice(0, 10)
 

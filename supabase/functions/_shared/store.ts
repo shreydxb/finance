@@ -3,17 +3,26 @@
 //
 // Plain fetch rather than supabase-js so this module also runs under Node for
 // tests without a URL-import shim.
+//
+// Lives in _shared/ so telegram-push can reuse it. Nothing here imports from
+// a specific function's directory (e.g. telegram-intake/config.ts) — that
+// one-way dependency is what keeps _shared/ safe to import from either
+// function without pulling in the other's secrets/config shape.
 
-import { DEFAULTS } from './config.ts'
 import type { AccountRef, CategoryRef, HouseholdContext, IntakeStore, TransactionRow } from './types.ts'
 
 type FetchLike = typeof fetch
+
+// Mirrors telegram-intake/config.ts DEFAULTS.confidenceThreshold. Duplicated
+// rather than imported, on purpose — see the note above.
+const FALLBACK_CONFIDENCE_THRESHOLD = 0.85
 
 export const SETTINGS_KEYS = {
   person1: 'tg_id_1',
   person2: 'tg_id_2',
   threshold: 'ai_confidence_threshold',
   defaultAccount: 'tg_default_account_id',
+  chatId: 'tg_chat_id',
 }
 
 interface SettingRow {
@@ -38,7 +47,7 @@ export class PostgrestStore implements IntakeStore {
     this.baseUrl = `${opts.supabaseUrl.replace(/\/$/, '')}/rest/v1`
     this.serviceKey = opts.serviceKey
     this.fetchImpl = opts.fetchImpl ?? fetch
-    this.fallbackThreshold = opts.fallbackThreshold ?? DEFAULTS.confidenceThreshold
+    this.fallbackThreshold = opts.fallbackThreshold ?? FALLBACK_CONFIDENCE_THRESHOLD
     this.fallbackTelegramIds = opts.fallbackTelegramIds ?? []
   }
 
@@ -106,6 +115,21 @@ export class PostgrestStore implements IntakeStore {
       `/transactions?telegram_chat_id=eq.${chatId}&${filter}&order=created_at.desc&limit=1`
     )
     return rows[0] ?? null
+  }
+
+  async getSetting(key: string): Promise<unknown | null> {
+    const rows = await this.request<SettingRow[]>(`/settings?select=key,value&key=eq.${encodeURIComponent(key)}`)
+    return rows[0]?.value ?? null
+  }
+
+  async putSetting(key: string, value: unknown): Promise<void> {
+    // resolution=merge-duplicates: an upsert keyed on the `key` primary key,
+    // so a second write to the same setting updates in place rather than 409ing.
+    await this.request<SettingRow[]>('/settings', {
+      method: 'POST',
+      headers: { prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ key, value }),
+    })
   }
 }
 
