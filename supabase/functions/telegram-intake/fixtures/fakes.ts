@@ -7,6 +7,7 @@ import type {
   ChatMessage,
   DownloadedFile,
   HouseholdContext,
+  IntakeLogEntry,
   IntakeStore,
   Messenger,
   ModelClient,
@@ -119,6 +120,15 @@ export class FakeStore implements IntakeStore {
     return Promise.resolve()
   }
 
+  logs: IntakeLogEntry[] = []
+  failLogEvent = false
+
+  logEvent(entry: IntakeLogEntry): Promise<void> {
+    if (this.failLogEvent) return Promise.reject(new Error('log write failed'))
+    this.logs.push(entry)
+    return Promise.resolve()
+  }
+
   only(): TransactionRow {
     const rows = Array.from(this.rows.values())
     if (rows.length !== 1) throw new Error(`expected exactly one row, found ${rows.length}`)
@@ -178,6 +188,8 @@ export class FakeMessenger implements Messenger {
 export class FakeModel implements ModelClient {
   responses: string[]
   calls: ChatMessage[][] = []
+  model = 'fake-model'
+  usage: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null } | null = null
 
   constructor(responses: string | string[]) {
     this.responses = Array.isArray(responses) ? [...responses] : [responses]
@@ -189,6 +201,10 @@ export class FakeModel implements ModelClient {
     if (next === undefined) throw new Error('FakeModel ran out of responses')
     if (next.startsWith('THROW:')) return Promise.reject(new Error(next.slice(6)))
     return Promise.resolve(next)
+  }
+
+  getLastUsage() {
+    return this.usage
   }
 
   /** Flattens the last prompt to plain text for assertions. */

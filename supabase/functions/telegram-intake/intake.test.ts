@@ -370,6 +370,84 @@ test('a model failure is reported back rather than dropped on the floor', async 
   assert.match(reply, /add it by hand in the app/)
 })
 
+test('a successful extraction logs an inbound event with model, tokens and the transaction id', async () => {
+  const h = harness()
+  h.model.usage = { promptTokens: 120, completionTokens: 40, totalTokens: 160 }
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.equal(h.store.logs.length, 1)
+  const entry = h.store.logs[0]
+  assert.equal(entry.direction, 'inbound')
+  assert.equal(entry.stage, 'extract_text')
+  assert.equal(entry.messageType, 'text')
+  assert.equal(entry.success, true)
+  assert.equal(entry.person, 'Shrey')
+  assert.equal(entry.telegramUserId, SHREY_ID)
+  assert.equal(entry.model, 'fake-model')
+  assert.deepEqual(entry.usage, { promptTokens: 120, completionTokens: 40, totalTokens: 160 })
+  assert.equal(entry.transactionId, h.store.only().id)
+  assert.ok(typeof entry.durationMs === 'number')
+})
+
+test('a failed extraction logs the error instead of the transaction id', async () => {
+  const h = harness('THROW:OpenRouter 402: insufficient credits')
+  await handleUpdate(textUpdate('84 aed lunch'), h.deps)
+
+  assert.equal(h.store.logs.length, 1)
+  const entry = h.store.logs[0]
+  assert.equal(entry.success, false)
+  assert.match(entry.error ?? '', /insufficient credits/)
+  assert.equal(entry.transactionId, null)
+})
+
+test('a photo extraction logs message_type photo with a bracketed summary, not the raw bytes', async () => {
+  const h = harness()
+  await handleUpdate(photoUpdate(), h.deps)
+
+  assert.equal(h.store.logs.length, 1)
+  assert.equal(h.store.logs[0].messageType, 'photo')
+  assert.match(h.store.logs[0].inputSummary ?? '', /^\[photo\]/)
+})
+
+test('a correction logs its own stage, separate from the original extraction', async () => {
+  const h = harness([json({ amount: 48, category: 'Dining Out', confidence: 0.5 }), CLEAN])
+  await handleUpdate(textUpdate('lunch 48'), h.deps)
+  const id = h.store.only().id
+  await handleUpdate(callbackUpdate('fix', id), h.deps)
+  h.store.logs.length = 0
+
+  await handleUpdate(replyUpdate('84 not 48', 5002), h.deps)
+
+  assert.equal(h.store.logs.length, 1)
+  assert.equal(h.store.logs[0].stage, 'correction')
+  assert.equal(h.store.logs[0].success, true)
+  assert.equal(h.store.logs[0].transactionId, id)
+})
+
+test('a Confirm tap logs a callback event', async () => {
+  const h = harness(json({ amount: 84, category: 'Dining Out', confidence: 0.95 }))
+  await handleUpdate(textUpdate('lunch'), h.deps)
+  const id = h.store.only().id
+  h.store.logs.length = 0
+
+  await handleUpdate(callbackUpdate('confirm', id, SHREY_ID), h.deps)
+
+  assert.equal(h.store.logs.length, 1)
+  assert.equal(h.store.logs[0].stage, 'callback')
+  assert.equal(h.store.logs[0].success, true)
+  assert.equal(h.store.logs[0].inputSummary, 'confirm')
+})
+
+test('a broken log write never blocks the reply or the write it was logging', async () => {
+  const h = harness()
+  h.store.failLogEvent = true
+  const outcome = await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.rows.size, 1)
+  assert.match(h.messenger.last().text ?? '', /Logged:/)
+})
+
 test('errorHint flattens and truncates, and gives up on empty errors', () => {
   assert.equal(errorHint(new Error('OpenRouter 400:\n  bad  request')), 'OpenRouter 400: bad request')
   assert.equal(errorHint(new Error('')), null)

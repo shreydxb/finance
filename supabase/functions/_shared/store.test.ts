@@ -85,6 +85,55 @@ test('PostgREST calls are shaped the way Supabase expects', async () => {
   assert.deepEqual(JSON.parse(String(calls[2].init.body)), { key: 'tg_chat_id', value: { chat_id: -100 } })
 })
 
+test('logEvent posts a flattened row to intake_logs with return=minimal', async () => {
+  const calls: { url: string; init: RequestInit }[] = []
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: ((url: string, init: RequestInit = {}) => {
+      calls.push({ url, init })
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }) as unknown as typeof fetch,
+  })
+
+  await store.logEvent({
+    direction: 'inbound',
+    stage: 'extract_text',
+    messageType: 'text',
+    chatId: -100,
+    telegramUserId: 111,
+    person: 'Shrey',
+    telegramMsgId: 42,
+    inputSummary: '84 aed lunch',
+    model: 'google/gemini-2.5-flash-lite',
+    usage: { promptTokens: 120, completionTokens: 40, totalTokens: 160 },
+    success: true,
+    transactionId: 'tx-1',
+  })
+
+  assert.equal(calls[0].url, 'https://project.supabase.co/rest/v1/intake_logs')
+  assert.equal(calls[0].init.method, 'POST')
+  assert.equal((calls[0].init.headers as Record<string, string>).prefer, 'return=minimal')
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
+    direction: 'inbound',
+    chat_id: -100,
+    telegram_user_id: 111,
+    person: 'Shrey',
+    telegram_msg_id: 42,
+    stage: 'extract_text',
+    message_type: 'text',
+    input_summary: '84 aed lunch',
+    model: 'google/gemini-2.5-flash-lite',
+    prompt_tokens: 120,
+    completion_tokens: 40,
+    total_tokens: 160,
+    success: true,
+    error: null,
+    duration_ms: null,
+    transaction_id: 'tx-1',
+  })
+})
+
 test('getSetting returns null for a missing key rather than throwing', async () => {
   const store = new PostgrestStore({
     supabaseUrl: 'https://project.supabase.co',

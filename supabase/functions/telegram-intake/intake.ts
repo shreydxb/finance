@@ -26,6 +26,7 @@ import type {
   TelegramCallbackQuery,
   TelegramMessage,
   TelegramUpdate,
+  TokenUsage,
   Transcriber,
   TransactionRow,
 } from '../_shared/types.ts'
@@ -96,6 +97,9 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     if (existing) return applyCorrection(existing, text, message, household, ctx, deps)
   }
 
+  const messageType = messageTypeOf(message)
+  const t0 = Date.now()
+
   let extraction: Extraction
   try {
     extraction = await extractFromMessage(message, ctx, deps)
@@ -115,6 +119,11 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
         : "I couldn't read that one. Send it again, or add it by hand in the app.",
       { replyToMessageId: message.message_id }
     )
+    await logInbound(deps, message, household, senderId, messageType, {
+      success: false,
+      error: error instanceof ExtractionError ? error.message : String(error),
+      durationMs: Date.now() - t0,
+    })
     return { status: 'error', reason: error instanceof ExtractionError ? error.message : String(error) }
   }
 
@@ -135,8 +144,82 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     telegram_msg_id: message.message_id,
   })
 
+  const usage = modelUsageOf(deps.model)
+  await logInbound(deps, message, household, senderId, messageType, {
+    success: true,
+    durationMs: Date.now() - t0,
+    transactionId: row.id,
+    model: usage.model,
+    usage: usage.usage,
+  })
+
   await announce(row.id, extraction, resolved, message, deps)
   return { status: 'logged', transactionId: row.id, needsReview: resolved.needsReview }
+}
+
+function messageTypeOf(message: TelegramMessage): 'photo' | 'voice' | 'text' {
+  if (message.photo?.length) return 'photo'
+  if (message.voice ?? message.audio) return 'voice'
+  return 'text'
+}
+
+function inputSummaryOf(message: TelegramMessage): string {
+  if (message.photo?.length) {
+    return message.caption ? `[photo] ${truncate(message.caption, 150)}` : '[photo]'
+  }
+  if (message.voice ?? message.audio) return '[voice note]'
+  return truncate((message.text ?? message.caption ?? '').trim(), 200)
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+/** Reads token usage/model name off a ModelClient without widening the interface everyone implements. */
+function modelUsageOf(model: ModelClient): { model: string | null; usage: TokenUsage | null } {
+  const named = model as Partial<{ model: string }>
+  return {
+    model: typeof named.model === 'string' ? named.model : null,
+    usage: model.getLastUsage ? model.getLastUsage() ?? null : null,
+  }
+}
+
+async function logInbound(
+  deps: IntakeDeps,
+  message: TelegramMessage,
+  household: HouseholdContext,
+  senderId: number,
+  messageType: string,
+  opts: {
+    stage?: string
+    success: boolean
+    error?: string
+    durationMs?: number
+    transactionId?: string
+    model?: string | null
+    usage?: TokenUsage | null
+  }
+): Promise<void> {
+  try {
+    await deps.store.logEvent({
+      direction: 'inbound',
+      stage: opts.stage ?? `extract_${messageType}`,
+      messageType,
+      chatId: message.chat.id,
+      telegramUserId: senderId,
+      person: household.people.get(senderId) || null,
+      telegramMsgId: message.message_id,
+      inputSummary: inputSummaryOf(message),
+      model: opts.model ?? null,
+      usage: opts.usage ?? null,
+      success: opts.success,
+      error: opts.error ?? null,
+      durationMs: opts.durationMs ?? null,
+      transactionId: opts.transactionId ?? null,
+    })
+  } catch (error) {
+    deps.log?.('intake log write failed (non-fatal)', { error: String(error) })
+  }
 }
 
 const TG_CHAT_ID_SETTING = 'tg_chat_id'
@@ -230,6 +313,9 @@ async function applyCorrection(
   ctx: PromptContext,
   deps: IntakeDeps
 ): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const t0 = Date.now()
+
   let extraction: Extraction
   try {
     extraction = await extractCorrection(extractionFromRow(row, household), correction, ctx, deps.model)
@@ -238,10 +324,16 @@ async function applyCorrection(
     await deps.messenger.sendMessage(message.chat.id, "I couldn't apply that fix — try rephrasing it.", {
       replyToMessageId: message.message_id,
     })
+    await logInbound(deps, message, household, senderId, 'text', {
+      stage: 'correction',
+      success: false,
+      error: String(error),
+      durationMs: Date.now() - t0,
+      transactionId: row.id,
+    })
     return { status: 'error', reason: String(error) }
   }
 
-  const senderId = message.from?.id ?? 0
   const resolved = resolve(extraction, household, senderId)
   const updated = await deps.store.updateTransaction(row.id, {
     date: extraction.date,
@@ -253,6 +345,16 @@ async function applyCorrection(
     note: extraction.note,
     needs_review: resolved.needsReview,
     telegram_prompt_msg_id: null,
+  })
+
+  const usage = modelUsageOf(deps.model)
+  await logInbound(deps, message, household, senderId, 'text', {
+    stage: 'correction',
+    success: true,
+    durationMs: Date.now() - t0,
+    transactionId: updated.id,
+    model: usage.model,
+    usage: usage.usage,
   })
 
   await announce(updated.id, extraction, resolved, message, deps, { corrected: true })
@@ -277,6 +379,7 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
   const row = await deps.store.getTransaction(parsed.transactionId)
   if (!row) {
     await deps.messenger.answerCallbackQuery(query.id, 'That one is gone from the app.')
+    await logCallback(deps, query, chatId, parsed.action, { success: false, error: 'transaction not found' })
     return { status: 'ignored', reason: `transaction ${parsed.transactionId} not found` }
   }
 
@@ -291,6 +394,7 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
         { forceReply: true }
       )
       await deps.store.updateTransaction(row.id, { telegram_prompt_msg_id: prompt.message_id })
+      await logCallback(deps, query, chatId, 'confirm_blocked', { success: true, transactionId: row.id })
       return { status: 'fix_requested', transactionId: row.id }
     }
 
@@ -304,6 +408,7 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
         `${describeRow(updated, household)} ✓`
       )
     }
+    await logCallback(deps, query, chatId, 'confirm', { success: true, transactionId: row.id })
     return { status: 'confirmed', transactionId: row.id }
   }
 
@@ -316,11 +421,38 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     )
     // Remember which message the correction will hang off.
     await deps.store.updateTransaction(row.id, { telegram_prompt_msg_id: prompt.message_id })
+    await logCallback(deps, query, chatId, 'fix', { success: true, transactionId: row.id })
     return { status: 'fix_requested', transactionId: row.id }
   }
 
   await deps.messenger.answerCallbackQuery(query.id)
+  await logCallback(deps, query, chatId, parsed.action, { success: false, error: 'unknown callback action', transactionId: row.id })
   return { status: 'ignored', reason: `unknown callback action: ${parsed.action}` }
+}
+
+async function logCallback(
+  deps: IntakeDeps,
+  query: TelegramCallbackQuery,
+  chatId: number,
+  action: string,
+  opts: { success: boolean; error?: string; transactionId?: string }
+): Promise<void> {
+  try {
+    await deps.store.logEvent({
+      direction: 'inbound',
+      stage: 'callback',
+      messageType: 'callback_query',
+      chatId,
+      telegramUserId: query.from.id,
+      telegramMsgId: query.message?.message_id ?? null,
+      inputSummary: action,
+      success: opts.success,
+      error: opts.error ?? null,
+      transactionId: opts.transactionId ?? null,
+    })
+  } catch (error) {
+    deps.log?.('intake log write failed (non-fatal)', { error: String(error) })
+  }
 }
 
 // ── resolution + gating ────────────────────────────────────────────────────

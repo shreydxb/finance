@@ -13,7 +13,7 @@
 
 import { buildCorrectionUserPrompt, buildImageUserPrompt, buildSystemPrompt, buildTextUserPrompt } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
-import type { ChatMessage, Extraction, ModelClient } from '../_shared/types.ts'
+import type { ChatMessage, Extraction, ModelClient, TokenUsage } from '../_shared/types.ts'
 
 export class ExtractionError extends Error {}
 
@@ -25,6 +25,7 @@ export class OpenRouterClient implements ModelClient {
   apiKey: string
   model: string
   fetchImpl: FetchLike
+  private lastUsage: TokenUsage | null = null
 
   constructor(apiKey: string, model: string, fetchImpl: FetchLike = fetch) {
     this.apiKey = apiKey
@@ -55,10 +56,24 @@ export class OpenRouterClient implements ModelClient {
     if (!res.ok) {
       throw new ExtractionError(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`)
     }
-    const payload = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+    const payload = (await res.json()) as {
+      choices?: { message?: { content?: string } }[]
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    }
+    this.lastUsage = payload.usage
+      ? {
+          promptTokens: payload.usage.prompt_tokens ?? null,
+          completionTokens: payload.usage.completion_tokens ?? null,
+          totalTokens: payload.usage.total_tokens ?? null,
+        }
+      : null
     const content = payload.choices?.[0]?.message?.content
     if (!content) throw new ExtractionError('OpenRouter returned no content')
     return content
+  }
+
+  getLastUsage(): TokenUsage | null {
+    return this.lastUsage
   }
 }
 

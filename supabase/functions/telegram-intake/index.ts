@@ -19,7 +19,7 @@ import type { IntakeDeps } from './intake.ts'
 import { PostgrestStore } from '../_shared/store.ts'
 import { TelegramClient } from '../_shared/telegram.ts'
 import { GroqWhisper } from './transcribe.ts'
-import type { DownloadedFile, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from '../_shared/types.ts'
+import type { DownloadedFile, IntakeStore, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from '../_shared/types.ts'
 
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token'
 
@@ -56,17 +56,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return json({ ok: false, error: 'invalid JSON' }, 400)
   }
 
+  const store = new PostgrestStore({
+    supabaseUrl: config.supabaseUrl,
+    serviceKey: config.supabaseServiceKey,
+    fallbackThreshold: config.confidenceThreshold,
+    fallbackTelegramIds: config.allowedTelegramIds,
+  })
   const telegram = new TelegramClient(config.telegramBotToken)
   const recorder = isDemo ? new RecordingMessenger(telegram) : null
 
   const deps: IntakeDeps = {
-    store: new PostgrestStore({
-      supabaseUrl: config.supabaseUrl,
-      serviceKey: config.supabaseServiceKey,
-      fallbackThreshold: config.confidenceThreshold,
-      fallbackTelegramIds: config.allowedTelegramIds,
-    }),
-    messenger: recorder ?? telegram,
+    store,
+    messenger: new LoggingMessenger(recorder ?? telegram, store),
     model: new OpenRouterClient(config.openRouterApiKey, config.openRouterModel),
     transcriber: config.groqApiKey ? new GroqWhisper(config.groqApiKey, config.groqWhisperModel) : null,
     defaultCurrency: config.defaultCurrency,
@@ -89,6 +90,78 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { 'content-type': 'application/json' },
   })
+}
+
+/**
+ * Wraps any Messenger to log every outbound reply (a Confirm/Fix prompt, an
+ * FYI, an error hint, a /help answer) to `intake_logs` — success, latency and
+ * the text sent. This is the other half of the observability trail: intake.ts
+ * logs what came in, this logs what went back out. A broken log write must
+ * never cost the household a reply, so it's swallowed, not thrown.
+ */
+class LoggingMessenger implements Messenger {
+  constructor(private inner: Messenger, private store: IntakeStore) {}
+
+  async sendMessage(chatId: number, text: string, opts: SendOptions = {}): Promise<TelegramMessage> {
+    const t0 = Date.now()
+    try {
+      const result = await this.inner.sendMessage(chatId, text, opts)
+      await this.log('send_message', chatId, text, result.message_id, true, null, Date.now() - t0)
+      return result
+    } catch (error) {
+      await this.log('send_message', chatId, text, null, false, String(error), Date.now() - t0)
+      throw error
+    }
+  }
+
+  async editMessageText(chatId: number, messageId: number, text: string, opts: SendOptions = {}): Promise<unknown> {
+    const t0 = Date.now()
+    try {
+      const result = await this.inner.editMessageText(chatId, messageId, text, opts)
+      await this.log('edit_message', chatId, text, messageId, true, null, Date.now() - t0)
+      return result
+    } catch (error) {
+      await this.log('edit_message', chatId, text, messageId, false, String(error), Date.now() - t0)
+      throw error
+    }
+  }
+
+  answerCallbackQuery(callbackQueryId: string, text?: string): Promise<unknown> {
+    // Ephemeral popups aren't worth their own row — the tap they answer is
+    // already logged by intake.ts, and the send/edit it triggers is logged here.
+    return this.inner.answerCallbackQuery(callbackQueryId, text)
+  }
+
+  downloadFile(fileId: string): Promise<DownloadedFile> {
+    return this.inner.downloadFile(fileId)
+  }
+
+  private async log(
+    stage: string,
+    chatId: number,
+    text: string,
+    telegramMsgId: number | null,
+    success: boolean,
+    error: string | null,
+    durationMs: number
+  ): Promise<void> {
+    try {
+      await this.store.logEvent({
+        direction: 'outbound',
+        stage,
+        messageType: 'reply',
+        chatId,
+        person: 'bot',
+        telegramMsgId,
+        inputSummary: text.length > 200 ? `${text.slice(0, 200)}…` : text,
+        success,
+        error,
+        durationMs,
+      })
+    } catch (logError) {
+      console.error('intake log write failed (non-fatal)', logError)
+    }
+  }
 }
 
 /**

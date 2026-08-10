@@ -78,6 +78,19 @@ so the future hourly push cron is idempotent (verified live: a duplicate
 on `telegram-intake`'s config. `src/lib/transactions.js` reads now filter out
 soft-deleted rows.
 
+**The Telegram pipeline now logs itself.** `016_intake_logs.sql` is applied —
+every inbound attempt (text/photo/voice/correction/callback) and every outbound
+reply writes a row to `intake_logs`: who sent or received it, which pipeline
+stage, the model and token counts when one was called, success/failure, the
+error if any, and latency in `duration_ms`. See "Observability" in
+`supabase/functions/telegram-intake/README.md` for the query patterns. This is
+the tool for the still-unresolved "receipt-photo accuracy is unproven" and
+"webhook secret unset" items below — once real messages start flowing,
+`select * from intake_logs where success = false` is where to look first.
+`telegram-intake` is redeployed as version 13 with this and the Sprint 1
+foundations above; it has still never received a live invocation (no bot
+token/webhook registered in this session — see the webhook-secret item below).
+
 **task #6 is done**. Real data is in production:
 41 investment holdings (25 Zerodha India equities, 8 Shrey US/gold, 8 Tarika
 US/metals), 4 liability accounts (ENBD car loan, 2 ENBD Noon CC EMIs, FAB 0%

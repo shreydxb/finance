@@ -9,7 +9,7 @@
 // one-way dependency is what keeps _shared/ safe to import from either
 // function without pulling in the other's secrets/config shape.
 
-import type { AccountRef, CategoryRef, HouseholdContext, IntakeStore, TransactionRow } from './types.ts'
+import type { AccountRef, CategoryRef, HouseholdContext, IntakeLogEntry, IntakeStore, TransactionRow } from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -129,6 +129,31 @@ export class PostgrestStore implements IntakeStore {
       method: 'POST',
       headers: { prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ key, value }),
+    })
+  }
+
+  async logEvent(entry: IntakeLogEntry): Promise<void> {
+    await this.request<void>('/intake_logs', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({
+        direction: entry.direction,
+        chat_id: entry.chatId ?? null,
+        telegram_user_id: entry.telegramUserId ?? null,
+        person: entry.person ?? null,
+        telegram_msg_id: entry.telegramMsgId ?? null,
+        stage: entry.stage,
+        message_type: entry.messageType ?? null,
+        input_summary: entry.inputSummary ?? null,
+        model: entry.model ?? null,
+        prompt_tokens: entry.usage?.promptTokens ?? null,
+        completion_tokens: entry.usage?.completionTokens ?? null,
+        total_tokens: entry.usage?.totalTokens ?? null,
+        success: entry.success,
+        error: entry.error ?? null,
+        duration_ms: entry.durationMs ?? null,
+        transaction_id: entry.transactionId ?? null,
+      }),
     })
   }
 }

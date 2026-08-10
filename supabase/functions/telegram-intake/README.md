@@ -183,7 +183,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 62 tests, no network, no keys
+npm test              # 78 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 
@@ -192,6 +192,42 @@ receipt photo, a low-confidence voice note corrected via Fix, an unreadable
 total, and a stranger being ignored — and prints both sides of the conversation
 plus the resulting ledger. Model responses are the only faked part; the
 allowlist, gate, writes and confirm/fix loop are the real code.
+
+`LoggingMessenger` (the class that logs every outbound reply — see
+Observability below) lives in `index.ts` and isn't exercised by `npm test`,
+since `index.ts` calls `Deno.serve` at import time and only runs under Deno.
+It runs for real on every `npm run demo:telegram` invocation and every live
+webhook call; there is no unit coverage for it in isolation.
+
+## Observability
+
+Every inbound attempt (a typed message, a photo, a voice note, a correction,
+a Confirm/Fix tap) and every outbound reply writes a row to `intake_logs`
+(`supabase/schema/016_intake_logs.sql`) — who sent or received it, what stage
+of the pipeline it was, the model and token counts when one was called,
+whether it succeeded, the error if not, and how long it took. This is the
+place to look when something silently doesn't work, since Supabase's function
+logs are short-retention and unstructured:
+
+```sql
+-- everything that failed today
+select created_at, direction, stage, message_type, person, error, duration_ms
+from intake_logs
+where success = false and created_at > now() - interval '1 day'
+order by created_at desc;
+
+-- token spend by day, so a runaway prompt or a stuck retry loop shows up fast
+select date_trunc('day', created_at) as day, model, sum(total_tokens) as tokens, count(*) as calls
+from intake_logs
+where model is not null
+group by 1, 2
+order by 1 desc;
+```
+
+A log write is best-effort: `intake.ts` and `index.ts` both swallow failures
+from `store.logEvent()` (falling back to `console.error`) so a broken log
+insert can never cost the household a reply or a logged spend — the same
+principle behind the chat-id capture in `captureChatId()`.
 
 ### Demo mode against the deployed function
 

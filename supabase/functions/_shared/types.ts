@@ -150,6 +150,33 @@ export interface IntakeStore {
   getSetting(key: string): Promise<unknown | null>
   /** Upsert. Used sparingly — e.g. capturing tg_chat_id once, not per-message config. */
   putSetting(key: string, value: unknown): Promise<void>
+  /** Best-effort observability row. Callers swallow failures — a broken log write must never cost a reply or a spend. */
+  logEvent(entry: IntakeLogEntry): Promise<void>
+}
+
+export interface TokenUsage {
+  promptTokens: number | null
+  completionTokens: number | null
+  totalTokens: number | null
+}
+
+/** One row in `intake_logs`: an inbound extraction attempt or an outbound reply. */
+export interface IntakeLogEntry {
+  direction: 'inbound' | 'outbound'
+  /** e.g. 'extract_text', 'extract_photo', 'extract_voice', 'correction', 'callback', 'send_message', 'edit_message' */
+  stage: string
+  messageType?: string | null
+  chatId?: number | null
+  telegramUserId?: number | null
+  person?: string | null
+  telegramMsgId?: number | null
+  inputSummary?: string | null
+  model?: string | null
+  usage?: TokenUsage | null
+  success: boolean
+  error?: string | null
+  durationMs?: number | null
+  transactionId?: string | null
 }
 
 export interface ChatMessage {
@@ -164,6 +191,8 @@ export type ContentPart =
 /** The LLM call, narrowed to "messages in, raw string out". */
 export interface ModelClient {
   chat(messages: ChatMessage[]): Promise<string>
+  /** Token usage from the most recent chat() call, when the provider reports it. Optional: fakes in tests don't implement it. */
+  getLastUsage?(): TokenUsage | null
 }
 
 /** Voice → text. Separate from ModelClient because it's a different provider. */
