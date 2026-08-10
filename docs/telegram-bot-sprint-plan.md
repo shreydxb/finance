@@ -141,10 +141,46 @@ one-line fix and it must land in Sprint 1.
 
 ---
 
-## 5. Proposed sprint plan
+## 4b. Migration numbering — claim these before writing SQL
+
+Sprints add migrations in this order. **Check `supabase/schema/` for the highest
+existing number before creating one** — if any of these are already taken, shift
+up and update this table.
+
+| # | File | Sprint | Contents |
+| --- | --- | --- | --- |
+| 015 | `015_bot_expansion.sql` | 1 | `transactions.deleted_at`, `notifications` |
+| 016 | `016_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view |
+| 017 | `017_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) |
+| 018 | `018_push_cron.sql` | 5 | `pg_cron` + `pg_net` + the hourly schedule |
+| 019 | `019_statement_cycle.sql` | 6 | `statement_day`, `due_day`, `credit_limit` |
+
+Last applied before this work: `014_category_rules.sql`.
+
+## 5. Sprint plan
 
 Six sprints. Each is independently shippable and leaves the bot more useful than
 it was. Backend-only unless marked — so no Netlify minutes burnt except where noted.
+
+**All of this is now in Taskiv** (project `Our Money v4`), as epics 8–13 and
+tasks **#44–79**, plus the pre-existing #22. Each task carries the file paths,
+schema, exact reply copy, edge cases, acceptance criteria and test files needed
+to execute it without re-deriving decisions. The numbered list below is the
+index; Taskiv is the source of truth for the detail.
+
+Three pairs of items below were merged into single tasks where they were the same
+file of work (fixture corpus + `/help`; portfolio + needs-review count; push
+settings keys + Settings UI), and one task was added that this list did not have
+(the outbound chat-id allowlist, #49). 38 items → 36 Taskiv tasks.
+
+| Sprint | Epic | Tasks |
+| --- | --- | --- |
+| 1 Foundations | 8 | #22, #44–49 |
+| 2 Router + first questions | 9 | #50–53 |
+| 3 Full read surface | 10 | #54–59 |
+| 4 Safe writes | 11 | #60–67 |
+| 5 Proactive pushes | 12 | #68–73 |
+| 6 Month-end + statement | 13 | #74–79 |
 
 ### Sprint 1 — Foundations (no new user-facing features)
 *Nothing else can be trusted until these land.*

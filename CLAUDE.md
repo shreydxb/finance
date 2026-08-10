@@ -42,13 +42,23 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
   the *only* major table still empty: accounts, recurring, budgets, goals and
   goal_contributions all carry real data. See the tuning pass in the function
   README.
-- **The Telegram webhook secret is deliberately unset.** The function currently
-  skips the header check (it logs a warning), so the household allowlist is the
-  only gate. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
+- **The Telegram webhook secret is unset — and as of 10 Aug this is a blocker,
+  not a tolerated gap.** The function skips the header check (it logs a warning),
+  so the household allowlist is the only gate — and that allowlist reads
+  `message.from.id` straight out of the *request body*. Anyone who guesses the
+  URL can forge it. Today that means injecting junk transactions; once the bot
+  answers questions (bot-expansion Sprint 2), the same forged request with
+  `chat.id` pointed elsewhere makes it a read endpoint for the whole household's
+  finances. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
   *and* re-running `setWebhook` with the identical string, in one sitting — a
   mismatch is silent apart from 403s in the function log. Needs the bot token
   and Supabase dashboard/Management-API access no available tool exposes.
-  (Taskiv #22)
+  **Blocks Taskiv #50 onward.** (Taskiv #22)
+- **`intake.ts` resolves "today" in UTC, not Asia/Dubai.** `today()` uses
+  `toISOString().slice(0,10)`, so anything logged between 00:00 and 04:00 Gulf
+  time is dated to the previous day, and the prompt is told the wrong date so
+  "yesterday" resolves one day off. One-line fix, but every "this week" /
+  "this month" / "due tomorrow" feature inherits it. (Taskiv #44)
 - **FIRE assumptions in Settings are dead.** `fire_swr`/`fire_return` are set,
   `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
@@ -58,9 +68,9 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
   reaches Auth config — needs the dashboard. (Taskiv #23)
 - **BTC (0.00679402) is untracked.** It sits outside the Wio portfolio view,
   so it needs its own source before it can be entered.
-- **No dark mode.** Considered during the design pass and deliberately skipped:
-  doing it properly means auditing every surface across nine screens, and a
-  half-done dark mode is worse than none.
+- **`pg_cron` and `pg_net` are available but not installed** on `our-rokda`
+  (verified 10 Aug via `list_extensions`). Both are needed for scheduled
+  Telegram pushes and install with `create extension`. (Taskiv #68)
 
 Resolved since the last pass — **task #6 is done**. Real data is in production:
 41 investment holdings (25 Zerodha India equities, 8 Shrey US/gold, 8 Tarika
@@ -112,6 +122,37 @@ npm run demo:telegram # walks the Telegram flow against mocked payloads
 
 There are no frontend tests yet. `npm run build` is the only check the React
 side gets.
+
+## Telegram bot expansion (designed 10 Aug 2026, not yet built)
+
+Two design docs, both binding on the implementation:
+
+- `docs/telegram-bot-expansion.md` — architecture: the intent router, the query
+  toolbox, propose-then-tap writes, the push function.
+- `docs/telegram-bot-sprint-plan.md` — feature-by-feature feasibility against the
+  live schema, cost analysis, the four settled decisions (§6), and the migration
+  numbering ledger (§4b).
+
+Backlog is in Taskiv as epics 8–13, tasks **#44–79**. Four rules from that design
+that are easy to violate later and expensive to undo:
+
+1. **The model never writes SQL and never does arithmetic.** It picks one entry
+   from a closed query enum; Postgres computes every digit. The function holds
+   the service-role key, so text-to-SQL here has an unbounded blast radius.
+2. **The router defaults to "spend" on any doubt.** A misrouted question costs an
+   `/undo`; a misrouted spend is money that never enters the ledger.
+3. **Transactions keep write-then-flag; every other write is propose-then-tap.**
+   The "never lose a spend" rule justifies optimistic writes only for
+   transactions — nobody forgets moving 2,000 AED into a goal, and a bad
+   `accounts.value` write corrupts `nw_daily` permanently.
+4. **The bot never writes `quantity`/`avg_cost`/`last_price`.** A typed stock buy
+   logs a cash outflow only; holdings stay screenshot-sourced. See the money-data
+   rule above — this is the same rule, applied to chat.
+
+Push alerts need no model call at all: SQL computes the number, a template writes
+the sentence. Whole expansion costs under $0.50/month in API spend; the binding
+constraint is alert volume, because the bot pushes into the same chat intake uses
+and **a muted bot is a broken intake pipeline.**
 
 ## Telegram intake
 

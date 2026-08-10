@@ -55,6 +55,14 @@ nw_daily (id, day, total_aed, assets_aed, liabilities_aed, by_owner json, by_typ
           created_at) -- additive sibling to nw_snapshots; one row/day, upserted on
           Accounts load, recorded from now forward only (never backfilled/estimated)
 forecast_events (id, kind: house/child/retirement/custom, target_date, params json) -- Phase 2
+category_rules (id, pattern, category, created_at) -- Edit Rules, auto-categorise on create
+
+-- Planned by the bot expansion, not yet applied (see docs/telegram-bot-sprint-plan.md §4b):
+transactions.deleted_at                                  -- soft delete for /undo
+notifications (id, kind, dedupe_key unique, chat_id, telegram_msg_id, payload, sent_at)
+pending_actions (id, kind, payload, chat_id, requested_by, expires_at, resolved_at, resolution)
+accounts.statement_day / due_day / credit_limit          -- credit-card cycle
+v_transactions_aed                                       -- FX-normalised view, one source of truth
 ```
 
 All migrations additive-only, never destructive — Supabase carries real live data
@@ -104,8 +112,12 @@ Telegram before treating it as clean data. This directly replaces the old guesse
 - Transaction-level "assign to partner for review"
 - "Link spend to goal"
 - `forecast_events` table / forecasting UI (house, child, retirement, custom)
-- Any revival of statement-cycle math, cashback estimator, fee-waiver tracker for
-  cards (cut from the old plan, not carried forward)
+- Cashback estimator and fee-waiver tracker for cards (cut from the old plan, not
+  carried forward)
+- ~~Statement-cycle math~~ — **reversed 10 Aug 2026, see decision 7.** Revived in
+  a narrow form for the credit-card reminder: `statement_day`/`due_day`/
+  `credit_limit` on `accounts`, and a cycle-spend total worded as a floor rather
+  than a forecast. The cashback and fee-waiver features stay cut.
 
 ## Decisions log
 
@@ -134,3 +146,37 @@ Full rationale for each decision below lives in Taskiv (`get_project_memory` /
    real receipts is unproven for *either* model — the tuning pass in the
    function README is what settles that, and re-running it against a different
    model costs one secret.
+6. **The Telegram bot expands into ask / do / be told** — designed 10 Aug 2026 in
+   `docs/telegram-bot-expansion.md` and `docs/telegram-bot-sprint-plan.md`,
+   backlogged as Taskiv epics 8–13 (#44–79). The load-bearing constraint is that
+   **the model never writes SQL and never does arithmetic**: it maps a question
+   onto one entry in a closed query enum and Postgres computes every digit. The
+   function holds the service-role key, so text-to-SQL would have an unbounded
+   blast radius; and an LLM that sums eleven transactions will be quietly wrong
+   occasionally, which is the failure this app exists to prevent. Second
+   constraint: the intent router defaults to "spend" on any doubt, because a
+   misrouted question costs an `/undo` and a misrouted spend is lost forever.
+7. **Statement-cycle math is revived, narrowly** — reverses the Phase 2+ cut
+   above. `accounts` gains `statement_day`/`due_day`/`credit_limit` and the bot
+   reports cycle spend on a card. The number is explicitly a **floor, not a
+   forecast**: it counts only what was logged, so every unphotographed bill is
+   missing from it. An under-stated estimate is more dangerous than none — it
+   would have the household set aside too little — so the wording says so in
+   every variant. Cashback and fee-waiver tracking stay cut.
+8. **A stock purchase logged by chat writes a cash outflow only** — never
+   `quantity`, `avg_cost` or `last_price`. Mechanically the average-cost recompute
+   is trivial, but the money-data rule (holdings come from broker screenshots,
+   never a typed figure) exists precisely because two separately-typed average
+   prices were already wrong once, invisibly. Side benefit: this makes "how much
+   did we invest this month" answerable at all, since investments are otherwise
+   stored only as positions, with no record of contributing.
+9. **Writes other than transactions are propose-then-tap** — nothing hits the
+   database until a human taps Apply. Intake's optimistic write-then-flag is
+   justified only by "a spend not written is lost forever"; nobody forgets moving
+   2,000 AED into a goal, and a wrong `accounts.value` corrupts `nw_daily`
+   permanently, since that table is never backfilled.
+10. **Proactive pushes start at three, into the shared group** — bill due, budget
+   burn, weekly digest. The other five ship built-but-off behind `settings`
+   toggles. Alert restraint is a reliability control, not taste: the bot pushes
+   into the same chat receipt intake uses, and a muted bot is a broken intake
+   pipeline.
