@@ -54,11 +54,6 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
   mismatch is silent apart from 403s in the function log. Needs the bot token
   and Supabase dashboard/Management-API access no available tool exposes.
   **Blocks Taskiv #50 onward.** (Taskiv #22)
-- **`intake.ts` resolves "today" in UTC, not Asia/Dubai.** `today()` uses
-  `toISOString().slice(0,10)`, so anything logged between 00:00 and 04:00 Gulf
-  time is dated to the previous day, and the prompt is told the wrong date so
-  "yesterday" resolves one day off. One-line fix, but every "this week" /
-  "this month" / "due tomorrow" feature inherits it. (Taskiv #44)
 - **FIRE assumptions in Settings are dead.** `fire_swr`/`fire_return` are set,
   `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
@@ -72,7 +67,18 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
   (verified 10 Aug via `list_extensions`). Both are needed for scheduled
   Telegram pushes and install with `create extension`. (Taskiv #68)
 
-Resolved since the last pass — **task #6 is done**. Real data is in production:
+Resolved since the last pass — **Taskiv #44 is fixed**: `intake.ts` now resolves
+"today" via `_shared/dates.ts`'s `todayInTz` (Asia/Dubai via `Intl.DateTimeFormat`,
+not a UTC string slice). **Bot-expansion Sprint 1 foundations are also in**:
+`015_bot_expansion.sql` is applied to `our-rokda` — `transactions.deleted_at` for
+soft-delete-based `/undo`, and a `notifications` table with a unique `dedupe_key`
+so the future hourly push cron is idempotent (verified live: a duplicate
+`dedupe_key` insert throws `23505`). `store.ts`/`telegram.ts`/`types.ts` moved to
+`supabase/functions/_shared/` so `telegram-push` can reuse them without depending
+on `telegram-intake`'s config. `src/lib/transactions.js` reads now filter out
+soft-deleted rows.
+
+**task #6 is done**. Real data is in production:
 41 investment holdings (25 Zerodha India equities, 8 Shrey US/gold, 8 Tarika
 US/metals), 4 liability accounts (ENBD car loan, 2 ENBD Noon CC EMIs, FAB 0%
 cash advance), all recurring bills and salaries, 12 budget limits and 6 goals.
