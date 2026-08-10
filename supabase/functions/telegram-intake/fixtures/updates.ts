@@ -86,7 +86,7 @@ export function replyUpdate(text: string, replyToMessageId: number, from = SHREY
 }
 
 export function callbackUpdate(
-  action: 'confirm' | 'fix',
+  action: 'confirm' | 'fix' | 'delete',
   transactionId: string,
   from = SHREY_ID,
   promptMessageId = 5000

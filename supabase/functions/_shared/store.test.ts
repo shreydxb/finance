@@ -202,3 +202,74 @@ test('a PostgREST error is surfaced, not swallowed', async () => {
 
   await assert.rejects(() => store.getTransaction('tx-1'), /403/)
 })
+
+test('findPossibleDuplicate builds the deterministic ±1-day, same-account lookback filter', async () => {
+  const calls: { url: string }[] = []
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: ((url: string) => {
+      calls.push({ url })
+      return Promise.resolve(new Response('[]', { status: 200 }))
+    }) as unknown as typeof fetch,
+  })
+
+  await store.findPossibleDuplicate({ amount: 84, currency: 'AED', date: '2026-08-06', accountId: 'acc-enbd', excludeId: 'tx-9' })
+
+  const url = calls[0].url
+  assert.match(url, /deleted_at=is\.null/)
+  assert.match(url, /amount=eq\.84/)
+  assert.match(url, /currency=eq\.AED/)
+  assert.match(url, /date=gte\.2026-08-05/, 'a 1-day-earlier resend still counts as the same spend')
+  assert.match(url, /date=lte\.2026-08-07/, 'a 1-day-later resend still counts as the same spend')
+  assert.match(url, /account_id=eq\.acc-enbd/)
+  assert.match(url, /id=neq\.tx-9/, 'never matches itself')
+  assert.match(url, /order=created_at\.desc/)
+  assert.match(url, /limit=1/)
+})
+
+test('findPossibleDuplicate matches an unresolved account with account_id=is.null, not a wildcard', async () => {
+  const calls: { url: string }[] = []
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: ((url: string) => {
+      calls.push({ url })
+      return Promise.resolve(new Response('[]', { status: 200 }))
+    }) as unknown as typeof fetch,
+  })
+
+  await store.findPossibleDuplicate({ amount: 50, currency: 'AED', date: '2026-08-06', accountId: null, excludeId: 'tx-1' })
+
+  assert.match(calls[0].url, /account_id=is\.null/)
+})
+
+test('findPossibleDuplicate returns the matched row, or null when nothing qualifies', async () => {
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: (() =>
+      Promise.resolve(
+        new Response(JSON.stringify([{ id: 'tx-1', note: 'Karak House', amount: 84, date: '2026-08-05' }]), { status: 200 })
+      )) as unknown as typeof fetch,
+  })
+
+  const found = await store.findPossibleDuplicate({
+    amount: 84,
+    currency: 'AED',
+    date: '2026-08-06',
+    accountId: 'acc-enbd',
+    excludeId: 'tx-2',
+  })
+  assert.deepEqual(found, { id: 'tx-1', note: 'Karak House', amount: 84, date: '2026-08-05' })
+
+  const empty = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: (() => Promise.resolve(new Response('[]', { status: 200 }))) as unknown as typeof fetch,
+  })
+  assert.equal(
+    await empty.findPossibleDuplicate({ amount: 84, currency: 'AED', date: '2026-08-06', accountId: null, excludeId: 'tx-2' }),
+    null
+  )
+})

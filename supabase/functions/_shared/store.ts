@@ -9,7 +9,16 @@
 // one-way dependency is what keeps _shared/ safe to import from either
 // function without pulling in the other's secrets/config shape.
 
-import type { AccountRef, CategoryRef, HouseholdContext, IntakeLogEntry, IntakeStore, MediaGroupState, TransactionRow } from './types.ts'
+import type {
+  AccountRef,
+  CategoryRef,
+  HouseholdContext,
+  IntakeLogEntry,
+  IntakeStore,
+  MediaGroupState,
+  PossibleDuplicate,
+  TransactionRow,
+} from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -205,6 +214,38 @@ export class PostgrestStore implements IntakeStore {
       body: JSON.stringify({ processed_at: new Date().toISOString() }),
     })
   }
+
+  async findPossibleDuplicate(params: {
+    amount: number
+    currency: string
+    date: string
+    accountId: string | null
+    excludeId: string
+  }): Promise<PossibleDuplicate | null> {
+    const accountFilter = params.accountId === null ? 'account_id=is.null' : `account_id=eq.${params.accountId}`
+    const query = [
+      'select=id,note,amount,date',
+      'deleted_at=is.null',
+      `amount=eq.${params.amount}`,
+      `currency=eq.${params.currency}`,
+      `date=gte.${shiftIsoDate(params.date, -1)}`,
+      `date=lte.${shiftIsoDate(params.date, 1)}`,
+      accountFilter,
+      `id=neq.${params.excludeId}`,
+      'order=created_at.desc',
+      'limit=1',
+    ].join('&')
+    const rows = await this.request<TransactionRow[]>(`/transactions?${query}`)
+    const row = rows[0]
+    return row ? { id: row.id, note: row.note, amount: Number(row.amount), date: row.date } : null
+  }
+}
+
+/** Calendar-day shift on an already-resolved YYYY-MM-DD date, no timezone involved. */
+function shiftIsoDate(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
 }
 
 interface MediaGroupRow {

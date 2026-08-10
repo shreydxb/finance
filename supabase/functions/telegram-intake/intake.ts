@@ -19,10 +19,12 @@ import type {
   AccountRef,
   Extraction,
   HouseholdContext,
+  InlineKeyboardButton,
   IntakeOutcome,
   IntakeStore,
   Messenger,
   ModelClient,
+  PossibleDuplicate,
   TelegramCallbackQuery,
   TelegramMessage,
   TelegramUpdate,
@@ -162,8 +164,36 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     usage: usage.usage,
   })
 
-  await announce(row.id, extraction, resolved, message, deps)
+  const duplicate = await findDuplicate(extraction, resolved, row.id, deps)
+  await announce(row.id, extraction, resolved, message, deps, { duplicate })
   return { status: 'logged', transactionId: row.id, needsReview: resolved.needsReview }
+}
+
+/**
+ * A deterministic, no-model lookback for "log a spend, forget, log it again"
+ * (docs/telegram-bot-round2-design.md §1). Never worth doing for an unreadable
+ * amount — every flagged-zero row would spuriously "duplicate" every other
+ * one. Best-effort: a lookup failure must never cost the household their reply.
+ */
+async function findDuplicate(
+  extraction: Extraction,
+  resolved: Resolved,
+  transactionId: string,
+  deps: IntakeDeps
+): Promise<PossibleDuplicate | null> {
+  if (extraction.amount === null) return null
+  try {
+    return await deps.store.findPossibleDuplicate({
+      amount: extraction.amount,
+      currency: extraction.currency,
+      date: extraction.date,
+      accountId: resolved.accountId,
+      excludeId: transactionId,
+    })
+  } catch (error) {
+    deps.log?.('duplicate lookup failed (non-fatal)', { error: String(error) })
+    return null
+  }
 }
 
 function messageTypeOf(message: TelegramMessage): 'photo' | 'voice' | 'text' {
@@ -481,6 +511,23 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     return { status: 'fix_requested', transactionId: row.id }
   }
 
+  if (parsed.action === 'delete') {
+    // Tapping twice (or a stale button after a rebuild) is a no-op, not an error.
+    if (row.deleted_at) {
+      await deps.messenger.answerCallbackQuery(query.id, 'Already deleted')
+      await logCallback(deps, query, chatId, 'delete_noop', { success: true, transactionId: row.id })
+      return { status: 'deleted', transactionId: row.id }
+    }
+    await deps.store.updateTransaction(row.id, { deleted_at: new Date().toISOString() })
+    await deps.messenger.answerCallbackQuery(query.id, 'Deleted')
+    if (query.message) {
+      // Drop the keyboard so a stale message can't be tapped twice.
+      await deps.messenger.editMessageText(chatId, query.message.message_id, `${describeRow(row, household)} — deleted 🗑`)
+    }
+    await logCallback(deps, query, chatId, 'delete', { success: true, transactionId: row.id })
+    return { status: 'deleted', transactionId: row.id }
+  }
+
   await deps.messenger.answerCallbackQuery(query.id)
   await logCallback(deps, query, chatId, parsed.action, { success: false, error: 'unknown callback action', transactionId: row.id })
   return { status: 'ignored', reason: `unknown callback action: ${parsed.action}` }
@@ -627,16 +674,18 @@ async function announce(
   resolved: Resolved,
   message: TelegramMessage,
   deps: IntakeDeps,
-  opts: { corrected?: boolean } = {}
+  opts: { corrected?: boolean; duplicate?: PossibleDuplicate | null } = {}
 ): Promise<void> {
   const summary = describe(extraction, resolved)
   const itemLines = formatItems(extraction.items)
+  const duplicateLines = formatDuplicateWarning(opts.duplicate ?? null, extraction.currency)
 
   if (!resolved.needsReview) {
     const verb = opts.corrected ? 'Updated' : 'Logged'
-    const lines = [`${verb}: ${summary} ✓`, ...itemLines]
+    const lines = [`${verb}: ${summary} ✓`, ...itemLines, ...duplicateLines]
     await deps.messenger.sendMessage(message.chat.id, lines.join('\n'), {
       replyToMessageId: message.message_id,
+      ...(opts.duplicate ? { inlineKeyboard: deleteKeyboard(transactionId) } : {}),
     })
     return
   }
@@ -647,14 +696,30 @@ async function announce(
     summary,
     ...itemLines,
     formatDate(extraction.date),
+    ...duplicateLines,
   ]
   if (gaps.length) lines.push(`Not sure about: ${gaps.join(', ')}.`)
 
+  const keyboard = opts.duplicate
+    ? [...confirmFixKeyboard(transactionId), ...deleteKeyboard(transactionId)]
+    : confirmFixKeyboard(transactionId)
+
   const sent = await deps.messenger.sendMessage(message.chat.id, lines.join('\n'), {
     replyToMessageId: message.message_id,
-    inlineKeyboard: confirmFixKeyboard(transactionId),
+    inlineKeyboard: keyboard,
   })
   await deps.store.updateTransaction(transactionId, { telegram_prompt_msg_id: sent.message_id })
+}
+
+/** ⚠️ Looks like a duplicate of Thu 6 Aug, 84 AED · Karak House. */
+function formatDuplicateWarning(duplicate: PossibleDuplicate | null, currency: string): string[] {
+  if (!duplicate) return []
+  const noteSuffix = duplicate.note ? ` · ${duplicate.note}` : ''
+  return [`⚠️ Looks like a duplicate of ${formatDate(duplicate.date)}, ${formatAmount(duplicate.amount)} ${currency}${noteSuffix}.`]
+}
+
+function deleteKeyboard(transactionId: string): InlineKeyboardButton[][] {
+  return [[{ text: '🗑 Delete this one', callback_data: `delete:${transactionId}` }]]
 }
 
 export function describe(extraction: Extraction, resolved: Resolved): string {

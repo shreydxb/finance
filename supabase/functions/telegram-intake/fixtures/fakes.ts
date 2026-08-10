@@ -12,6 +12,7 @@ import type {
   MediaGroupState,
   Messenger,
   ModelClient,
+  PossibleDuplicate,
   SendOptions,
   TelegramMessage,
   Transcriber,
@@ -84,6 +85,7 @@ export class FakeStore implements IntakeStore {
       telegram_msg_id: row.telegram_msg_id ?? null,
       telegram_prompt_msg_id: row.telegram_prompt_msg_id ?? null,
       items: row.items ?? null,
+      deleted_at: row.deleted_at ?? null,
     }
     this.rows.set(id, stored)
     return Promise.resolve(stored)
@@ -160,11 +162,42 @@ export class FakeStore implements IntakeStore {
     return Promise.resolve()
   }
 
+  findPossibleDuplicate(params: {
+    amount: number
+    currency: string
+    date: string
+    accountId: string | null
+    excludeId: string
+  }): Promise<PossibleDuplicate | null> {
+    const matches = Array.from(this.rows.values()).filter(
+      (row) =>
+        row.id !== params.excludeId &&
+        !row.deleted_at &&
+        row.amount === params.amount &&
+        row.currency === params.currency &&
+        row.account_id === params.accountId &&
+        withinOneDay(row.date, params.date)
+    )
+    if (matches.length === 0) return Promise.resolve(null)
+    // Most recently inserted wins, mirroring `order by created_at desc` on the real store.
+    const latest = matches.reduce((best, row) => (rowSequence(row.id) > rowSequence(best.id) ? row : best))
+    return Promise.resolve({ id: latest.id, note: latest.note, amount: latest.amount, date: latest.date })
+  }
+
   only(): TransactionRow {
     const rows = Array.from(this.rows.values())
     if (rows.length !== 1) throw new Error(`expected exactly one row, found ${rows.length}`)
     return rows[0]
   }
+}
+
+function withinOneDay(a: string, b: string): boolean {
+  const days = Math.abs(new Date(`${a}T00:00:00Z`).getTime() - new Date(`${b}T00:00:00Z`).getTime()) / 86_400_000
+  return days <= 1
+}
+
+function rowSequence(id: string): number {
+  return Number(id.split('-')[1] ?? 0)
 }
 
 export interface SentMessage {

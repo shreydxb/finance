@@ -13,7 +13,7 @@ session fully replayable. Nine issues came back from it in one sitting:
 
 | # | Report | Status |
 | --- | --- | --- |
-| 1 | Duplicate payments — add something, forget, add again | **Designed here (§1)** |
+| 1 | Duplicate payments — add something, forget, add again | ✅ Shipped (§1), `telegram-intake` v19 |
 | 2 | Bulk input — several spends in one message | **Designed here (§2)** |
 | 3 | Wrong/no account match, no way to pick | ✅ Fixed — tied accounts are now named in the review prompt (`0f547f3`) |
 | 4 | Fund transfer between the household's own accounts | **Designed here (§3)** |
@@ -38,6 +38,10 @@ codebase (`CLAUDE.md`, "Telegram bot expansion"):
 ---
 
 ## 1. Duplicate detection
+
+**✅ Shipped** — `telegram-intake` redeployed as v19. Built as designed below,
+including the soft-delete "Delete this one" button (`deleted_at`, already in
+`015_bot_expansion.sql` — this is the first code to actually use that column).
 
 **The report:** log a spend, forget you already did, log it again.
 

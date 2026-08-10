@@ -392,6 +392,122 @@ test('Confirm on a row with no amount asks for the number instead of blessing a 
   assert.match(h.messenger.last().text ?? '', /never got an amount/)
 })
 
+test('a repeat of an already-logged spend gets a duplicate warning, but is still written', async () => {
+  const h = harness([
+    json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', note: 'Karak House', confidence: 0.95 }),
+    json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', note: 'Karak House', confidence: 0.95 }),
+  ])
+  await handleUpdate(textUpdate('84 aed karak house'), h.deps)
+  const firstId = h.store.only().id
+
+  const outcome = await handleUpdate(textUpdate('84 aed karak house again'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.rows.size, 2, 'the repeat is written too — a warning never blocks the write')
+  const secondId = Array.from(h.store.rows.keys()).find((id) => id !== firstId)!
+
+  const sent = h.messenger.last()
+  assert.equal(
+    sent.text,
+    'Logged: Dining Out · 84 AED · Karak House · ENBD Credit Card 4412 ✓\n⚠️ Looks like a duplicate of Thu 6 Aug, 84 AED · Karak House.'
+  )
+  assert.deepEqual(sent.opts?.inlineKeyboard, [[{ text: '🗑 Delete this one', callback_data: `delete:${secondId}` }]])
+})
+
+test('a needs-review duplicate keeps Confirm/Fix and adds a delete row underneath', async () => {
+  const h = harness([
+    json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', note: 'Karak House', confidence: 0.95 }),
+    // category null forces needs_review while keeping the same resolved account, so the dedupe match still holds.
+    json({ amount: 84, category: null, paid_with: 'ENBD Credit Card 4412', note: 'Karak House', confidence: 0.95 }),
+  ])
+  await handleUpdate(textUpdate('84 aed karak house'), h.deps)
+  const firstId = h.store.only().id
+
+  await handleUpdate(textUpdate('84 aed karak house again'), h.deps)
+  const secondId = Array.from(h.store.rows.keys()).find((id) => id !== firstId)!
+
+  const sent = h.messenger.last()
+  assert.match(sent.text ?? '', /⚠️ Looks like a duplicate of Thu 6 Aug, 84 AED · Karak House\./)
+  assert.deepEqual(sent.opts?.inlineKeyboard, [
+    [
+      { text: '✅ Confirm', callback_data: `confirm:${secondId}` },
+      { text: '✏️ Fix', callback_data: `fix:${secondId}` },
+    ],
+    [{ text: '🗑 Delete this one', callback_data: `delete:${secondId}` }],
+  ])
+})
+
+test('a same-amount spend more than a day apart is not flagged as a duplicate', async () => {
+  const h = harness([
+    json({ amount: 200, category: 'Utilities', paid_with: 'ENBD Credit Card 4412', note: 'DEWA', confidence: 0.95 }),
+    json({
+      amount: 200,
+      category: 'Utilities',
+      paid_with: 'ENBD Credit Card 4412',
+      note: 'DEWA',
+      confidence: 0.95,
+      date: '2026-08-01',
+    }),
+  ])
+  await handleUpdate(textUpdate('200 aed dewa'), h.deps)
+  await handleUpdate(textUpdate('200 aed dewa last month'), h.deps)
+
+  const sent = h.messenger.last()
+  assert.doesNotMatch(sent.text ?? '', /duplicate/i)
+  assert.equal(sent.opts?.inlineKeyboard, undefined)
+})
+
+test('an unreadable amount never triggers a duplicate lookup — every flagged zero would "match"', async () => {
+  const h = harness(json({ amount: null, category: 'Groceries', paid_with: 'Joint Current', confidence: 0.9 }))
+  const store = h.store
+  let calls = 0
+  const real = store.findPossibleDuplicate.bind(store)
+  store.findPossibleDuplicate = (params) => {
+    calls++
+    return real(params)
+  }
+
+  await handleUpdate(photoUpdate(), h.deps)
+
+  assert.equal(calls, 0)
+})
+
+test('"Delete this one" soft-deletes just the tapped row and retires the message', async () => {
+  const h = harness([
+    json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', note: 'Karak House', confidence: 0.95 }),
+    json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', note: 'Karak House', confidence: 0.95 }),
+  ])
+  await handleUpdate(textUpdate('84 aed karak house'), h.deps)
+  const firstId = h.store.only().id
+  await handleUpdate(textUpdate('84 aed karak house again'), h.deps)
+  const secondId = Array.from(h.store.rows.keys()).find((id) => id !== firstId)!
+
+  const outcome = await handleUpdate(callbackUpdate('delete', secondId), h.deps)
+
+  assert.deepEqual(outcome, { status: 'deleted', transactionId: secondId })
+  assert.ok(h.store.rows.get(secondId)?.deleted_at, 'the tapped row is soft-deleted')
+  assert.equal(h.store.rows.get(firstId)?.deleted_at, null, 'the other row is untouched')
+
+  const edit = h.messenger.sent.find((s) => s.method === 'editMessageText')
+  assert.ok(edit, 'the duplicate prompt is rewritten so it cannot be tapped again')
+  assert.match(edit.text ?? '', /— deleted 🗑$/)
+  assert.ok(h.messenger.sent.some((s) => s.method === 'answerCallbackQuery' && s.text === 'Deleted'))
+})
+
+test('tapping Delete twice is a no-op, not an error', async () => {
+  const h = harness(json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.95 }))
+  await handleUpdate(textUpdate('84 aed lunch'), h.deps)
+  const id = h.store.only().id
+
+  await handleUpdate(callbackUpdate('delete', id), h.deps)
+  const outcome = await handleUpdate(callbackUpdate('delete', id), h.deps)
+
+  assert.deepEqual(outcome, { status: 'deleted', transactionId: id })
+  const acks = h.messenger.sent.filter((s) => s.method === 'answerCallbackQuery')
+  assert.equal(acks.length, 2)
+  assert.equal(acks[1].text, 'Already deleted')
+})
+
 test('Fix asks for the correction and remembers which message it hangs off', async () => {
   const h = harness(json({ amount: 48, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.5 }))
   await handleUpdate(textUpdate('lunch'), h.deps)

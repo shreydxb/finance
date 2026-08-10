@@ -168,6 +168,20 @@ Logged: Groceries · 79.95 AED · Carrefour · ENBD Credit Card 4412 ✓
 `items` is stored on the row (`transactions.items`, `018_transaction_items.sql`)
 but is display-only — nothing in Budget/Reports reads it.
 
+Every new spend also runs a deterministic duplicate lookback (same amount,
+currency and resolved account, within a day either side) — never blocking the
+write, but the reply grows a warning and a delete button when one matches:
+
+```
+Logged: Dining Out · 84 AED · Karak House · Wio Personal ✓
+⚠️ Looks like a duplicate of Thu 6 Aug, 84 AED · Karak House.
+[🗑 Delete this one]
+```
+
+**Delete this one** soft-deletes (`deleted_at`) the *new* row only — the
+household decides which of the two was the mistake, the bot never guesses.
+Tapping it twice is a no-op, not an error.
+
 **Confirm** clears the flag. **Fix** asks for a correction; reply to that
 message ("84 not 48", "it was groceries", "paid from the Wio account") and it
 goes back through the same extraction, updating that row. Replying directly to
@@ -197,7 +211,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 93 tests, no network, no keys
+npm test              # 102 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 

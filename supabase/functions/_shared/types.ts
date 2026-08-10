@@ -147,6 +147,16 @@ export interface TransactionRow {
   telegram_prompt_msg_id: number | null
   /** Display-only line items — see ExtractionItem. */
   items: ExtractionItem[] | null
+  /** Soft delete for /undo and the duplicate-warning "Delete this one" button. Never a hard DELETE. */
+  deleted_at: string | null
+}
+
+/** A prior row that looks like the same spend re-sent — see findPossibleDuplicate. */
+export interface PossibleDuplicate {
+  id: string
+  note: string | null
+  amount: number
+  date: string
 }
 
 /** Household config resolved from the `settings` table at request time. */
@@ -177,6 +187,19 @@ export interface IntakeStore {
   getMediaGroup(mediaGroupId: string): Promise<MediaGroupState | null>
   /** Marks the group as claimed so it's never processed twice. */
   claimMediaGroup(mediaGroupId: string): Promise<void>
+  /**
+   * Deterministic lookback for a possible re-send of the same spend — exact
+   * amount/currency, ±1 day, same account, excluding the row itself and any
+   * already-deleted rows. Never blocks or delays the write; see
+   * docs/telegram-bot-round2-design.md §1.
+   */
+  findPossibleDuplicate(params: {
+    amount: number
+    currency: string
+    date: string
+    accountId: string | null
+    excludeId: string
+  }): Promise<PossibleDuplicate | null>
 }
 
 /** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */
@@ -239,4 +262,5 @@ export type IntakeOutcome =
   | { status: 'confirmed'; transactionId: string }
   | { status: 'fix_requested'; transactionId: string }
   | { status: 'corrected'; transactionId: string; needsReview: boolean }
+  | { status: 'deleted'; transactionId: string }
   | { status: 'error'; reason: string }
