@@ -10,6 +10,7 @@ import {
   normalizeAmount,
   normalizeCurrency,
   normalizeDate,
+  normalizeItems,
   OpenRouterClient,
   parseExtraction,
 } from './extract.ts'
@@ -119,6 +120,40 @@ test('clampConfidence', () => {
   assert.equal(clampConfidence(1.4), 1)
   assert.equal(clampConfidence(-2), 0)
   assert.equal(clampConfidence('high'), 0)
+})
+
+test('normalizeItems parses, sanitizes and caps a line-item array', () => {
+  assert.equal(normalizeItems(undefined), null, 'the common case: nothing itemized')
+  assert.equal(normalizeItems(null), null)
+  assert.equal(normalizeItems([]), null, 'an empty array is the same as none')
+  assert.equal(normalizeItems('Makhana, Dosa Batter'), null, 'a string is not an items array')
+
+  const parsed = normalizeItems([
+    { name: 'Makhana', qty: 1, price: 12 },
+    { name: ' Dosa   Batter ', qty: 2, price: '9.50' },
+    { name: 'Cucumber', qty: null, price: 3.449 },
+    { notAName: 'skip me', price: 5 },
+    { name: '', price: 5 },
+    'not an object',
+  ])
+  assert.deepEqual(parsed, [
+    { name: 'Makhana', qty: 1, price: 12 },
+    { name: 'Dosa Batter', qty: 2, price: 9.5 },
+    { name: 'Cucumber', qty: null, price: 3.45 },
+  ])
+
+  const oversized = Array.from({ length: 50 }, (_, i) => ({ name: `Item ${i}`, qty: null, price: 1 }))
+  assert.equal(normalizeItems(oversized)?.length, 40, 'a 40-item cap guards against a runaway read')
+})
+
+test('parseExtraction wires items through, defaulting to null', () => {
+  assert.equal(parseExtraction('{"amount":10,"confidence":0.9}', ctx).items, null)
+
+  const withItems = parseExtraction(
+    '{"amount":41.95,"confidence":0.9,"items":[{"name":"Oats","qty":1,"price":8}]}',
+    ctx
+  )
+  assert.deepEqual(withItems.items, [{ name: 'Oats', qty: 1, price: 8 }])
 })
 
 test('matchCategory only ever returns a category the household has', () => {

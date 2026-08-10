@@ -19,7 +19,7 @@ session fully replayable. Nine issues came back from it in one sitting:
 | 4 | Fund transfer between the household's own accounts | **Designed here (§3)** |
 | 5 | One purchase needs 2+ screenshots (first one cropped the price) | ✅ Shipped (§6) — album batching, `telegram-intake` v17 |
 | 6 | Cashback | **Designed here (§4)** |
-| 7 | 3 screenshots of one grocery order → 3 separate transactions | ✅ Shipped (§6, the multi-transaction half); itemized summary (the other half) still **designed here (§5)** |
+| 7 | 3 screenshots of one grocery order → 3 separate transactions | ✅ Shipped — §6 (the multi-transaction half) and §5 (itemized summary, `telegram-intake` v18) |
 | 8 | PDF invoices not read | ✅ Fixed — refused with a clear reason instead of silently degrading (`0f547f3`) |
 | 9 | Random items logged with no amount/qty/account | ✅ Root cause was #8 (the PDF caption became the whole message) — fixed with it |
 
@@ -237,6 +237,9 @@ income total, so it can safely follow the softer gate).
 
 ## 5. Itemized summary before/after logging
 
+**✅ Shipped** — `018_transaction_items.sql` applied, `telegram-intake`
+redeployed as v18. Built as designed below.
+
 **The report:** "can it not give a summary of what it extracted — item, qty,
 price?" — right now the reply is one line (`Groceries · 41.95 AED · Makhana,
 Dosa Batter, Oats, Cucumber, Red Onion · account unknown`), which is the
@@ -367,19 +370,15 @@ one at a time, not as a multi-select album."*
 ## Schema summary
 
 All additive, `supabase/schema/`. **Numbering note:** `docs/telegram-bot-sprint-plan.md`'s
-ledger (§4) already reserves `017`–`019` for its own unbuilt work
-(`pending_actions`, `push_cron`, `statement_cycle`) — and that ledger's `016`
-slot (`016_money_view.sql`) is itself already out of sync with what actually
-shipped as `016` (`016_intake_logs.sql`, built for this round's observability
-work, not the ledger's plan). Whoever picks up either doc first should
-renumber on the fly rather than trust these numbers blindly; they're placeholders,
-not a claim on the sequence:
+ledger (§4) reserves its own numbers for unbuilt work (`pending_actions`,
+`push_cron`, `statement_cycle`) that don't match what actually shipped here —
+whoever picks up either doc first should renumber on the fly rather than trust
+placeholder numbers blindly. `017_media_groups.sql` (§6) and
+`018_transaction_items.sql` (§5) are both applied; what's left:
 
 | Migration | Adds |
 | --- | --- |
-| `020_transfers_and_cashback` | `categories` row `('Transfer', 'Transfer')`; no new columns (cashback reuses `income`) |
-| `021_extraction_items` | `transactions.items jsonb` |
-| `022_media_groups` | `media_groups` table (§6) |
+| `019_transfers_and_cashback` | `categories` row `('Transfer', 'Transfer')`; no new columns (cashback reuses `income`) |
 
 Duplicate detection (§1) needs no schema — it's a query against existing
 columns.

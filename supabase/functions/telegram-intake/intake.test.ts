@@ -112,6 +112,53 @@ test('high confidence auto-logs with a one-line FYI and no buttons', async () =>
   assert.equal(sent.opts?.inlineKeyboard, undefined)
 })
 
+test('a high-confidence itemized receipt grows the FYI with a capped breakdown', async () => {
+  const items = [
+    { name: 'Makhana', qty: 1, price: 12 },
+    { name: 'Dosa Batter', qty: 2, price: 9.5 },
+    { name: 'Oats', qty: null, price: 8 },
+    { name: 'Cucumber', qty: null, price: 3.45 },
+    { name: 'Red Onion', qty: null, price: 9 },
+    { name: 'Tomato', qty: null, price: 4 },
+    { name: 'Yogurt', qty: null, price: 6 },
+    { name: 'Bread', qty: null, price: 5 },
+    { name: 'Eggs', qty: null, price: 15 },
+    { name: 'Milk', qty: null, price: 7 },
+  ]
+  const h = harness(
+    json({ amount: 79.95, category: 'Groceries', paid_with: 'ENBD Credit Card 4412', note: 'Carrefour', confidence: 0.95, items })
+  )
+  await handleUpdate(textUpdate('carrefour groceries'), h.deps)
+
+  const row = h.store.only()
+  assert.deepEqual(row.items, items, 'the full item list is stored even though the reply caps display')
+
+  const sent = h.messenger.last()
+  assert.equal(
+    sent.text,
+    [
+      'Logged: Groceries · 79.95 AED · Carrefour · ENBD Credit Card 4412 ✓',
+      '  • Makhana 12',
+      '  • 2× Dosa Batter 9.5',
+      '  • Oats 8',
+      '  • Cucumber 3.45',
+      '  • Red Onion 9',
+      '  • Tomato 4',
+      '  • Yogurt 6',
+      '  • Bread 5',
+      '  +2 more',
+    ].join('\n')
+  )
+})
+
+test('a source with no line items gets the plain one-line reply, unchanged', async () => {
+  const h = harness(json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', note: 'Noon', confidence: 0.95 }))
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.equal(h.store.only().items, null)
+  assert.equal(h.messenger.last().text, 'Logged: Dining Out · 84 AED · Noon · ENBD Credit Card 4412 ✓')
+})
+
 test('the first allowlisted message captures the chat id for future pushes', async () => {
   const h = harness()
   await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
@@ -176,6 +223,27 @@ test('low confidence still writes the row, then asks with Confirm/Fix', async ()
     [`confirm:${row.id}`, `fix:${row.id}`]
   )
   assert.equal(row.telegram_prompt_msg_id, 5001, 'the prompt is remembered for reply-threading')
+})
+
+test('a needs-review itemized reply lists the items between the summary and the date', async () => {
+  const items = [
+    { name: 'Makhana', qty: 1, price: 12 },
+    { name: 'Dosa Batter', qty: 2, price: 9.5 },
+  ]
+  const h = harness(json({ amount: 21.5, category: 'Groceries', paid_with: null, confidence: 0.6, items }))
+  await handleUpdate(textUpdate('groceries'), h.deps)
+
+  assert.equal(
+    h.messenger.last().text,
+    [
+      'Logged — worth a quick check:',
+      'Groceries · 21.5 AED · account unknown',
+      '  • Makhana 12',
+      '  • 2× Dosa Batter 9.5',
+      'Thu 6 Aug',
+      'Not sure about: which account.',
+    ].join('\n')
+  )
 })
 
 test('an unreadable amount is written as a flagged zero, never dropped', async () => {

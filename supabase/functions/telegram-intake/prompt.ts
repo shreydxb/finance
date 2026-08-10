@@ -35,7 +35,8 @@ const OUTPUT_CONTRACT = `Return ONLY a JSON object, no prose, no markdown fences
   "paid_by": string,
   "paid_with": string,
   "note": string,
-  "confidence": number
+  "confidence": number,
+  "items": [{ "name": string, "qty": number, "price": number }]
 }
 Use null for any value you genuinely cannot determine. Never invent a plausible
 number to fill a gap — null plus a low confidence is always the better answer.`
@@ -70,7 +71,15 @@ ${ctx.accounts.length ? ctx.accounts.map((a) => `  - ${a}`).join('\n') : '  (no 
   it doesn't match a known account; return null if the payment method is absent.
 - note: a short human summary — merchant first, then what was bought.
   "Carrefour · groceries + household", "Zomato · dinner for two". Keep under 80
-  characters. No newlines.
+  characters. No newlines. If you're also returning items (below), keep note to
+  the merchant/occasion rather than repeating the item names — the breakdown
+  already lives there.
+- items: when the source itemizes (a grocery receipt, a Noon/food-delivery
+  order, an itemized bill), list each line as {name, qty, price} — price is
+  that line's amount, qty is the count when printed (null otherwise). Return
+  null when the source doesn't itemize (an SMS debit alert, a typed "84
+  lunch", a round total with no line items). Never invent items that aren't
+  actually printed or listed.
 
 Merchant hints common to this household: Noon and Amazon.ae are usually Shopping
 unless the items are clearly food; Carrefour, Lulu, Union Coop, Waitrose and

@@ -150,6 +150,7 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     needs_review: resolved.needsReview,
     telegram_chat_id: message.chat.id,
     telegram_msg_id: message.message_id,
+    items: extraction.items,
   })
 
   const usage = modelUsageOf(deps.model)
@@ -399,6 +400,7 @@ async function applyCorrection(
     note: extraction.note,
     needs_review: resolved.needsReview,
     telegram_prompt_msg_id: null,
+    items: extraction.items,
   })
 
   const usage = modelUsageOf(deps.model)
@@ -628,10 +630,12 @@ async function announce(
   opts: { corrected?: boolean } = {}
 ): Promise<void> {
   const summary = describe(extraction, resolved)
+  const itemLines = formatItems(extraction.items)
 
   if (!resolved.needsReview) {
     const verb = opts.corrected ? 'Updated' : 'Logged'
-    await deps.messenger.sendMessage(message.chat.id, `${verb}: ${summary} ✓`, {
+    const lines = [`${verb}: ${summary} ✓`, ...itemLines]
+    await deps.messenger.sendMessage(message.chat.id, lines.join('\n'), {
       replyToMessageId: message.message_id,
     })
     return
@@ -641,6 +645,7 @@ async function announce(
   const lines = [
     opts.corrected ? 'Updated, but still worth a look:' : 'Logged — worth a quick check:',
     summary,
+    ...itemLines,
     formatDate(extraction.date),
   ]
   if (gaps.length) lines.push(`Not sure about: ${gaps.join(', ')}.`)
@@ -672,6 +677,23 @@ function describeRow(row: TransactionRow, household: HouseholdContext): string {
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+/** Caps the breakdown at a readable length — a 40-item Noon cart still fits in one reply. */
+const MAX_ITEM_LINES = 8
+
+function formatItems(items: Extraction['items']): string[] {
+  if (!items || items.length === 0) return []
+  const lines = items.slice(0, MAX_ITEM_LINES).map(formatItemLine)
+  const rest = items.length - MAX_ITEM_LINES
+  if (rest > 0) lines.push(`  +${rest} more`)
+  return lines
+}
+
+function formatItemLine(item: { name: string; qty: number | null; price: number | null }): string {
+  const qty = item.qty !== null && item.qty !== 1 ? `${item.qty}× ` : ''
+  const price = item.price !== null ? ` ${formatAmount(item.price)}` : ''
+  return `  • ${qty}${item.name}${price}`
 }
 
 function missingFields(extraction: Extraction, resolved: Resolved): string[] {
@@ -713,6 +735,7 @@ export function extractionFromRow(row: TransactionRow, household: HouseholdConte
     paid_with: account?.name ?? null,
     note: row.note,
     confidence: row.needs_review ? 0.5 : 1,
+    items: row.items,
   }
 }
 

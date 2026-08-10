@@ -13,7 +13,7 @@
 
 import { buildCorrectionUserPrompt, buildImageUserPrompt, buildSystemPrompt, buildTextUserPrompt } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
-import type { ChatMessage, Extraction, ModelClient, TokenUsage } from '../_shared/types.ts'
+import type { ChatMessage, Extraction, ExtractionItem, ModelClient, TokenUsage } from '../_shared/types.ts'
 
 export class ExtractionError extends Error {}
 
@@ -171,7 +171,31 @@ export function parseExtraction(raw: string, ctx: PromptContext): Extraction {
     paid_with: cleanString(parsed.paid_with, 60),
     note: cleanString(parsed.note, 200),
     confidence,
+    items: normalizeItems(parsed.items),
   }
+}
+
+/** A 40-item Noon cart is the realistic ceiling; beyond that, something's wrong with the read. */
+const MAX_ITEMS = 40
+
+export function normalizeItems(raw: unknown): ExtractionItem[] | null {
+  if (!Array.isArray(raw)) return null
+  const items = raw.map(normalizeItem).filter((item): item is ExtractionItem => item !== null).slice(0, MAX_ITEMS)
+  return items.length > 0 ? items : null
+}
+
+function normalizeItem(raw: unknown): ExtractionItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const entry = raw as Record<string, unknown>
+  const name = cleanString(entry.name, 80)
+  if (!name) return null
+  return { name, qty: normalizeQty(entry.qty), price: normalizeAmount(entry.price) }
+}
+
+function normalizeQty(raw: unknown): number | null {
+  const value = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(value) || value <= 0) return null
+  return Math.round(value * 100) / 100
 }
 
 /** Models wrap JSON in fences or add a sentence of preamble often enough to handle it here. */

@@ -83,6 +83,7 @@ export class FakeStore implements IntakeStore {
       telegram_chat_id: row.telegram_chat_id ?? null,
       telegram_msg_id: row.telegram_msg_id ?? null,
       telegram_prompt_msg_id: row.telegram_prompt_msg_id ?? null,
+      items: row.items ?? null,
     }
     this.rows.set(id, stored)
     return Promise.resolve(stored)

@@ -94,6 +94,13 @@ export interface Messenger {
   downloadFile(fileId: string): Promise<DownloadedFile>
 }
 
+/** One line item on a receipt/order. Display-only — nothing reads this for budget math. */
+export interface ExtractionItem {
+  name: string
+  qty: number | null
+  price: number | null
+}
+
 /** The structured result every extraction path must produce. Never free text. */
 export interface Extraction {
   /** ISO yyyy-mm-dd. */
@@ -108,6 +115,8 @@ export interface Extraction {
   note: string | null
   /** 0–1. Drives the needs_review gate. */
   confidence: number
+  /** Line items when the source itemizes a receipt/order; null otherwise. */
+  items: ExtractionItem[] | null
 }
 
 export interface AccountRef {
@@ -136,6 +145,8 @@ export interface TransactionRow {
   telegram_chat_id: number | null
   telegram_msg_id: number | null
   telegram_prompt_msg_id: number | null
+  /** Display-only line items — see ExtractionItem. */
+  items: ExtractionItem[] | null
 }
 
 /** Household config resolved from the `settings` table at request time. */

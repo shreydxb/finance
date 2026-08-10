@@ -154,6 +154,20 @@ Not sure about: which account.
 [✅ Confirm] [✏️ Fix]
 ```
 
+When the source itemizes (a grocery receipt, a Noon order), the reply grows a
+line-by-line breakdown instead of squashing everything into the summary — capped
+at 8 lines with a "+N more" tail:
+
+```
+Logged: Groceries · 79.95 AED · Carrefour · ENBD Credit Card 4412 ✓
+  • Makhana 12
+  • 2× Dosa Batter 9.5
+  • Oats 8
+```
+
+`items` is stored on the row (`transactions.items`, `018_transaction_items.sql`)
+but is display-only — nothing in Budget/Reports reads it.
+
 **Confirm** clears the flag. **Fix** asks for a correction; reply to that
 message ("84 not 48", "it was groceries", "paid from the Wio account") and it
 goes back through the same extraction, updating that row. Replying directly to
@@ -183,7 +197,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 88 tests, no network, no keys
+npm test              # 93 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 
