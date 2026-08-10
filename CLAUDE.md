@@ -144,13 +144,22 @@ side gets.
 
 ## Telegram bot expansion (designed 10 Aug 2026, not yet built)
 
-Two design docs, both binding on the implementation:
+Three design docs, all binding on the implementation:
 
 - `docs/telegram-bot-expansion.md` — architecture: the intent router, the query
   toolbox, propose-then-tap writes, the push function.
 - `docs/telegram-bot-sprint-plan.md` — feature-by-feature feasibility against the
   live schema, cost analysis, the four settled decisions (§6), and the migration
-  numbering ledger (§4b).
+  numbering ledger (§4b). **That ledger's own `016` slot is already stale** —
+  it planned `016_money_view.sql`, but `016_intake_logs.sql` shipped instead
+  (this round's observability work). Reconcile numbering by hand before
+  applying anything from either doc.
+- `docs/telegram-bot-round2-design.md` — six gaps the household's first real
+  usage session surfaced in the *existing* receipt-intake path (duplicates,
+  bulk input, transfers, cashback, itemized summaries, multi-photo albums).
+  Two other issues from that same session (PDF handling, ambiguous account
+  matches) turned out to be same-day bug fixes, not design work — already
+  shipped as `telegram-intake` v15.
 
 Backlog is in Taskiv as epics 8–13, tasks **#44–79**. Four rules from that design
 that are easy to violate later and expensive to undo:
