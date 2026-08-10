@@ -85,6 +85,27 @@ test('PostgREST calls are shaped the way Supabase expects', async () => {
   assert.deepEqual(JSON.parse(String(calls[2].init.body)), { key: 'tg_chat_id', value: { chat_id: -100 } })
 })
 
+test('loadHouseholdContext only fetches payable account types, not debt/asset trackers', async () => {
+  const calls: { url: string }[] = []
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: ((url: string) => {
+      calls.push({ url })
+      return Promise.resolve(new Response('[]', { status: 200 }))
+    }) as unknown as typeof fetch,
+  })
+
+  await store.loadHouseholdContext()
+
+  const accountsCall = calls.find((c) => c.url.includes('/accounts'))
+  assert.ok(accountsCall, 'accounts endpoint was called')
+  // A loan/EMI sub-ledger like "Car Down-Payment EMI" must never be offered as
+  // a paid_with match for a new purchase — only cash/credit_card are things a
+  // receipt was actually paid *with*.
+  assert.match(accountsCall!.url, /type=in\.\(cash,credit_card\)/)
+})
+
 test('logEvent posts a flattened row to intake_logs with return=minimal', async () => {
   const calls: { url: string; init: RequestInit }[] = []
   const store = new PostgrestStore({

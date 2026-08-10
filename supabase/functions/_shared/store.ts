@@ -72,7 +72,12 @@ export class PostgrestStore implements IntakeStore {
     const keys = Object.values(SETTINGS_KEYS).join(',')
     const [categories, accounts, settings] = await Promise.all([
       this.request<CategoryRef[]>('/categories?select=name,group&order=name.asc'),
-      this.request<AccountRef[]>('/accounts?select=id,name,type,owner&order=created_at.asc'),
+      // Only types someone actually pays a purchase *with*. loan/mortgage/
+      // other_liability/investment/real_estate/vehicle/valuable are debt or
+      // asset trackers — matching a receipt to "Car Down-Payment EMI" would
+      // silently attribute an unrelated new purchase to that debt line rather
+      // than to the card that was actually charged.
+      this.request<AccountRef[]>('/accounts?select=id,name,type,owner&type=in.(cash,credit_card)&order=created_at.asc'),
       this.request<SettingRow[]>(`/settings?select=key,value&key=in.(${keys})`),
     ])
     return buildHouseholdContext({
