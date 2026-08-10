@@ -73,9 +73,15 @@ export class TelegramClient implements Messenger {
     const res = await this.fetchImpl(`${API_BASE}/file/bot${this.token}/${file.file_path}`)
     if (!res.ok) throw new Error(`Telegram file download failed: ${res.status}`)
     const bytes = new Uint8Array(await res.arrayBuffer())
+    // Telegram's file server answers almost everything with the generic
+    // application/octet-stream, so a truthy-header check alone never falls
+    // through to the extension guess — and OpenRouter/Gemini reject a photo
+    // labeled as generic binary with "Unsupported MIME type".
+    const contentType = res.headers.get('content-type')
+    const mimeType = contentType && contentType !== 'application/octet-stream' ? contentType : guessMimeType(file.file_path)
     return {
       bytes,
-      mimeType: res.headers.get('content-type') || guessMimeType(file.file_path),
+      mimeType,
       filePath: file.file_path,
     }
   }
