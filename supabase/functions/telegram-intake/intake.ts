@@ -11,7 +11,7 @@
 //   2. Corrections update the row they belong to. They never create a second one.
 
 import { todayInTz } from '../_shared/dates.ts'
-import { extractCorrection, extractFromImage, extractFromText, ExtractionError } from './extract.ts'
+import { extractCorrection, extractFromImage, extractFromImages, extractFromText, ExtractionError } from './extract.ts'
 import { promptContextFrom } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
@@ -40,7 +40,15 @@ export interface IntakeDeps {
   defaultCurrency: string
   now?: () => Date
   log?: (message: string, data?: Record<string, unknown>) => void
+  /** Overridable for tests — see extractFromAlbumPhoto. Defaults to a real setTimeout. */
+  wait?: (ms: number) => Promise<void>
 }
+
+/**
+ * How long an album photo waits for siblings before claiming the group.
+ * A heuristic, not a guarantee — see docs/telegram-bot-round2-design.md §6.
+ */
+const ALBUM_DEBOUNCE_MS = 1200
 
 const HELP_TEXT = [
   'Send me a spend and I log it to Our Money:',
@@ -278,6 +286,7 @@ async function extractFromMessage(
   deps: IntakeDeps
 ): Promise<Extraction> {
   if (message.photo?.length) {
+    if (message.media_group_id) return extractFromAlbumPhoto(message, ctx, deps)
     const file = await deps.messenger.downloadFile(largestPhoto(message.photo).file_id)
     const dataUrl = `data:${file.mimeType};base64,${toBase64(file.bytes)}`
     return extractFromImage({ dataUrl, caption: message.caption ?? null }, ctx, deps.model)
@@ -315,6 +324,39 @@ async function extractFromMessage(
   if (!text) throw new UnsupportedMessage('message has no text, photo or voice')
   if (text.startsWith('/')) throw new UnsupportedMessage(`unknown command: ${text.split(/\s/)[0]}`)
   return extractFromText(text, ctx, deps.model)
+}
+
+/**
+ * A photo sent as part of a Telegram album (multi-select send). Telegram
+ * delivers each one as its own webhook call sharing one media_group_id, and
+ * this Edge Function is stateless between calls — so each photo joins a
+ * shared row in `media_groups`, waits briefly, then checks whether it's
+ * still the most recently joined member. Exactly one of the N invocations
+ * survives that check (see media_groups' claim logic in store.ts) and runs
+ * a single extraction across every photo in the group; the rest stand down
+ * silently via UnsupportedMessage, same as an out-of-scope command.
+ */
+async function extractFromAlbumPhoto(message: TelegramMessage, ctx: PromptContext, deps: IntakeDeps): Promise<Extraction> {
+  const mediaGroupId = message.media_group_id!
+  const fileId = largestPhoto(message.photo!).file_id
+  const joined = await deps.store.joinMediaGroup(mediaGroupId, message.chat.id, fileId, message.caption ?? null)
+
+  await waitFor(deps, ALBUM_DEBOUNCE_MS)
+
+  const current = await deps.store.getMediaGroup(mediaGroupId)
+  if (!current || current.processedAt || current.updatedAt !== joined.updatedAt) {
+    throw new UnsupportedMessage('superseded by a later album member')
+  }
+  await deps.store.claimMediaGroup(mediaGroupId)
+
+  const files = await Promise.all(current.fileIds.map((id) => deps.messenger.downloadFile(id)))
+  const images = files.map((file) => ({ dataUrl: `data:${file.mimeType};base64,${toBase64(file.bytes)}` }))
+  return extractFromImages(images, current.caption, ctx, deps.model)
+}
+
+function waitFor(deps: IntakeDeps, ms: number): Promise<void> {
+  if (deps.wait) return deps.wait(ms)
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function applyCorrection(

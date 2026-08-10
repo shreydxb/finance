@@ -183,7 +183,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 78 tests, no network, no keys
+npm test              # 88 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 

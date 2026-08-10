@@ -9,6 +9,7 @@ import type {
   HouseholdContext,
   IntakeLogEntry,
   IntakeStore,
+  MediaGroupState,
   Messenger,
   ModelClient,
   SendOptions,
@@ -126,6 +127,35 @@ export class FakeStore implements IntakeStore {
   logEvent(entry: IntakeLogEntry): Promise<void> {
     if (this.failLogEvent) return Promise.reject(new Error('log write failed'))
     this.logs.push(entry)
+    return Promise.resolve()
+  }
+
+  mediaGroups = new Map<string, MediaGroupState>()
+  private mediaGroupClock = 0
+
+  joinMediaGroup(mediaGroupId: string, _chatId: number, fileId: string, caption: string | null): Promise<MediaGroupState> {
+    const current = this.mediaGroups.get(mediaGroupId)
+    // A monotonic counter, not a real timestamp: two joins in the same test
+    // tick would otherwise share a millisecond and break the "am I still the
+    // latest" comparison the real store relies on real Postgres time for.
+    const updatedAt = String(++this.mediaGroupClock)
+    const next: MediaGroupState = {
+      fileIds: current && !current.fileIds.includes(fileId) ? [...current.fileIds, fileId] : current?.fileIds ?? [fileId],
+      caption: current?.caption ?? caption,
+      updatedAt,
+      processedAt: current?.processedAt ?? null,
+    }
+    this.mediaGroups.set(mediaGroupId, next)
+    return Promise.resolve(next)
+  }
+
+  getMediaGroup(mediaGroupId: string): Promise<MediaGroupState | null> {
+    return Promise.resolve(this.mediaGroups.get(mediaGroupId) ?? null)
+  }
+
+  claimMediaGroup(mediaGroupId: string): Promise<void> {
+    const current = this.mediaGroups.get(mediaGroupId)
+    if (current) this.mediaGroups.set(mediaGroupId, { ...current, processedAt: String(++this.mediaGroupClock) })
     return Promise.resolve()
   }
 

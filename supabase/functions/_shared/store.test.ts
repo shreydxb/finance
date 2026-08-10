@@ -106,6 +106,35 @@ test('loadHouseholdContext only fetches payable account types, not debt/asset tr
   assert.match(accountsCall!.url, /type=in\.\(cash,credit_card\)/)
 })
 
+test('joinMediaGroup creates then appends, and claimMediaGroup marks it processed', async () => {
+  let stored: Record<string, unknown> | null = null
+  const fetchImpl = (async (url: string, init: RequestInit = {}) => {
+    const method = init.method ?? 'GET'
+    if (!url.includes('/media_groups')) return new Response('[]', { status: 200 })
+    if (method === 'GET') return new Response(JSON.stringify(stored ? [stored] : []), { status: 200 })
+    const body = JSON.parse(String(init.body))
+    stored = method === 'POST' ? body : { ...stored, ...body }
+    return new Response(JSON.stringify([stored]), { status: method === 'POST' ? 201 : 200 })
+  }) as unknown as typeof fetch
+
+  const store = new PostgrestStore({ supabaseUrl: 'https://project.supabase.co', serviceKey: 'service-key', fetchImpl })
+
+  const first = await store.joinMediaGroup('grp-1', -100, 'file-a', 'weekly shop')
+  assert.deepEqual(first.fileIds, ['file-a'])
+  assert.equal(first.caption, 'weekly shop')
+
+  const second = await store.joinMediaGroup('grp-1', -100, 'file-b', null)
+  assert.deepEqual(second.fileIds, ['file-a', 'file-b'])
+  assert.equal(second.caption, 'weekly shop', 'the first caption to arrive wins')
+  assert.notEqual(second.updatedAt, first.updatedAt, 'each join bumps updated_at so a later join is detectable')
+
+  assert.deepEqual(await store.getMediaGroup('grp-1'), second)
+
+  await store.claimMediaGroup('grp-1')
+  const claimed = await store.getMediaGroup('grp-1')
+  assert.ok(claimed?.processedAt, 'claiming sets processed_at so the group is never processed twice')
+})
+
 test('logEvent posts a flattened row to intake_logs with return=minimal', async () => {
   const calls: { url: string; init: RequestInit }[] = []
   const store = new PostgrestStore({

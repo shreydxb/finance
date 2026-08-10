@@ -9,7 +9,7 @@
 // one-way dependency is what keeps _shared/ safe to import from either
 // function without pulling in the other's secrets/config shape.
 
-import type { AccountRef, CategoryRef, HouseholdContext, IntakeLogEntry, IntakeStore, TransactionRow } from './types.ts'
+import type { AccountRef, CategoryRef, HouseholdContext, IntakeLogEntry, IntakeStore, MediaGroupState, TransactionRow } from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -160,6 +160,68 @@ export class PostgrestStore implements IntakeStore {
         transaction_id: entry.transactionId ?? null,
       }),
     })
+  }
+
+  async joinMediaGroup(mediaGroupId: string, chatId: number, fileId: string, caption: string | null): Promise<MediaGroupState> {
+    const nowIso = new Date().toISOString()
+    const existing = await this.request<MediaGroupRow[]>(
+      `/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`
+    )
+    if (existing.length === 0) {
+      try {
+        const rows = await this.request<MediaGroupRow[]>('/media_groups', {
+          method: 'POST',
+          headers: { prefer: 'return=representation' },
+          body: JSON.stringify({ media_group_id: mediaGroupId, chat_id: chatId, file_ids: [fileId], caption, updated_at: nowIso }),
+        })
+        return fromMediaGroupRow(rows[0])
+      } catch {
+        // Lost a race: a sibling photo's insert landed between our read and
+        // write. Fall through to append instead of losing this photo — the
+        // group already exists now, so the PATCH path below picks it up.
+      }
+    }
+    const current =
+      existing[0] ??
+      (await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`))[0]
+    const fileIds = current.file_ids.includes(fileId) ? current.file_ids : [...current.file_ids, fileId]
+    const rows = await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=representation' },
+      body: JSON.stringify({ file_ids: fileIds, caption: current.caption ?? caption, updated_at: nowIso }),
+    })
+    return fromMediaGroupRow(rows[0])
+  }
+
+  async getMediaGroup(mediaGroupId: string): Promise<MediaGroupState | null> {
+    const rows = await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`)
+    return rows[0] ? fromMediaGroupRow(rows[0]) : null
+  }
+
+  async claimMediaGroup(mediaGroupId: string): Promise<void> {
+    await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=representation' },
+      body: JSON.stringify({ processed_at: new Date().toISOString() }),
+    })
+  }
+}
+
+interface MediaGroupRow {
+  media_group_id: string
+  chat_id: number
+  file_ids: string[]
+  caption: string | null
+  updated_at: string
+  processed_at: string | null
+}
+
+function fromMediaGroupRow(row: MediaGroupRow): MediaGroupState {
+  return {
+    fileIds: row.file_ids,
+    caption: row.caption,
+    updatedAt: row.updated_at,
+    processedAt: row.processed_at,
   }
 }
 

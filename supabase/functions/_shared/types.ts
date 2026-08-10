@@ -49,6 +49,8 @@ export interface TelegramMessage {
   voice?: TelegramVoice
   audio?: TelegramVoice
   document?: TelegramDocument
+  /** Shared by every photo in a multi-select album send — see media_groups. */
+  media_group_id?: string
   reply_to_message?: TelegramMessage
 }
 
@@ -159,6 +161,19 @@ export interface IntakeStore {
   putSetting(key: string, value: unknown): Promise<void>
   /** Best-effort observability row. Callers swallow failures — a broken log write must never cost a reply or a spend. */
   logEvent(entry: IntakeLogEntry): Promise<void>
+  /** Upsert this photo into its album's row, returning the row as it stood right after this write. */
+  joinMediaGroup(mediaGroupId: string, chatId: number, fileId: string, caption: string | null): Promise<MediaGroupState>
+  getMediaGroup(mediaGroupId: string): Promise<MediaGroupState | null>
+  /** Marks the group as claimed so it's never processed twice. */
+  claimMediaGroup(mediaGroupId: string): Promise<void>
+}
+
+/** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */
+export interface MediaGroupState {
+  fileIds: string[]
+  caption: string | null
+  updatedAt: string
+  processedAt: string | null
 }
 
 export interface TokenUsage {

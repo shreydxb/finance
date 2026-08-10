@@ -37,6 +37,22 @@ export function photoUpdate(caption: string | null = null, from = SHREY_ID): Tel
   }
 }
 
+export function albumPhotoUpdate(
+  mediaGroupId: string,
+  fileId: string,
+  caption: string | null = null,
+  from = SHREY_ID
+): TelegramUpdate {
+  return {
+    update_id: nextMessageId,
+    message: baseMessage(from, {
+      caption: caption ?? undefined,
+      media_group_id: mediaGroupId,
+      photo: [{ file_id: fileId, width: 1280, height: 1706, file_size: 240000 }],
+    }),
+  }
+}
+
 export function documentUpdate(caption: string | null = null, from = SHREY_ID): TelegramUpdate {
   return {
     update_id: nextMessageId,

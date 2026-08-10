@@ -17,9 +17,9 @@ session fully replayable. Nine issues came back from it in one sitting:
 | 2 | Bulk input — several spends in one message | **Designed here (§2)** |
 | 3 | Wrong/no account match, no way to pick | ✅ Fixed — tied accounts are now named in the review prompt (`0f547f3`) |
 | 4 | Fund transfer between the household's own accounts | **Designed here (§3)** |
-| 5 | One purchase needs 2+ screenshots (first one cropped the price) | **Designed here (§6)**, same root cause as #7 |
+| 5 | One purchase needs 2+ screenshots (first one cropped the price) | ✅ Shipped (§6) — album batching, `telegram-intake` v17 |
 | 6 | Cashback | **Designed here (§4)** |
-| 7 | 3 screenshots of one grocery order → 3 separate transactions; wants an itemized summary | **Designed here (§5, §6)** |
+| 7 | 3 screenshots of one grocery order → 3 separate transactions | ✅ Shipped (§6, the multi-transaction half); itemized summary (the other half) still **designed here (§5)** |
 | 8 | PDF invoices not read | ✅ Fixed — refused with a clear reason instead of silently degrading (`0f547f3`) |
 | 9 | Random items logged with no amount/qty/account | ✅ Root cause was #8 (the PDF caption became the whole message) — fixed with it |
 
@@ -288,6 +288,11 @@ consolidated item list across 3 photos of one order is the difference between
 ---
 
 ## 6. Multiple screenshots — one purchase (#5) or one order (#7)
+
+**✅ Shipped** — `017_media_groups.sql` applied, `telegram-intake` redeployed
+as v17. Built as designed below, including the debounce-race claim logic;
+`ALBUM_DEBOUNCE_MS` is still the untuned 1200ms guess pending real album
+sends.
 
 **The two reports, same mechanism:** (a) a single receipt cropped the total,
 needing a second screenshot to complete it; (b) three screenshots of one

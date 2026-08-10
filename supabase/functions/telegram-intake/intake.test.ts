@@ -4,6 +4,7 @@ import test from 'node:test'
 import { ACCOUNTS, FakeMessenger, FakeModel, FakeStore, FakeTranscriber, household } from './fixtures/fakes.ts'
 import { TODAY } from './fixtures/receipts.ts'
 import {
+  albumPhotoUpdate,
   callbackUpdate,
   CHAT_ID,
   documentUpdate,
@@ -65,6 +66,9 @@ function harness(
       transcriber: opts.withTranscriber === false ? null : transcriber,
       defaultCurrency: 'AED',
       now: () => new Date(`${TODAY}T09:00:00Z`),
+      // Real setTimeout would make every album test take ALBUM_DEBOUNCE_MS;
+      // tests that need to exercise the debounce race override this directly.
+      wait: () => Promise.resolve(),
     },
   }
 }
@@ -214,6 +218,42 @@ test('photos go to the vision model at the largest available size', async () => 
   assert.equal(h.messenger.sent.filter((s) => s.method === 'sendMessage').length, 1)
   assert.equal(h.model.lastHadImage(), true)
   assert.match(h.model.lastPromptText(), /weekly shop/)
+})
+
+test('a single-photo album still logs normally after the debounce wait', async () => {
+  const h = harness()
+  const outcome = await handleUpdate(albumPhotoUpdate('grp-solo', 'photo-a', 'weekly shop'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.rows.size, 1)
+  assert.equal(h.model.calls.length, 1)
+})
+
+test('two photos in one album become ONE transaction, extracted from both images together', async () => {
+  const h = harness(CLEAN)
+  let secondOutcome: unknown
+  let triggered = false
+  // Simulate the second album photo arriving while the first is "waiting" —
+  // this is the actual race extractFromAlbumPhoto is built to resolve.
+  h.deps.wait = async () => {
+    if (triggered) return
+    triggered = true
+    secondOutcome = await handleUpdate(albumPhotoUpdate('grp-1', 'photo-b', null), h.deps)
+  }
+
+  const firstOutcome = await handleUpdate(albumPhotoUpdate('grp-1', 'photo-a', 'weekly shop'), h.deps)
+
+  assert.equal(firstOutcome.status, 'ignored', 'the first photo stands down once a second one joins after it')
+  assert.deepEqual(secondOutcome, { status: 'logged', transactionId: h.store.only().id, needsReview: false })
+  assert.equal(h.store.rows.size, 1, 'one album, one transaction — not two')
+  assert.equal(h.model.calls.length, 1, 'exactly one extraction call for the whole album')
+  assert.equal(
+    (h.model.lastPromptText().match(/\[image/g) ?? []).length,
+    2,
+    'both photos went into the same extraction call'
+  )
+  assert.match(h.model.lastPromptText(), /weekly shop/, 'the caption from whichever photo carried one is kept')
+  assert.equal(h.messenger.sent.filter((s) => s.method === 'sendMessage').length, 1, 'only one reply for the whole album')
 })
 
 test('voice notes are transcribed and then run through the text pipeline', async () => {

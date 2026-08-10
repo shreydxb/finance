@@ -92,10 +92,21 @@ Be honest and calibrated. A low score costs the household one tap; a
 falsely-high score puts a wrong number into their budget silently.`
 }
 
-export function buildImageUserPrompt(caption: string | null): string {
+export function buildImageUserPrompt(caption: string | null, imageCount = 1): string {
   const base =
-    'This image is a receipt, an invoice, or a screenshot of a payment confirmation. ' +
-    'Read it and extract the transaction. Prefer printed text over your expectations of what a receipt usually says.'
+    imageCount > 1
+      ? // A Telegram album send — see intake.ts's extractFromAlbumPhoto. Treated
+        // as one purchase by default (a cropped total, an order confirmation
+        // split across shots) since that's what a phone's multi-select usually
+        // means; the confidence rubric below is the guard against the rarer
+        // case where the photos are actually unrelated.
+        `These ${imageCount} images were sent together as one album and are almost certainly one purchase — ` +
+        'a receipt with the total cropped out of the first shot, an order confirmation split across screenshots, ' +
+        "or a bill's front and back. Read all of them together and extract ONE transaction. " +
+        'If they clearly show two unrelated purchases instead, use the one with the clearer total, ' +
+        'lower your confidence, and mention the ambiguity in the note.'
+      : 'This image is a receipt, an invoice, or a screenshot of a payment confirmation. ' +
+        'Read it and extract the transaction. Prefer printed text over your expectations of what a receipt usually says.'
   return caption ? `${base}\n\nThe sender added this caption: "${caption}"` : base
 }
 

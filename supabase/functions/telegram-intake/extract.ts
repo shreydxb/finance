@@ -98,14 +98,24 @@ export function extractFromImage(
   ctx: PromptContext,
   model: ModelClient
 ): Promise<Extraction> {
+  return extractFromImages([{ dataUrl: image.dataUrl }], image.caption ?? null, ctx, model)
+}
+
+/** One or more images from the same message/album, extracted as a single transaction. */
+export function extractFromImages(
+  images: { dataUrl: string }[],
+  caption: string | null,
+  ctx: PromptContext,
+  model: ModelClient
+): Promise<Extraction> {
   return runExtraction(
     [
       { role: 'system', content: buildSystemPrompt(ctx) },
       {
         role: 'user',
         content: [
-          { type: 'text', text: buildImageUserPrompt(image.caption ?? null) },
-          { type: 'image_url', image_url: { url: image.dataUrl } },
+          { type: 'text', text: buildImageUserPrompt(caption, images.length) },
+          ...images.map((image) => ({ type: 'image_url' as const, image_url: { url: image.dataUrl } })),
         ],
       },
     ],
