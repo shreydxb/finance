@@ -159,6 +159,29 @@ export interface PossibleDuplicate {
   date: string
 }
 
+/**
+ * A cashback (or future income-verb) proposal awaiting a household tap.
+ * Nothing in `income` exists until Apply — see docs/telegram-bot-round2-design.md §4.
+ */
+export interface PendingIncome {
+  id: string
+  person: string
+  source: string | null
+  kind: string
+  amount: number | null
+  currency: string
+  date: string
+}
+
+export interface IncomeInsert {
+  person: string
+  source: string | null
+  kind: string
+  amount: number
+  currency: string
+  date: string
+}
+
 /** Household config resolved from the `settings` table at request time. */
 export interface HouseholdContext {
   categories: CategoryRef[]
@@ -200,6 +223,12 @@ export interface IntakeStore {
     accountId: string | null
     excludeId: string
   }): Promise<PossibleDuplicate | null>
+  /** Propose-then-tap holding spot for a not-yet-written income row — see PendingIncome. */
+  createPendingIncome(row: Omit<PendingIncome, 'id'>): Promise<PendingIncome>
+  getPendingIncome(id: string): Promise<PendingIncome | null>
+  deletePendingIncome(id: string): Promise<void>
+  /** Writes straight to `income` — only ever called right after a household tap confirms a proposal. */
+  insertIncome(row: IncomeInsert): Promise<void>
 }
 
 /** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */
@@ -263,4 +292,7 @@ export type IntakeOutcome =
   | { status: 'fix_requested'; transactionId: string }
   | { status: 'corrected'; transactionId: string; needsReview: boolean }
   | { status: 'deleted'; transactionId: string }
+  | { status: 'cashback_proposed'; pendingId: string }
+  | { status: 'cashback_applied'; pendingId: string }
+  | { status: 'cashback_cancelled'; pendingId: string }
   | { status: 'error'; reason: string }

@@ -37,6 +37,7 @@ Two invariants the code is built around, both covered by tests:
 | `index.ts` | HTTP entry: webhook secret, dependency wiring, always answers 200 |
 | `intake.ts` | The flow: allowlist, chat-id capture, confidence gate, confirm/fix loop, replies |
 | `extract.ts` | OpenRouter call + the hardening that validates whatever comes back |
+| `cashback.ts` | The cashback router gate + its own small propose-then-tap extraction |
 | `transcribe.ts` | Groq Whisper for voice notes |
 | `prompt.ts` | The extraction prompt (categories, currency rules, confidence rubric) |
 | `config.ts` | Secrets → typed config, with defaults |
@@ -182,6 +183,22 @@ Logged: Dining Out · 84 AED · Karak House · Wio Personal ✓
 household decides which of the two was the mistake, the bot never guesses.
 Tapping it twice is a no-op, not an error.
 
+Cashback is income, not a spend, so it's routed differently: typing anything
+containing "cashback"/"cash back" skips the transaction pipeline entirely and
+*proposes* an `income` row instead — genuinely nothing is written until the
+household taps Apply (unlike a spend, which is always write-then-flag):
+
+```
+Log cashback?
+15 AED · ENBD Credit Card cashback · Shrey · Thu 6 Aug
+[✅ Apply] [✖️ Cancel]
+```
+
+The proposal lives in `pending_income` (`019_pending_income.sql`) until Apply
+or Cancel; Cancel discards it, Apply writes it to `income` with
+`kind = 'other'` and clears the proposal. Cashback detection only looks at
+typed text, not photos or voice — same scoping as bulk input.
+
 **Confirm** clears the flag. **Fix** asks for a correction; reply to that
 message ("84 not 48", "it was groceries", "paid from the Wio account") and it
 goes back through the same extraction, updating that row. Replying directly to
@@ -211,7 +228,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 102 tests, no network, no keys
+npm test              # 113 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 

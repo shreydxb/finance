@@ -11,6 +11,8 @@
 //   2. Corrections update the row they belong to. They never create a second one.
 
 import { todayInTz } from '../_shared/dates.ts'
+import { extractCashback, looksLikeCashback } from './cashback.ts'
+import type { CashbackExtraction } from './cashback.ts'
 import { extractCorrection, extractFromImage, extractFromImages, extractFromText, ExtractionError } from './extract.ts'
 import { promptContextFrom } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
@@ -24,6 +26,7 @@ import type {
   IntakeStore,
   Messenger,
   ModelClient,
+  PendingIncome,
   PossibleDuplicate,
   TelegramCallbackQuery,
   TelegramMessage,
@@ -60,6 +63,9 @@ const HELP_TEXT = [
   '',
   "If I'm not sure, I'll show you what I got with Confirm / Fix buttons.",
   'Anything unconfirmed shows up as “Needs review” in the app.',
+  '',
+  'Got cashback instead? Type it ("15 aed cashback from the ENBD card") and I\'ll',
+  'propose an income entry — nothing is logged until you tap Apply.',
 ].join('\n')
 
 export async function handleUpdate(update: TelegramUpdate, deps: IntakeDeps): Promise<IntakeOutcome> {
@@ -105,6 +111,12 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   if (replyTarget && text) {
     const existing = await deps.store.findTransactionByMessage(message.chat.id, replyTarget.message_id)
     if (existing) return applyCorrection(existing, text, message, household, ctx, deps)
+  }
+
+  // Cashback is income, not a spend — router rule #2 (default to spend on any
+  // doubt) means only an explicit "cashback" mention leaves the spend path.
+  if (text && looksLikeCashback(text)) {
+    return handleCashback(text, message, household, ctx, deps)
   }
 
   const messageType = messageTypeOf(message)
@@ -194,6 +206,146 @@ async function findDuplicate(
     deps.log?.('duplicate lookup failed (non-fatal)', { error: String(error) })
     return null
   }
+}
+
+/**
+ * Cashback: propose, never write-then-flag (docs/telegram-bot-round2-design.md
+ * §4). The proposal lives in `pending_income` — genuinely nothing lands in
+ * `income` until the household taps Apply.
+ */
+async function handleCashback(
+  text: string,
+  message: TelegramMessage,
+  household: HouseholdContext,
+  ctx: PromptContext,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const t0 = Date.now()
+
+  let extraction: CashbackExtraction
+  try {
+    extraction = await extractCashback(text, ctx, deps.model)
+  } catch (error) {
+    deps.log?.('cashback extraction failed', { error: String(error) })
+    await deps.messenger.sendMessage(
+      message.chat.id,
+      "I couldn't read that cashback message. Try rephrasing it, or add it by hand in the app.",
+      { replyToMessageId: message.message_id }
+    )
+    await logInbound(deps, message, household, senderId, 'text', {
+      stage: 'extract_cashback',
+      success: false,
+      error: error instanceof ExtractionError ? error.message : String(error),
+      durationMs: Date.now() - t0,
+    })
+    return { status: 'error', reason: error instanceof ExtractionError ? error.message : String(error) }
+  }
+
+  const person = household.people.get(senderId) || null
+
+  // Propose-then-tap only makes sense once there's a number and someone to
+  // credit it to — ask rather than guess. A missed cashback message costs
+  // nothing but a slightly-off income total (unlike a spend, never lost).
+  if (extraction.amount === null || !person) {
+    await deps.messenger.sendMessage(message.chat.id, "How much cashback was it? Reply with the amount and I'll log it.", {
+      replyToMessageId: message.message_id,
+    })
+    await logInbound(deps, message, household, senderId, 'text', {
+      stage: 'extract_cashback',
+      success: false,
+      error: 'cashback amount unreadable',
+      durationMs: Date.now() - t0,
+    })
+    return { status: 'error', reason: 'cashback amount unreadable' }
+  }
+
+  const pending = await deps.store.createPendingIncome({
+    person,
+    source: extraction.source,
+    kind: 'other',
+    amount: extraction.amount,
+    currency: extraction.currency,
+    date: extraction.date,
+  })
+
+  await logInbound(deps, message, household, senderId, 'text', {
+    stage: 'extract_cashback',
+    success: true,
+    durationMs: Date.now() - t0,
+  })
+
+  await deps.messenger.sendMessage(message.chat.id, `Log cashback?\n${describeCashback(pending)}`, {
+    replyToMessageId: message.message_id,
+    inlineKeyboard: cashbackKeyboard(pending.id),
+  })
+  return { status: 'cashback_proposed', pendingId: pending.id }
+}
+
+async function handleCashbackCallback(
+  action: 'cashback_apply' | 'cashback_cancel',
+  pendingId: string,
+  chatId: number,
+  query: TelegramCallbackQuery,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const pending = await deps.store.getPendingIncome(pendingId)
+  if (!pending) {
+    await deps.messenger.answerCallbackQuery(query.id, 'That proposal is gone.')
+    return { status: 'ignored', reason: `pending income ${pendingId} not found` }
+  }
+
+  if (action === 'cashback_cancel') {
+    await deps.store.deletePendingIncome(pendingId)
+    await deps.messenger.answerCallbackQuery(query.id, 'Cancelled')
+    if (query.message) {
+      await deps.messenger.editMessageText(chatId, query.message.message_id, `Cancelled: ${describeCashback(pending)}`)
+    }
+    await logCallback(deps, query, chatId, 'cashback_cancel', { success: true })
+    return { status: 'cashback_cancelled', pendingId }
+  }
+
+  if (pending.amount === null) {
+    // Shouldn't happen — handleCashback never proposes an amountless row — but
+    // a stale button after a manual DB edit is cheap to guard against anyway.
+    await deps.messenger.answerCallbackQuery(query.id, 'No amount to apply')
+    return { status: 'ignored', reason: 'pending income has no amount' }
+  }
+
+  await deps.store.insertIncome({
+    person: pending.person,
+    source: pending.source,
+    kind: pending.kind,
+    amount: pending.amount,
+    currency: pending.currency,
+    date: pending.date,
+  })
+  await deps.store.deletePendingIncome(pendingId)
+  await deps.messenger.answerCallbackQuery(query.id, 'Logged')
+  if (query.message) {
+    await deps.messenger.editMessageText(chatId, query.message.message_id, `Logged: ${describeCashback(pending)} ✓`)
+  }
+  await logCallback(deps, query, chatId, 'cashback_apply', { success: true })
+  return { status: 'cashback_applied', pendingId }
+}
+
+function describeCashback(pending: PendingIncome): string {
+  const parts = [
+    pending.amount === null ? `amount unreadable (${pending.currency})` : `${formatAmount(pending.amount)} ${pending.currency}`,
+    pending.source,
+    pending.person,
+    formatDate(pending.date),
+  ]
+  return parts.filter(Boolean).join(' · ')
+}
+
+function cashbackKeyboard(pendingId: string): InlineKeyboardButton[][] {
+  return [
+    [
+      { text: '✅ Apply', callback_data: `cashback_apply:${pendingId}` },
+      { text: '✖️ Cancel', callback_data: `cashback_cancel:${pendingId}` },
+    ],
+  ]
 }
 
 function messageTypeOf(message: TelegramMessage): 'photo' | 'voice' | 'text' {
@@ -460,6 +612,10 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     await deps.messenger.answerCallbackQuery(query.id)
     deps.log?.('rejected callback sender', { senderId: query.from.id })
     return { status: 'ignored', reason: `sender ${query.from.id} is not in the household allowlist` }
+  }
+
+  if (parsed.action === 'cashback_apply' || parsed.action === 'cashback_cancel') {
+    return handleCashbackCallback(parsed.action, parsed.transactionId, chatId, query, deps)
   }
 
   const row = await deps.store.getTransaction(parsed.transactionId)

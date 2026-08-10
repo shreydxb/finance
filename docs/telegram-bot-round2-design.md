@@ -18,7 +18,7 @@ session fully replayable. Nine issues came back from it in one sitting:
 | 3 | Wrong/no account match, no way to pick | ✅ Fixed — tied accounts are now named in the review prompt (`0f547f3`) |
 | 4 | Fund transfer between the household's own accounts | **Designed here (§3)** |
 | 5 | One purchase needs 2+ screenshots (first one cropped the price) | ✅ Shipped (§6) — album batching, `telegram-intake` v17 |
-| 6 | Cashback | **Designed here (§4)** |
+| 6 | Cashback | ✅ Shipped (§4), `telegram-intake` v20 |
 | 7 | 3 screenshots of one grocery order → 3 separate transactions | ✅ Shipped — §6 (the multi-transaction half) and §5 (itemized summary, `telegram-intake` v18) |
 | 8 | PDF invoices not read | ✅ Fixed — refused with a clear reason instead of silently degrading (`0f547f3`) |
 | 9 | Random items logged with no amount/qty/account | ✅ Root cause was #8 (the PDF caption became the whole message) — fixed with it |
@@ -202,6 +202,18 @@ ships and reads confusingly.
 
 ## 4. Cashback
 
+**✅ Shipped** — `019_pending_income.sql` applied, `telegram-intake` redeployed
+as v20. Built mostly as designed below, with one correction: the "no new
+columns" assumption in the schema summary didn't survive contact with
+propose-then-tap's "nothing written until the tap" requirement. A stateless
+Edge Function invocation has nowhere to hold a not-yet-written proposal
+between the propose message and the button tap, so a small `pending_income`
+table holds it; `income` itself gained no columns, as planned. A cheap
+deterministic router gate (`/\bcash\s?back/i` on typed text only, same
+text-only scoping as §2) decides "cashback, not spend" — CLAUDE.md rule #2
+("router defaults to spend on any doubt") means only an explicit mention
+leaves the spend path.
+
 **The report:** a card credits money back — is it a spend, income, or
 something else?
 
@@ -377,15 +389,16 @@ All additive, `supabase/schema/`. **Numbering note:** `docs/telegram-bot-sprint-
 ledger (§4) reserves its own numbers for unbuilt work (`pending_actions`,
 `push_cron`, `statement_cycle`) that don't match what actually shipped here —
 whoever picks up either doc first should renumber on the fly rather than trust
-placeholder numbers blindly. `017_media_groups.sql` (§6) and
-`018_transaction_items.sql` (§5) are both applied; what's left:
+placeholder numbers blindly. `017_media_groups.sql` (§6), `018_transaction_items.sql`
+(§5) and `019_pending_income.sql` (§4) are all applied; what's left:
 
 | Migration | Adds |
 | --- | --- |
-| `019_transfers_and_cashback` | `categories` row `('Transfer', 'Transfer')`; no new columns (cashback reuses `income`) |
+| `020_transfers` | `categories` row `('Transfer', 'Transfer')` |
 
 Duplicate detection (§1) needs no schema — it's a query against existing
-columns.
+columns. Cashback (§4) needed one table after all, `pending_income` — see §4's
+own note on why the original "no new columns" plan didn't hold up.
 
 ## Phasing
 

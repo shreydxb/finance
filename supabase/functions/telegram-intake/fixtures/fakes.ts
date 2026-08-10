@@ -7,11 +7,13 @@ import type {
   ChatMessage,
   DownloadedFile,
   HouseholdContext,
+  IncomeInsert,
   IntakeLogEntry,
   IntakeStore,
   MediaGroupState,
   Messenger,
   ModelClient,
+  PendingIncome,
   PossibleDuplicate,
   SendOptions,
   TelegramMessage,
@@ -182,6 +184,31 @@ export class FakeStore implements IntakeStore {
     // Most recently inserted wins, mirroring `order by created_at desc` on the real store.
     const latest = matches.reduce((best, row) => (rowSequence(row.id) > rowSequence(best.id) ? row : best))
     return Promise.resolve({ id: latest.id, note: latest.note, amount: latest.amount, date: latest.date })
+  }
+
+  pendingIncome = new Map<string, PendingIncome>()
+  income: IncomeInsert[] = []
+  private pendingSequence = 0
+
+  createPendingIncome(row: Omit<PendingIncome, 'id'>): Promise<PendingIncome> {
+    const id = `pending-${++this.pendingSequence}`
+    const stored: PendingIncome = { id, ...row }
+    this.pendingIncome.set(id, stored)
+    return Promise.resolve(stored)
+  }
+
+  getPendingIncome(id: string): Promise<PendingIncome | null> {
+    return Promise.resolve(this.pendingIncome.get(id) ?? null)
+  }
+
+  deletePendingIncome(id: string): Promise<void> {
+    this.pendingIncome.delete(id)
+    return Promise.resolve()
+  }
+
+  insertIncome(row: IncomeInsert): Promise<void> {
+    this.income.push(row)
+    return Promise.resolve()
   }
 
   only(): TransactionRow {

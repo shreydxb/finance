@@ -13,9 +13,11 @@ import type {
   AccountRef,
   CategoryRef,
   HouseholdContext,
+  IncomeInsert,
   IntakeLogEntry,
   IntakeStore,
   MediaGroupState,
+  PendingIncome,
   PossibleDuplicate,
   TransactionRow,
 } from './types.ts'
@@ -238,6 +240,64 @@ export class PostgrestStore implements IntakeStore {
     const rows = await this.request<TransactionRow[]>(`/transactions?${query}`)
     const row = rows[0]
     return row ? { id: row.id, note: row.note, amount: Number(row.amount), date: row.date } : null
+  }
+
+  async createPendingIncome(row: Omit<PendingIncome, 'id'>): Promise<PendingIncome> {
+    const rows = await this.request<PendingIncomeRow[]>('/pending_income', {
+      method: 'POST',
+      headers: { prefer: 'return=representation' },
+      body: JSON.stringify({
+        person: row.person,
+        source: row.source,
+        kind: row.kind,
+        amount: row.amount,
+        currency: row.currency,
+        date: row.date,
+      }),
+    })
+    return fromPendingIncomeRow(rows[0])
+  }
+
+  async getPendingIncome(id: string): Promise<PendingIncome | null> {
+    const rows = await this.request<PendingIncomeRow[]>(`/pending_income?id=eq.${encodeURIComponent(id)}&limit=1`)
+    return rows[0] ? fromPendingIncomeRow(rows[0]) : null
+  }
+
+  async deletePendingIncome(id: string): Promise<void> {
+    await this.request<void>(`/pending_income?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { prefer: 'return=minimal' },
+    })
+  }
+
+  async insertIncome(row: IncomeInsert): Promise<void> {
+    await this.request<void>('/income', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify(row),
+    })
+  }
+}
+
+interface PendingIncomeRow {
+  id: string
+  person: string
+  source: string | null
+  kind: string
+  amount: number | string | null
+  currency: string
+  date: string
+}
+
+function fromPendingIncomeRow(row: PendingIncomeRow): PendingIncome {
+  return {
+    id: row.id,
+    person: row.person,
+    source: row.source,
+    kind: row.kind,
+    amount: row.amount === null ? null : Number(row.amount),
+    currency: row.currency,
+    date: row.date,
   }
 }
 

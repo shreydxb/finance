@@ -508,6 +508,89 @@ test('tapping Delete twice is a no-op, not an error', async () => {
   assert.equal(acks[1].text, 'Already deleted')
 })
 
+test('a cashback message proposes instead of writing a transaction', async () => {
+  const h = harness('{"amount":15,"currency":"AED","source":"ENBD Credit Card cashback","date":"2026-08-06"}')
+  const outcome = await handleUpdate(textUpdate('got 15 aed cashback from the ENBD card'), h.deps)
+
+  assert.equal(outcome.status, 'cashback_proposed')
+  assert.equal(h.store.rows.size, 0, 'nothing is written to transactions')
+  assert.equal(h.store.income.length, 0, 'nothing is written to income yet either — propose-then-tap')
+  assert.equal(h.store.pendingIncome.size, 1)
+
+  const pendingId = (outcome as { pendingId: string }).pendingId
+  const sent = h.messenger.last()
+  assert.equal(sent.text, 'Log cashback?\n15 AED · ENBD Credit Card cashback · Shrey · Thu 6 Aug')
+  assert.deepEqual(sent.opts?.inlineKeyboard, [
+    [
+      { text: '✅ Apply', callback_data: `cashback_apply:${pendingId}` },
+      { text: '✖️ Cancel', callback_data: `cashback_cancel:${pendingId}` },
+    ],
+  ])
+})
+
+test('Apply writes the income row and clears the pending proposal', async () => {
+  const h = harness('{"amount":15,"currency":"AED","source":"ENBD Credit Card cashback","date":"2026-08-06"}')
+  await handleUpdate(textUpdate('got 15 aed cashback from the ENBD card'), h.deps)
+  const pendingId = Array.from(h.store.pendingIncome.keys())[0]
+
+  const outcome = await handleUpdate(callbackUpdate('cashback_apply', pendingId), h.deps)
+
+  assert.deepEqual(outcome, { status: 'cashback_applied', pendingId })
+  assert.equal(h.store.pendingIncome.size, 0, 'the proposal is cleared once applied')
+  assert.deepEqual(h.store.income, [
+    { person: 'Shrey', source: 'ENBD Credit Card cashback', kind: 'other', amount: 15, currency: 'AED', date: '2026-08-06' },
+  ])
+
+  const edit = h.messenger.sent.find((s) => s.method === 'editMessageText')
+  assert.equal(edit?.text, 'Logged: 15 AED · ENBD Credit Card cashback · Shrey · Thu 6 Aug ✓')
+})
+
+test('Cancel discards the proposal without writing anything', async () => {
+  const h = harness('{"amount":15,"currency":"AED","source":"ENBD Credit Card cashback","date":"2026-08-06"}')
+  await handleUpdate(textUpdate('got 15 aed cashback from the ENBD card'), h.deps)
+  const pendingId = Array.from(h.store.pendingIncome.keys())[0]
+
+  const outcome = await handleUpdate(callbackUpdate('cashback_cancel', pendingId), h.deps)
+
+  assert.deepEqual(outcome, { status: 'cashback_cancelled', pendingId })
+  assert.equal(h.store.pendingIncome.size, 0)
+  assert.equal(h.store.income.length, 0, 'Cancel never writes income')
+})
+
+test('a cashback message with no readable amount asks for it instead of proposing', async () => {
+  const h = harness('{"amount":null,"currency":"AED","source":"some cashback","date":"2026-08-06"}')
+  const outcome = await handleUpdate(textUpdate('got some cashback the other day'), h.deps)
+
+  assert.equal(outcome.status, 'error')
+  assert.equal(h.store.pendingIncome.size, 0, 'nothing is proposed without a number')
+  assert.match(h.messenger.last().text ?? '', /How much cashback/)
+})
+
+test('a cashback extraction failure is reported back, nothing proposed', async () => {
+  const h = harness('THROW:OpenRouter 500: server error')
+  const outcome = await handleUpdate(textUpdate('cashback landed today'), h.deps)
+
+  assert.equal(outcome.status, 'error')
+  assert.equal(h.store.pendingIncome.size, 0)
+  assert.match(h.messenger.last().text ?? '', /couldn't read that cashback message/)
+})
+
+test('applying a cashback proposal that no longer exists is a graceful no-op', async () => {
+  const h = harness()
+  const outcome = await handleUpdate(callbackUpdate('cashback_apply', 'pending-999'), h.deps)
+
+  assert.equal(outcome.status, 'ignored')
+  assert.match(h.messenger.last().text ?? '', /gone/)
+})
+
+test('a plain spend message never gets routed into the cashback flow', async () => {
+  const h = harness(json({ amount: 84, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.95 }))
+  await handleUpdate(textUpdate('84 aed lunch at Noon, paid cash'), h.deps)
+
+  assert.equal(h.store.rows.size, 1)
+  assert.equal(h.store.pendingIncome.size, 0)
+})
+
 test('Fix asks for the correction and remembers which message it hangs off', async () => {
   const h = harness(json({ amount: 48, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.5 }))
   await handleUpdate(textUpdate('lunch'), h.deps)

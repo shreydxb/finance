@@ -86,7 +86,7 @@ export function replyUpdate(text: string, replyToMessageId: number, from = SHREY
 }
 
 export function callbackUpdate(
-  action: 'confirm' | 'fix' | 'delete',
+  action: 'confirm' | 'fix' | 'delete' | 'cashback_apply' | 'cashback_cancel',
   transactionId: string,
   from = SHREY_ID,
   promptMessageId = 5000
