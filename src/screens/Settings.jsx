@@ -2,7 +2,19 @@ import { useEffect, useState } from 'react'
 import { listCategories, createCategory, updateCategory, deleteCategory, GROUPS } from '../lib/categories'
 import { listAccounts, updateAccount } from '../lib/accounts'
 import { getSetting, upsertSetting } from '../lib/settings'
+import { supabase } from '../lib/supabaseClient'
 import CategoryForm from '../components/CategoryForm'
+
+function formatRelativeTime(isoString) {
+  const diffMs = Date.now() - new Date(isoString).getTime()
+  const minutes = Math.round(diffMs / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`
+  const days = Math.round(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
 
 const BUCKETS = [
   { value: '', label: 'Unassigned' },
@@ -22,11 +34,40 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null) // category, or 'new'
+  const [fxRates, setFxRates] = useState(null)
+  const [fxUpdatedAt, setFxUpdatedAt] = useState(null)
+  const [refreshingFx, setRefreshingFx] = useState(false)
+  const [fxError, setFxError] = useState('')
+
+  async function loadFx() {
+    const { data } = await supabase.from('settings').select('value, updated_at').eq('key', 'fx_rates').maybeSingle()
+    setFxRates(data?.value ?? null)
+    setFxUpdatedAt(data?.updated_at ?? null)
+  }
+
+  async function handleRefreshFx() {
+    setRefreshingFx(true)
+    setFxError('')
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('refresh-fx', { method: 'POST' })
+      if (fnError || data?.ok === false) throw new Error(data?.error || fnError?.message || 'refresh failed')
+      await loadFx()
+    } catch {
+      setFxError('Could not refresh FX rates. Try again.')
+    } finally {
+      setRefreshingFx(false)
+    }
+  }
 
   async function refresh() {
     setError('')
     try {
-      const [cats, accts, splitSetting] = await Promise.all([listCategories(), listAccounts(), getSetting('income_split')])
+      const [cats, accts, splitSetting] = await Promise.all([
+        listCategories(),
+        listAccounts(),
+        getSetting('income_split'),
+        loadFx(),
+      ])
       setCategories(cats)
       setAccounts(accts)
       if (splitSetting) {
@@ -147,6 +188,41 @@ export default function Settings() {
         {splitError && (
           <p role="alert" className="mt-2 text-sm text-neg-600">
             {splitError}
+          </p>
+        )}
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-ink-900">Currency rates</h2>
+          <button
+            type="button"
+            onClick={handleRefreshFx}
+            disabled={refreshingFx}
+            className="shrink-0 rounded-lg border border-ink-300 px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100 disabled:opacity-50"
+          >
+            {refreshingFx ? 'Refreshing…' : '↻ Refresh rates'}
+          </button>
+        </div>
+        <p className="mb-3 text-sm text-ink-500">
+          Used to convert every figure into the AED/USD/INR toggle in the header. Fetched live, not quoted or guessed.
+        </p>
+        {fxRates ? (
+          <div className="flex flex-wrap gap-4 text-sm">
+            <span className="text-ink-700">
+              <span className="font-medium text-ink-900">1 USD</span> = {fxRates.USD?.toFixed(4)} AED
+            </span>
+            <span className="text-ink-700">
+              <span className="font-medium text-ink-900">1 INR</span> = {fxRates.INR?.toFixed(4)} AED
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-ink-500">No rates yet — tap Refresh rates.</p>
+        )}
+        {fxUpdatedAt && <p className="mt-2 text-xs text-ink-400">Last updated {formatRelativeTime(fxUpdatedAt)}</p>}
+        {fxError && (
+          <p role="alert" className="mt-2 text-sm text-neg-600">
+            {fxError}
           </p>
         )}
       </div>
