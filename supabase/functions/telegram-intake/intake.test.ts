@@ -591,6 +591,109 @@ test('a plain spend message never gets routed into the cashback flow', async () 
   assert.equal(h.store.pendingIncome.size, 0)
 })
 
+test('a clean transfer writes two linked rows, never touches accounts.value, and is not a spend', async () => {
+  const h = harness(
+    '{"amount":2000,"currency":"AED","from_account":"Wio Personal","to_account":"Joint Current","date":"2026-08-06"}'
+  )
+  const outcome = await handleUpdate(textUpdate('moved 2000 from Wio to Joint Current'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal((outcome as { needsReview: boolean }).needsReview, false)
+  assert.equal(h.store.rows.size, 2, 'exactly two rows, never one and never a proposal')
+  assert.equal(h.store.pendingIncome.size, 0)
+
+  const rows = Array.from(h.store.rows.values())
+  const out = rows.find((r) => r.account_id === 'acc-wio')!
+  const inn = rows.find((r) => r.account_id === 'acc-joint')!
+  assert.ok(out && inn, 'one row per account')
+  assert.equal(out.category, 'Transfer')
+  assert.equal(inn.category, 'Transfer')
+  assert.equal(out.amount, 2000)
+  assert.equal(inn.amount, 2000)
+  assert.equal(out.note, 'Transfer out → Joint Current')
+  assert.equal(inn.note, 'Transfer in ← Wio Personal')
+  assert.equal(out.needs_review, false)
+  assert.equal(inn.needs_review, false)
+  assert.ok(out.split_group_id, 'linked by a shared split_group_id')
+  assert.equal(out.split_group_id, inn.split_group_id)
+
+  assert.equal(h.messenger.last().text, 'Logged: Transfer 2,000 AED · Wio Personal → Joint Current ✓')
+  assert.equal(h.messenger.last().opts?.inlineKeyboard, undefined, 'no buttons on a clean transfer')
+})
+
+test('a transfer with an unresolved account flags both rows and offers Confirm only', async () => {
+  const h = harness(
+    '{"amount":2000,"currency":"AED","from_account":"Wio Personal","to_account":"some savings account","date":"2026-08-06"}'
+  )
+  await handleUpdate(textUpdate('moved 2000 from Wio to some savings account'), h.deps)
+
+  const rows = Array.from(h.store.rows.values())
+  assert.equal(rows.length, 2)
+  assert.ok(rows.every((r) => r.needs_review === true), 'both halves flagged, not just the unresolved one')
+
+  const sent = h.messenger.last()
+  assert.equal(
+    sent.text,
+    [
+      'Logged — worth a quick check:',
+      'Transfer 2,000 AED · Wio Personal → some savings account',
+      'Thu 6 Aug',
+      'Not sure about: which account it landed in.',
+    ].join('\n')
+  )
+  assert.deepEqual(sent.opts?.inlineKeyboard, [[{ text: '✅ Confirm', callback_data: `confirm:${rows[0].id}` }]])
+})
+
+test('the same account on both sides is flagged, not silently accepted', async () => {
+  const h = harness(
+    '{"amount":500,"currency":"AED","from_account":"Wio Personal","to_account":"Wio Personal","date":"2026-08-06"}'
+  )
+  await handleUpdate(textUpdate('moved 500 from Wio to Wio'), h.deps)
+
+  assert.match(h.messenger.last().text ?? '', /the two accounts look the same/)
+  assert.ok(Array.from(h.store.rows.values()).every((r) => r.needs_review === true))
+})
+
+test('Confirm on a transfer clears needs_review on both halves of the pair', async () => {
+  const h = harness(
+    '{"amount":2000,"currency":"AED","from_account":"Wio Personal","to_account":null,"date":"2026-08-06"}'
+  )
+  await handleUpdate(textUpdate('moved 2000 from Wio to somewhere'), h.deps)
+  const [first, second] = Array.from(h.store.rows.values())
+  const promptedId = h.messenger.last().opts?.inlineKeyboard?.[0]?.[0]?.callback_data?.split(':')[1]
+
+  const outcome = await handleUpdate(callbackUpdate('confirm', promptedId!), h.deps)
+
+  assert.equal(outcome.status, 'confirmed')
+  assert.equal(h.store.rows.get(first.id)?.needs_review, false)
+  assert.equal(h.store.rows.get(second.id)?.needs_review, false)
+})
+
+test('Confirm on a transfer with no amount points at the app, not a forceReply into the spend correction pipeline', async () => {
+  const h = harness(
+    '{"amount":null,"currency":"AED","from_account":"Wio Personal","to_account":"Joint Current","date":"2026-08-06"}'
+  )
+  await handleUpdate(textUpdate('moved from Wio to Joint Current'), h.deps)
+  const outRow = Array.from(h.store.rows.values()).find((r) => r.account_id === 'acc-wio')!
+
+  const outcome = await handleUpdate(callbackUpdate('confirm', outRow.id), h.deps)
+
+  assert.equal(outcome.status, 'fix_requested')
+  assert.equal(h.store.rows.get(outRow.id)?.needs_review, true, 'still flagged — nothing was confirmed')
+  const edit = h.messenger.sent.find((s) => s.method === 'editMessageText')
+  assert.match(edit?.text ?? '', /edit it in the app/)
+  assert.equal(h.messenger.sent.some((s) => s.opts?.forceReply), false, 'never threads into the spend correction pipeline')
+})
+
+test('a transfer extraction failure is reported back, nothing written', async () => {
+  const h = harness('THROW:OpenRouter 500: server error')
+  const outcome = await handleUpdate(textUpdate('transferred 500 to savings'), h.deps)
+
+  assert.equal(outcome.status, 'error')
+  assert.equal(h.store.rows.size, 0)
+  assert.match(h.messenger.last().text ?? '', /couldn't read that transfer/)
+})
+
 test('Fix asks for the correction and remembers which message it hangs off', async () => {
   const h = harness(json({ amount: 48, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.5 }))
   await handleUpdate(textUpdate('lunch'), h.deps)

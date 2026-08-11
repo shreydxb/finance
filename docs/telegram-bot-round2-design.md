@@ -16,7 +16,7 @@ session fully replayable. Nine issues came back from it in one sitting:
 | 1 | Duplicate payments — add something, forget, add again | ✅ Shipped (§1), `telegram-intake` v19 |
 | 2 | Bulk input — several spends in one message | **Designed here (§2)** |
 | 3 | Wrong/no account match, no way to pick | ✅ Fixed — tied accounts are now named in the review prompt (`0f547f3`) |
-| 4 | Fund transfer between the household's own accounts | **Designed here (§3)** |
+| 4 | Fund transfer between the household's own accounts | ✅ Shipped (§3), `telegram-intake` v21 |
 | 5 | One purchase needs 2+ screenshots (first one cropped the price) | ✅ Shipped (§6) — album batching, `telegram-intake` v17 |
 | 6 | Cashback | ✅ Shipped (§4), `telegram-intake` v20 |
 | 7 | 3 screenshots of one grocery order → 3 separate transactions | ✅ Shipped — §6 (the multi-transaction half) and §5 (itemized summary, `telegram-intake` v18) |
@@ -143,6 +143,21 @@ different `response_format` schema requested.
 
 ## 3. Fund transfers
 
+**✅ Shipped** — `020_transfers.sql` applied, `telegram-intake` redeployed as
+v21, `src/lib/reports.js`/`Budget.jsx` filter shipped in the same batch. Built
+mostly as designed below, with two corrections: (1) the router gate isn't a
+"transfer" keyword — the example message never says the word — it's a
+move-verb plus a "from ... to ..." shape, or an explicit "transfer" mention;
+(2) "Confirm/Fix applies to the pair as a unit — Fix on either half offers to
+fix both" shipped as **Confirm-only**. Fix would need its own from/to
+correction-extraction prompt (the existing one is shaped for spend fields —
+category/paid_with — and would silently misapply to a transfer's account
+pair); that's real scope, not folded in here. Confirm *is* pair-aware: it
+clears `needs_review` on both rows via `split_group_id`, not just the row the
+button was attached to. `src/screens/Home.jsx`'s own "spent this month" stat
+also had a bespoke, unfiltered sum — switched to reuse `reports.js`'s
+`totalAED` (which it was already supposed to match, per its own comment).
+
 **The report:** moving money between two of the household's own accounts
 ("moved 2,000 from Wio to ENBD savings") isn't a spend — categorizing it as
 one would double-count it against a budget.
@@ -186,8 +201,9 @@ one per account, both tagged `category = 'Transfer'`, linked by a shared
 ```
 
 Both rows show in the Transactions list (so the household can see the
-transfer happened) and both are invisible to every spend total. Confirm/Fix
-applies to the pair as a unit — Fix on either half offers to fix both.
+transfer happened) and both are invisible to every spend total. Confirm
+applies to the pair as a unit (via `split_group_id`); Fix does not — see the
+shipped-note at the top of this section.
 
 **Open question:** is a same-amount in/out pair confusing net-worth-wise if
 someone reads the raw `transactions` table directly (e.g. via `/review`)?
@@ -390,15 +406,16 @@ ledger (§4) reserves its own numbers for unbuilt work (`pending_actions`,
 `push_cron`, `statement_cycle`) that don't match what actually shipped here —
 whoever picks up either doc first should renumber on the fly rather than trust
 placeholder numbers blindly. `017_media_groups.sql` (§6), `018_transaction_items.sql`
-(§5) and `019_pending_income.sql` (§4) are all applied; what's left:
-
-| Migration | Adds |
-| --- | --- |
-| `020_transfers` | `categories` row `('Transfer', 'Transfer')` |
+(§5), `019_pending_income.sql` (§4) and `020_transfers.sql` (§3) are all
+applied — every migration this epic needs is now shipped, leaving only §2
+(bulk input) unbuilt, and it needs none.
 
 Duplicate detection (§1) needs no schema — it's a query against existing
 columns. Cashback (§4) needed one table after all, `pending_income` — see §4's
-own note on why the original "no new columns" plan didn't hold up.
+own note on why the original "no new columns" plan didn't hold up. Transfers
+(§3) needed the category check constraint widened (Needs/Wants/Savings →
++Transfer), not just a plain insert as originally sketched — a `check`
+constraint can't be loosened without being redefined.
 
 ## Phasing
 

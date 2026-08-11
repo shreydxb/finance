@@ -38,6 +38,7 @@ Two invariants the code is built around, both covered by tests:
 | `intake.ts` | The flow: allowlist, chat-id capture, confidence gate, confirm/fix loop, replies |
 | `extract.ts` | OpenRouter call + the hardening that validates whatever comes back |
 | `cashback.ts` | The cashback router gate + its own small propose-then-tap extraction |
+| `transfer.ts` | The transfer router gate + its own small write-then-flag extraction |
 | `transcribe.ts` | Groq Whisper for voice notes |
 | `prompt.ts` | The extraction prompt (categories, currency rules, confidence rubric) |
 | `config.ts` | Secrets → typed config, with defaults |
@@ -199,6 +200,26 @@ or Cancel; Cancel discards it, Apply writes it to `income` with
 `kind = 'other'` and clears the proposal. Cashback detection only looks at
 typed text, not photos or voice — same scoping as bulk input.
 
+A transfer between the household's own accounts ("moved 2,000 from Wio to
+ENBD savings") is not income and not propose-then-tap — it's still a
+`transactions` write (write-then-flag, like a spend), just two rows instead
+of one:
+
+```
+Logged: Transfer 2,000 AED · Wio Personal → ENBD Savings ✓
+```
+
+Both rows are tagged `category = 'Transfer'` and share one `split_group_id`
+(`020_transfers.sql`) — `src/lib/reports.js` and the Budget screen exclude
+that category from every spend/budget total, so the transfer is visible in
+the Transactions list for audit but invisible to totals. `accounts.value` is
+never touched: the money-data rule (balances from screenshots only) applies
+here regardless of write style. When an account can't be resolved, both rows
+land flagged and the reply offers **Confirm only** — no Fix, since correcting
+a transfer would need its own from/to extraction prompt that doesn't exist
+yet. Confirm is pair-aware: it clears the flag on both rows, not just the one
+the button was attached to.
+
 **Confirm** clears the flag. **Fix** asks for a correction; reply to that
 message ("84 not 48", "it was groceries", "paid from the Wio account") and it
 goes back through the same extraction, updating that row. Replying directly to
@@ -228,7 +249,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 113 tests, no network, no keys
+npm test              # 123 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 

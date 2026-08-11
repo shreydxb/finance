@@ -16,6 +16,8 @@ import type { CashbackExtraction } from './cashback.ts'
 import { extractCorrection, extractFromImage, extractFromImages, extractFromText, ExtractionError } from './extract.ts'
 import { promptContextFrom } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
+import { extractTransfer, looksLikeTransfer } from './transfer.ts'
+import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import type {
   AccountRef,
@@ -117,6 +119,12 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   // doubt) means only an explicit "cashback" mention leaves the spend path.
   if (text && looksLikeCashback(text)) {
     return handleCashback(text, message, household, ctx, deps)
+  }
+
+  // Same rule for a transfer between the household's own accounts — a bare
+  // "from" or "to" isn't enough on its own, see looksLikeTransfer.
+  if (text && looksLikeTransfer(text)) {
+    return handleTransfer(text, message, household, ctx, deps)
   }
 
   const messageType = messageTypeOf(message)
@@ -346,6 +354,143 @@ function cashbackKeyboard(pendingId: string): InlineKeyboardButton[][] {
       { text: '✖️ Cancel', callback_data: `cashback_cancel:${pendingId}` },
     ],
   ]
+}
+
+/**
+ * A transfer between the household's own accounts — write-then-flag like a
+ * spend (rule #3: it's still a `transactions` write), never propose-then-tap.
+ * Two rows land immediately, category='Transfer', sharing one split_group_id
+ * so `src/lib/reports.js`/Budget exclude both from every spend/budget total.
+ * accounts.value is never touched (docs/telegram-bot-round2-design.md §3).
+ */
+async function handleTransfer(
+  text: string,
+  message: TelegramMessage,
+  household: HouseholdContext,
+  ctx: PromptContext,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const t0 = Date.now()
+
+  let extraction: TransferExtraction
+  try {
+    extraction = await extractTransfer(text, ctx, deps.model)
+  } catch (error) {
+    deps.log?.('transfer extraction failed', { error: String(error) })
+    await deps.messenger.sendMessage(
+      message.chat.id,
+      "I couldn't read that transfer. Try rephrasing it, or add it by hand in the app.",
+      { replyToMessageId: message.message_id }
+    )
+    await logInbound(deps, message, household, senderId, 'text', {
+      stage: 'extract_transfer',
+      success: false,
+      error: error instanceof ExtractionError ? error.message : String(error),
+      durationMs: Date.now() - t0,
+    })
+    return { status: 'error', reason: error instanceof ExtractionError ? error.message : String(error) }
+  }
+
+  const fromAccount = matchAccount(extraction.fromAccount, household.accounts)
+  const toAccount = matchAccount(extraction.toAccount, household.accounts)
+  const sameAccount = Boolean(fromAccount && toAccount && fromAccount.id === toAccount.id)
+  const needsReview = extraction.amount === null || !fromAccount || !toAccount || sameAccount
+  const owner = household.people.get(senderId) || null
+  const splitGroupId = crypto.randomUUID()
+
+  const outRow = await deps.store.insertTransaction({
+    date: extraction.date,
+    amount: extraction.amount ?? 0,
+    currency: extraction.currency,
+    account_id: fromAccount?.id ?? null,
+    category: 'Transfer',
+    owner,
+    note: `Transfer out → ${toAccount?.name ?? extraction.toAccount ?? 'unknown account'}`,
+    source: 'telegram',
+    needs_review: needsReview,
+    telegram_chat_id: message.chat.id,
+    telegram_msg_id: message.message_id,
+    split_group_id: splitGroupId,
+  })
+  await deps.store.insertTransaction({
+    date: extraction.date,
+    amount: extraction.amount ?? 0,
+    currency: extraction.currency,
+    account_id: toAccount?.id ?? null,
+    category: 'Transfer',
+    owner,
+    note: `Transfer in ← ${fromAccount?.name ?? extraction.fromAccount ?? 'unknown account'}`,
+    source: 'telegram',
+    needs_review: needsReview,
+    telegram_chat_id: message.chat.id,
+    telegram_msg_id: message.message_id,
+    split_group_id: splitGroupId,
+  })
+
+  await logInbound(deps, message, household, senderId, 'text', {
+    stage: 'extract_transfer',
+    success: true,
+    durationMs: Date.now() - t0,
+    transactionId: outRow.id,
+  })
+
+  await announceTransfer(outRow.id, extraction, fromAccount, toAccount, needsReview, message, deps)
+  return { status: 'logged', transactionId: outRow.id, needsReview }
+}
+
+async function announceTransfer(
+  outRowId: string,
+  extraction: TransferExtraction,
+  fromAccount: AccountRef | null,
+  toAccount: AccountRef | null,
+  needsReview: boolean,
+  message: TelegramMessage,
+  deps: IntakeDeps
+): Promise<void> {
+  const summary = describeTransfer(extraction, fromAccount, toAccount)
+
+  if (!needsReview) {
+    await deps.messenger.sendMessage(message.chat.id, `Logged: ${summary} ✓`, {
+      replyToMessageId: message.message_id,
+    })
+    return
+  }
+
+  const gaps = missingTransferFields(extraction, fromAccount, toAccount)
+  const lines = ['Logged — worth a quick check:', summary, formatDate(extraction.date)]
+  if (gaps.length) lines.push(`Not sure about: ${gaps.join(', ')}.`)
+
+  const sent = await deps.messenger.sendMessage(message.chat.id, lines.join('\n'), {
+    replyToMessageId: message.message_id,
+    inlineKeyboard: transferConfirmKeyboard(outRowId),
+  })
+  await deps.store.updateTransaction(outRowId, { telegram_prompt_msg_id: sent.message_id })
+}
+
+function describeTransfer(extraction: TransferExtraction, fromAccount: AccountRef | null, toAccount: AccountRef | null): string {
+  const amount =
+    extraction.amount === null ? `amount unreadable (${extraction.currency})` : `${formatAmount(extraction.amount)} ${extraction.currency}`
+  const from = fromAccount?.name ?? extraction.fromAccount ?? 'account unknown'
+  const to = toAccount?.name ?? extraction.toAccount ?? 'account unknown'
+  return `Transfer ${amount} · ${from} → ${to}`
+}
+
+function missingTransferFields(extraction: TransferExtraction, fromAccount: AccountRef | null, toAccount: AccountRef | null): string[] {
+  const gaps: string[] = []
+  if (extraction.amount === null) gaps.push('the amount')
+  if (!fromAccount) gaps.push('which account it left')
+  if (!toAccount) gaps.push('which account it landed in')
+  if (fromAccount && toAccount && fromAccount.id === toAccount.id) gaps.push('the two accounts look the same')
+  return gaps
+}
+
+// Deliberately just Confirm, not the spend Confirm/Fix pair — a Fix reply
+// would need its own from/to correction extraction, which isn't built here.
+// Reuses the 'confirm' callback action so handleCallback's existing branch
+// (made split_group_id-aware below) applies to both rows of the pair.
+function transferConfirmKeyboard(transactionId: string): InlineKeyboardButton[][] {
+  return [[{ text: '✅ Confirm', callback_data: `confirm:${transactionId}` }]]
 }
 
 function messageTypeOf(message: TelegramMessage): 'photo' | 'voice' | 'text' {
@@ -628,7 +773,22 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
   if (parsed.action === 'confirm') {
     if (!Number(row.amount)) {
       // Confirming a row we never managed to read an amount for would bless a
-      // zero into the budget. Ask for the number instead.
+      // zero into the budget. Ask for the number instead — except a transfer,
+      // whose "reply with the amount" would route through the spend-shaped
+      // correction pipeline (extractCorrection) and corrupt category='Transfer'.
+      // No transfer-aware correction extraction exists yet, so point at the app.
+      if (row.category === 'Transfer') {
+        await deps.messenger.answerCallbackQuery(query.id, 'I still need the amount')
+        if (query.message) {
+          await deps.messenger.editMessageText(
+            chatId,
+            query.message.message_id,
+            `${describeRow(row, household)}\n\nStill needs an amount — edit it in the app for now.`
+          )
+        }
+        await logCallback(deps, query, chatId, 'confirm_blocked', { success: true, transactionId: row.id })
+        return { status: 'fix_requested', transactionId: row.id }
+      }
       await deps.messenger.answerCallbackQuery(query.id, 'I still need the amount')
       const prompt = await deps.messenger.sendMessage(
         chatId,
@@ -641,6 +801,13 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     }
 
     const updated = await deps.store.updateTransaction(row.id, { needs_review: false, telegram_prompt_msg_id: null })
+    if (updated.split_group_id) {
+      // A transfer's pair: Confirm applies to the pair as a unit, not just the half that carried the button.
+      const siblings = await deps.store.findTransactionsBySplitGroup(updated.split_group_id)
+      await Promise.all(
+        siblings.filter((sibling) => sibling.id !== updated.id).map((sibling) => deps.store.updateTransaction(sibling.id, { needs_review: false }))
+      )
+    }
     await deps.messenger.answerCallbackQuery(query.id, 'Confirmed')
     if (query.message) {
       // Drop the keyboard so a stale message can't be tapped twice.

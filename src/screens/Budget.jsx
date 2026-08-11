@@ -72,12 +72,16 @@ export default function Budget() {
   }
 
   const budgetByCategoryId = new Map(budgets.map((b) => [b.category_id, b]))
-  const rows = categories.map((c) => {
-    const budget = budgetByCategoryId.get(c.id) ?? null
-    const actual = actualByCategory.get(c.name) ?? 0
-    const planned = budget?.monthly_limit ?? 0
-    return { category: c, budget, actual, planned, remaining: planned - actual }
-  })
+  // Transfer (Telegram bot round2 §3) is a bookkeeping category, not something
+  // to budget against — without this it would surface under "Not yet budgeted".
+  const rows = categories
+    .filter((c) => c.group !== 'Transfer')
+    .map((c) => {
+      const budget = budgetByCategoryId.get(c.id) ?? null
+      const actual = actualByCategory.get(c.name) ?? 0
+      const planned = budget?.monthly_limit ?? 0
+      return { category: c, budget, actual, planned, remaining: planned - actual }
+    })
 
   const budgeted = rows.filter((r) => r.budget)
   const unbudgeted = rows.filter((r) => !r.budget)

@@ -149,6 +149,8 @@ export interface TransactionRow {
   items: ExtractionItem[] | null
   /** Soft delete for /undo and the duplicate-warning "Delete this one" button. Never a hard DELETE. */
   deleted_at: string | null
+  /** Links the two rows of a transfer (or any future split) — see findTransactionsBySplitGroup. */
+  split_group_id: string | null
 }
 
 /** A prior row that looks like the same spend re-sent — see findPossibleDuplicate. */
@@ -229,6 +231,8 @@ export interface IntakeStore {
   deletePendingIncome(id: string): Promise<void>
   /** Writes straight to `income` — only ever called right after a household tap confirms a proposal. */
   insertIncome(row: IncomeInsert): Promise<void>
+  /** The other half(s) of a split write (a transfer pair) sharing one split_group_id. */
+  findTransactionsBySplitGroup(splitGroupId: string): Promise<TransactionRow[]>
 }
 
 /** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */

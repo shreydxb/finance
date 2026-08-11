@@ -8,6 +8,7 @@ import { listAccounts } from '../lib/accounts'
 import { getSetting, toAED } from '../lib/settings'
 import { currentYearMonth, monthLabel, monthRange } from '../lib/period'
 import { usePrefs } from '../lib/PrefsContext'
+import { totalAED } from '../lib/reports'
 import NetWorthHero from '../components/NetWorthHero'
 
 const DUE_SOON_DAYS = 14
@@ -90,9 +91,11 @@ export default function Home({ onNavigate }) {
   }
 
   const { fxRates } = data
-  const spent = data.monthTxns.reduce((sum, t) => sum + toAED(Number(t.amount) || 0, t.currency, fxRates), 0)
+  // Same function Cash Flow uses (excludes Transfer-category rows — a fund
+  // transfer between the household's own accounts isn't a spend), so the two
+  // screens can never disagree.
+  const spent = totalAED(data.monthTxns, fxRates)
   const earned = data.income.reduce((sum, i) => sum + toAED(Number(i.amount) || 0, i.currency, fxRates), 0)
-  // Same definition as Cash Flow, so the two screens can never disagree.
   const savingsRate = earned > 0 ? ((earned - spent) / earned) * 100 : null
   const budgeted = data.budgets.reduce((sum, b) => sum + (Number(b.monthly_limit) || 0), 0)
 

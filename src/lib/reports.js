@@ -1,12 +1,23 @@
 import { toAED } from './settings'
 
+// A transfer between the household's own accounts (Telegram bot round2 §3)
+// is logged as two real `transactions` rows — visible in the Transactions
+// list for audit — but it isn't a spend, so every total below excludes it.
+// The category name alone is enough to key off: it's the only category ever
+// in the Transfer group, by construction (020_transfers.sql).
+const TRANSFER_CATEGORY = 'Transfer'
+
 export function totalAED(transactions, fxRates) {
-  return transactions.reduce((sum, t) => sum + toAED(Number(t.amount) || 0, t.currency, fxRates), 0)
+  return transactions.reduce(
+    (sum, t) => (t.category === TRANSFER_CATEGORY ? sum : sum + toAED(Number(t.amount) || 0, t.currency, fxRates)),
+    0
+  )
 }
 
 export function sumByCategoryAED(transactions, fxRates) {
   const map = new Map()
   for (const t of transactions) {
+    if (t.category === TRANSFER_CATEGORY) continue
     const key = t.category || 'Uncategorised'
     const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
     map.set(key, (map.get(key) || 0) + aed)
@@ -27,6 +38,7 @@ export function sumByOwnerAED(transactions, fxRates) {
 export function sumByGroupAED(transactions, fxRates, categoryGroupByName) {
   const map = new Map()
   for (const t of transactions) {
+    if (t.category === TRANSFER_CATEGORY) continue
     const key = categoryGroupByName.get(t.category) || 'Uncategorised'
     const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
     map.set(key, (map.get(key) || 0) + aed)
