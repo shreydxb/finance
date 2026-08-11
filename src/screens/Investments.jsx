@@ -9,6 +9,17 @@ import { formatMoney } from '../lib/money'
 import AccountForm from '../components/AccountForm'
 import BreakdownBars from '../components/BreakdownBars'
 
+function formatRelativeTime(isoString) {
+  const diffMs = Date.now() - new Date(isoString).getTime()
+  const minutes = Math.round(diffMs / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`
+  const days = Math.round(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
 /**
  * Investments — its own tab, deliberately separate from Accounts.
  *
@@ -32,6 +43,10 @@ export default function Investments() {
   const owners = Array.from(new Set(allHoldings.map((a) => a.owner))).sort()
   const holdings = ownerFilter === 'combined' ? allHoldings : allHoldings.filter((a) => a.owner === ownerFilter)
   const refreshable = allHoldings.filter((a) => a.currency === 'USD' && a.ticker && a.quantity != null)
+  const lastRefreshedAt = refreshable.reduce(
+    (latest, a) => (a.updated_at && (!latest || a.updated_at > latest) ? a.updated_at : latest),
+    null
+  )
 
   async function handleRefreshPrices() {
     setRefreshing(true)
@@ -104,14 +119,19 @@ export default function Investments() {
           </p>
         </div>
         {refreshable.length > 0 && (
-          <button
-            type="button"
-            onClick={handleRefreshPrices}
-            disabled={refreshing}
-            className="rounded-lg border border-ink-300 px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100 disabled:opacity-50"
-          >
-            {refreshing ? 'Refreshing…' : `↻ Refresh ${refreshable.length} prices`}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={handleRefreshPrices}
+              disabled={refreshing}
+              className="rounded-lg border border-ink-300 px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100 disabled:opacity-50"
+            >
+              {refreshing ? 'Refreshing…' : `↻ Refresh ${refreshable.length} prices`}
+            </button>
+            {lastRefreshedAt && (
+              <span className="text-xs text-ink-400">Last updated {formatRelativeTime(lastRefreshedAt)}</span>
+            )}
+          </div>
         )}
       </div>
 

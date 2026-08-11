@@ -183,6 +183,23 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Most <select> elements in this app never set an explicit background —
+   they only style the border and text. In light mode that's invisible
+   (white-on-white), but in dark mode it was actively broken: the closed
+   control inherits dark-mode ink-900 (near-white) for text while the
+   OS-native popup list falls back to a light background regardless of the
+   page's color-scheme, producing near-white text on a near-white popup.
+   Setting both here, once, fixes every select sitewide instead of patching
+   each component's className. */
+select {
+  background-color: var(--color-surface);
+  color: var(--color-ink-900);
+}
+select option {
+  background-color: var(--color-surface);
+  color: var(--color-ink-900);
+}
+
 /* Every interactive element gets a consistent, visible focus ring rather
    than the per-component `focus:border-*` the app used before. */
 :where(button, a, input, select, textarea):focus-visible {
