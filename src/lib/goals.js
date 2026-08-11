@@ -41,3 +41,28 @@ export function projectedCompletionDate(remaining, monthlyPlan, from = new Date(
   const d = new Date(from.getFullYear(), from.getMonth() + months, from.getDate())
   return d
 }
+
+/**
+ * Compound-interest projection for an FD-linked goal — display only. The
+ * account's real value always comes from the bank statement (money-data
+ * rule); this never writes anywhere, it just answers "at this rate and this
+ * monthly contribution, when would the balance cross the target?" so the
+ * estimate updates itself the moment a new contribution or a fresh statement
+ * value is entered, with no separate recompute step.
+ */
+export function projectedFDCompletion(currentValue, targetAmount, annualRatePct, monthlyContribution = 0, from = new Date()) {
+  if (currentValue >= targetAmount) return { months: 0, date: new Date(from) }
+  const monthlyRate = (Number(annualRatePct) || 0) / 100 / 12
+  if (monthlyRate <= 0 && monthlyContribution <= 0) return null // never gets there
+
+  let balance = currentValue
+  const MAX_MONTHS = 600 // 50 years — a sane cap rather than looping forever
+  for (let months = 1; months <= MAX_MONTHS; months++) {
+    balance = balance * (1 + monthlyRate) + monthlyContribution
+    if (balance >= targetAmount) {
+      const d = new Date(from.getFullYear(), from.getMonth() + months, from.getDate())
+      return { months, date: d }
+    }
+  }
+  return null
+}

@@ -7,7 +7,10 @@ import {
   listAllContributions,
   createContribution,
   projectedCompletionDate,
+  projectedFDCompletion,
 } from '../lib/goals'
+import { listAccounts } from '../lib/accounts'
+import { createTransaction } from '../lib/transactions'
 import { usePrefs } from '../lib/PrefsContext'
 import GoalForm from '../components/GoalForm'
 import ContributionForm from '../components/ContributionForm'
@@ -39,6 +42,7 @@ export default function Goals() {
   const { fmt } = usePrefs()
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editingGoal, setEditingGoal] = useState(null) // goal, or 'new'
@@ -48,9 +52,10 @@ export default function Goals() {
   async function refresh() {
     setError('')
     try {
-      const [g, c] = await Promise.all([listGoals(), listAllContributions()])
+      const [g, c, a] = await Promise.all([listGoals(), listAllContributions(), listAccounts()])
       setGoals(g.filter((x) => x.kind === 'save_up'))
       setContributions(c)
+      setAccounts(a)
     } catch {
       setError('Could not load goals. Check your connection and try again.')
     } finally {
@@ -79,15 +84,44 @@ export default function Goals() {
     await refresh()
   }
 
-  async function handleAddContribution(values) {
+  async function handleAddContribution({ fromAccountId, ...values }) {
+    const goal = goals.find((g) => g.id === detailGoalId)
     await createContribution({ goal_id: detailGoalId, ...values })
+    // Written as an ordinary Transfer transaction too (write-then-flag, same
+    // as any other money movement) so a contribution is visible/auditable in
+    // Transactions and Budget, not just inside the Goals detail view. Never
+    // touches accounts.value — the goal's own linked-account balance (if any)
+    // still comes only from the next statement re-entry.
+    if (fromAccountId) {
+      const fromAccount = accounts.find((a) => a.id === fromAccountId)
+      await createTransaction({
+        date: values.date,
+        amount: values.amount,
+        currency: fromAccount?.currency ?? 'AED',
+        account_id: fromAccountId,
+        category: 'Transfer',
+        owner: fromAccount?.owner ?? null,
+        note: `Transfer out → Goal: ${goal?.name ?? 'goal'}`,
+      })
+    }
     setAddingContribution(false)
     await refresh()
   }
 
+  const accountById = new Map(accounts.map((a) => [a.id, a]))
+  const assetAccounts = accounts.filter((a) => !a.is_liability)
+  const spendableAccounts = accounts.filter((a) => !a.is_liability && a.type === 'cash')
+
   const savedByGoal = new Map()
   for (const c of contributions) {
     savedByGoal.set(c.goal_id, (savedByGoal.get(c.goal_id) || 0) + Number(c.amount))
+  }
+  // A goal linked to an account (typically a Fixed Deposit) tracks that
+  // account's real balance directly instead of summing logged contributions —
+  // same pattern Debts already uses for a linked liability account.
+  function savedFor(goal) {
+    const linked = accountById.get(goal.linked_account_id)
+    return linked ? Number(linked.value) : savedByGoal.get(goal.id) || 0
   }
 
   const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null
@@ -122,7 +156,7 @@ export default function Goals() {
       ) : (
         <div className="space-y-3">
           {goals.map((g) => (
-            <SaveUpCard key={g.id} goal={g} saved={savedByGoal.get(g.id) || 0} onClick={() => setDetailGoalId(g.id)} fmt={fmt} />
+            <SaveUpCard key={g.id} goal={g} saved={savedFor(g)} onClick={() => setDetailGoalId(g.id)} fmt={fmt} />
           ))}
         </div>
       )}
@@ -132,6 +166,7 @@ export default function Goals() {
           goal={editingGoal === 'new' ? null : editingGoal}
           fixedKind="save_up"
           liabilityAccounts={[]}
+          assetAccounts={assetAccounts}
           onSave={handleSaveGoal}
           onCancel={() => setEditingGoal(null)}
           onDelete={handleDeleteGoal}
@@ -142,6 +177,8 @@ export default function Goals() {
         <GoalDetail
           fmt={fmt}
           goal={detailGoal}
+          saved={savedFor(detailGoal)}
+          linkedAccount={accountById.get(detailGoal.linked_account_id)}
           contributions={contributions.filter((c) => c.goal_id === detailGoal.id)}
           onEdit={() => setEditingGoal(detailGoal)}
           onClose={() => setDetailGoalId(null)}
@@ -150,7 +187,11 @@ export default function Goals() {
       )}
 
       {addingContribution && (
-        <ContributionForm onSave={handleAddContribution} onCancel={() => setAddingContribution(false)} />
+        <ContributionForm
+          accounts={spendableAccounts}
+          onSave={handleAddContribution}
+          onCancel={() => setAddingContribution(false)}
+        />
       )}
     </div>
   )
@@ -186,11 +227,14 @@ function StatTile({ label, value }) {
   )
 }
 
-function GoalDetail({ goal, contributions, onEdit, onClose, onAddContribution, fmt }) {
-  const saved = contributions.reduce((sum, c) => sum + Number(c.amount), 0)
+function GoalDetail({ goal, saved, linkedAccount, contributions, onEdit, onClose, onAddContribution, fmt }) {
   const pct = goal.target_amount > 0 ? (saved / goal.target_amount) * 100 : 0
   const remaining = Math.max(0, goal.target_amount - saved)
-  const projected = projectedCompletionDate(remaining, goal.monthly_plan)
+  const isFD = linkedAccount?.type === 'fixed_deposit' && linkedAccount?.interest_rate
+  const fdProjection = isFD
+    ? projectedFDCompletion(saved, goal.target_amount, linkedAccount.interest_rate, Number(goal.monthly_plan) || 0)
+    : null
+  const projected = isFD ? fdProjection?.date ?? null : projectedCompletionDate(remaining, goal.monthly_plan)
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
@@ -204,13 +248,30 @@ function GoalDetail({ goal, contributions, onEdit, onClose, onAddContribution, f
           </button>
         </div>
 
+        {linkedAccount && (
+          <p className="text-xs text-ink-400">
+            Funded by {linkedAccount.name}
+            {isFD ? ` · ${linkedAccount.interest_rate}% p.a.` : ''} — balance tracks that account, not the log below.
+          </p>
+        )}
+
         <div className="my-4">
           <ProgressBar pct={pct} />
           <div className="mt-2 flex justify-between text-sm text-ink-600">
             <span className="tnum">{fmt(saved)} saved</span>
             <span className="tnum">{fmt(goal.target_amount)} target</span>
           </div>
-          {projected && <p className="mt-1 text-xs text-ink-400">Projected done: {formatDate(projected)}</p>}
+          {projected && (
+            <p className="mt-1 text-xs text-ink-400">
+              {isFD ? 'Projected (interest + plan)' : 'Projected done'}: {formatDate(projected)}
+              {isFD && fdProjection ? ` (~${fdProjection.months} mo)` : ''}
+            </p>
+          )}
+          {isFD && !fdProjection && (
+            <p className="mt-1 text-xs text-ink-400">
+              Add a monthly plan or a higher rate — at {linkedAccount.interest_rate}% alone this won't reach target.
+            </p>
+          )}
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2">

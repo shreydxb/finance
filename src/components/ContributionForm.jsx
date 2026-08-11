@@ -4,10 +4,11 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export default function ContributionForm({ onSave, onCancel }) {
+export default function ContributionForm({ accounts = [], onSave, onCancel }) {
   const [date, setDate] = useState(today())
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  const [fromAccountId, setFromAccountId] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -20,7 +21,7 @@ export default function ContributionForm({ onSave, onCancel }) {
     }
     setSubmitting(true)
     try {
-      await onSave({ date, amount: Number(amount), note: note.trim() || null })
+      await onSave({ date, amount: Number(amount), note: note.trim() || null, fromAccountId: fromAccountId || null })
     } catch {
       setError('Could not save. Try again.')
     } finally {
@@ -60,6 +61,29 @@ export default function ContributionForm({ onSave, onCancel }) {
               className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
+          {accounts.length > 0 && (
+            <div>
+              <label htmlFor="c-from" className="mb-1 block text-sm font-medium text-ink-700">
+                Paid from (optional)
+              </label>
+              <select
+                id="c-from"
+                value={fromAccountId}
+                onChange={(e) => setFromAccountId(e.target.value)}
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+              >
+                <option value="">— just log it, no transaction —</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-ink-400">
+                Picking an account also logs this as a Transfer transaction, so it shows up in Transactions and Budget.
+              </p>
+            </div>
+          )}
           <div>
             <label htmlFor="c-note" className="mb-1 block text-sm font-medium text-ink-700">
               Note

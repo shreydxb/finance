@@ -11,6 +11,7 @@ const EMPTY = {
   ticker: '',
   quantity: '',
   avg_cost: '',
+  interest_rate: '',
 }
 
 export default function AccountForm({ account, onSave, onCancel, onDelete }) {
@@ -26,6 +27,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           ticker: account.ticker ?? '',
           quantity: account.quantity != null ? String(account.quantity) : '',
           avg_cost: account.avg_cost != null ? String(account.avg_cost) : '',
+          interest_rate: account.interest_rate != null ? String(account.interest_rate) : '',
         }
       : EMPTY
   )
@@ -62,6 +64,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
         ticker: form.type === 'investment' && form.ticker ? form.ticker.trim() : null,
         quantity: form.type === 'investment' && form.quantity !== '' ? Number(form.quantity) : null,
         avg_cost: form.type === 'investment' && form.avg_cost !== '' ? Number(form.avg_cost) : null,
+        interest_rate: form.type === 'fixed_deposit' && form.interest_rate !== '' ? Number(form.interest_rate) : null,
       })
     } catch {
       setError('Could not save. Try again.')
@@ -235,6 +238,27 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
                   placeholder="optional"
                 />
               </div>
+            </div>
+          )}
+
+          {form.type === 'fixed_deposit' && (
+            <div>
+              <label htmlFor="interest_rate" className="mb-1 block text-sm font-medium text-ink-700">
+                Annual interest rate (%)
+              </label>
+              <input
+                id="interest_rate"
+                type="number"
+                step="any"
+                value={form.interest_rate}
+                onChange={(e) => setForm((f) => ({ ...f, interest_rate: e.target.value }))}
+                className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                placeholder="e.g. 7.5"
+              />
+              <p className="mt-1 text-xs text-ink-400">
+                Used only to project a goal's time-to-target — the value above still comes from your bank statement, never
+                computed automatically.
+              </p>
             </div>
           )}
 

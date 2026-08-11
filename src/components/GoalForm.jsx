@@ -6,7 +6,7 @@ import { useState } from 'react'
  * you're creating is implied by which screen you're on, not a choice inside
  * the form.
  */
-export default function GoalForm({ goal, fixedKind, liabilityAccounts, onSave, onCancel, onDelete }) {
+export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAccounts = [], onSave, onCancel, onDelete }) {
   const isEdit = Boolean(goal)
   const [kind, setKind] = useState(goal?.kind ?? fixedKind ?? 'save_up')
   const [name, setName] = useState(goal?.name ?? '')
@@ -15,7 +15,9 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, onSave, o
   const [monthlyPlan, setMonthlyPlan] = useState(goal?.monthly_plan != null ? String(goal.monthly_plan) : '')
   const [priority, setPriority] = useState(goal?.priority != null ? String(goal.priority) : '')
   const [targetDate, setTargetDate] = useState(goal?.target_date ?? '')
-  const [linkedAccountId, setLinkedAccountId] = useState(goal?.linked_account_id ?? liabilityAccounts[0]?.id ?? '')
+  const [linkedAccountId, setLinkedAccountId] = useState(
+    goal?.linked_account_id ?? (fixedKind === 'pay_down' ? liabilityAccounts[0]?.id ?? '' : '')
+  )
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -50,6 +52,7 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, onSave, o
           monthly_plan: monthlyPlan ? Number(monthlyPlan) : null,
           priority: priority ? Number(priority) : null,
           target_date: targetDate || null,
+          linked_account_id: linkedAccountId || null,
         })
       } else {
         const account = liabilityAccounts.find((a) => a.id === linkedAccountId)
@@ -162,6 +165,31 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, onSave, o
                   className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
                 />
               </div>
+              {assetAccounts.length > 0 && (
+                <div>
+                  <label htmlFor="g-linked" className="mb-1 block text-sm font-medium text-ink-700">
+                    Funded by an account (optional)
+                  </label>
+                  <select
+                    id="g-linked"
+                    value={linkedAccountId}
+                    onChange={(e) => setLinkedAccountId(e.target.value)}
+                    className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                  >
+                    <option value="">— none, track by logged contributions —</option>
+                    {assetAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.currency} {Number(a.value).toLocaleString()})
+                        {a.type === 'fixed_deposit' && a.interest_rate ? ` · ${a.interest_rate}%` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-ink-400">
+                    E.g. a Fixed Deposit — progress tracks that account's balance directly instead of summing contributions,
+                    and if it carries an interest rate, the goal shows a projected time-to-target.
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <div>

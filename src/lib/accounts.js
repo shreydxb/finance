@@ -7,6 +7,7 @@ export const CURRENCIES = ['AED', 'USD', 'INR']
 export const ASSET_TYPES = [
   { value: 'cash', label: 'Cash', icon: '💵' },
   { value: 'investment', label: 'Investments', icon: '📈' },
+  { value: 'fixed_deposit', label: 'Fixed Deposit', icon: '🏦' },
   { value: 'real_estate', label: 'Real Estate', icon: '🏠' },
   { value: 'vehicle', label: 'Vehicles', icon: '🚗' },
   { value: 'valuable', label: 'Valuables', icon: '💎' },
