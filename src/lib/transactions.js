@@ -10,6 +10,7 @@ export async function listTransactions(filters = {}) {
   if (filters.dateTo) query = query.lte('date', filters.dateTo)
   if (filters.search) query = query.ilike('note', `%${filters.search}%`)
   if (filters.needsReview) query = query.eq('needs_review', true)
+  if (filters.unreviewed) query = query.is('reviewed_at', null)
 
   const sortColumn = filters.sort === 'amount' ? 'amount' : 'date'
   query = query.order(sortColumn, { ascending: false }).order('created_at', { ascending: false })
@@ -57,6 +58,30 @@ export async function countNeedsReview() {
 /** The in-app safety net for anything the Telegram Confirm/Fix prompt missed. */
 export async function markReviewed(id) {
   return updateTransaction(id, { needs_review: false })
+}
+
+export async function countUnreviewed() {
+  const { count, error } = await supabase
+    .from('transactions')
+    .select('id', { count: 'exact', head: true })
+    .is('reviewed_at', null)
+    .is('deleted_at', null)
+  if (error) throw error
+  return count ?? 0
+}
+
+/** Weekend-reconciliation review — independent of the AI-confidence `needs_review` flag. */
+export async function setReviewed(id, reviewed) {
+  return updateTransaction(id, { reviewed_at: reviewed ? new Date().toISOString() : null })
+}
+
+/** Same as setReviewed, for a split group's lines or a bulk-selected batch in one round trip. */
+export async function setReviewedMany(ids, reviewed) {
+  const { error } = await supabase
+    .from('transactions')
+    .update({ reviewed_at: reviewed ? new Date().toISOString() : null })
+    .in('id', ids)
+  if (error) throw error
 }
 
 export async function updateTransaction(id, patch) {

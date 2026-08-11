@@ -8,6 +8,8 @@ import {
   deleteSplitGroup,
   countNeedsReview,
   markReviewed,
+  countUnreviewed,
+  setReviewedMany,
 } from '../lib/transactions'
 import { listRules, createRule, deleteRule } from '../lib/categoryRules'
 import { listAccounts, OWNERS } from '../lib/accounts'
@@ -26,6 +28,7 @@ const EMPTY_FILTERS = {
   dateTo: '',
   sort: 'date',
   needsReview: false,
+  unreviewed: false,
 }
 
 export default function Transactions() {
@@ -35,6 +38,7 @@ export default function Transactions() {
   const [categories, setCategories] = useState([])
   const [rules, setRules] = useState([])
   const [reviewCount, setReviewCount] = useState(0)
+  const [unreviewedCount, setUnreviewedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(EMPTY_FILTERS)
@@ -47,11 +51,12 @@ export default function Transactions() {
   async function refresh() {
     setError('')
     try {
-      const [txns, accts, cats, pending, ruleRows] = await Promise.all([
+      const [txns, accts, cats, pending, unreviewed, ruleRows] = await Promise.all([
         listTransactions(filters),
         listAccounts(),
         listCategories(),
         countNeedsReview(),
+        countUnreviewed(),
         listRules(),
       ])
       setTransactions(txns)
@@ -62,6 +67,7 @@ export default function Transactions() {
       setAccounts(accts.filter((a) => a.type !== 'investment'))
       setCategories(cats)
       setReviewCount(pending)
+      setUnreviewedCount(unreviewed)
       setRules(ruleRows)
     } catch {
       setError('Could not load transactions. Check your connection and try again.')
@@ -214,6 +220,23 @@ export default function Transactions() {
     await refresh()
   }
 
+  async function handleToggleReviewed(ids, reviewed) {
+    await setReviewedMany(ids, reviewed)
+    await refresh()
+  }
+
+  async function bulkMarkReviewed() {
+    setBulkBusy(true)
+    try {
+      const ids = selectedEntries.flatMap((e) => (e.kind === 'single' ? [e.transaction.id] : e.lines.map((l) => l.id)))
+      await setReviewedMany(ids, true)
+      setSelectedIds(new Set())
+      await refresh()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   async function handleCategoryChange(id, category) {
     await updateTransaction(id, { category: category || null })
     await refresh()
@@ -272,6 +295,7 @@ export default function Transactions() {
           busy={bulkBusy}
           onSetCategory={bulkSetCategory}
           onSetOwner={bulkSetOwner}
+          onMarkReviewed={bulkMarkReviewed}
           onDelete={bulkDelete}
         />
       )}
@@ -314,6 +338,7 @@ export default function Transactions() {
             flat={flat}
             onEntryClick={selectMode ? (entry) => toggleSelect(entryKey(entry)) : openEdit}
             onMarkReviewed={selectMode ? undefined : handleMarkReviewed}
+            onToggleReviewed={selectMode ? undefined : handleToggleReviewed}
             categories={categories}
             onCategoryChange={selectMode ? undefined : handleCategoryChange}
             selectable={selectMode}
@@ -327,6 +352,7 @@ export default function Transactions() {
           <h3 className="mb-3 text-sm font-semibold text-ink-900">Summary</h3>
           <dl className="space-y-2.5 text-sm">
             <SummaryStat label="Transactions" value={stats.count} />
+            <SummaryStat label="Unreviewed" value={unreviewedCount} />
             <SummaryStat label="Largest" value={fmt(stats.largest)} />
             <SummaryStat label="Average" value={fmt(stats.average)} />
             <SummaryStat label="First transaction" value={stats.first ?? '—'} />
@@ -369,7 +395,7 @@ export default function Transactions() {
   )
 }
 
-function BulkActionBar({ count, categories, busy, onSetCategory, onSetOwner, onDelete }) {
+function BulkActionBar({ count, categories, busy, onSetCategory, onSetOwner, onMarkReviewed, onDelete }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
       <span className="font-medium text-brand-800">
@@ -411,6 +437,14 @@ function BulkActionBar({ count, categories, busy, onSetCategory, onSetOwner, onD
           </option>
         ))}
       </select>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onMarkReviewed}
+        className="rounded-lg border border-ink-300 px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100 disabled:opacity-50"
+      >
+        Mark reviewed
+      </button>
       <button
         type="button"
         disabled={busy}
@@ -587,6 +621,14 @@ function Filters({ filters, setFilters, categories, accounts }) {
           className="rounded-lg border border-ink-300 px-2 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         />
       </div>
+      <label className="flex items-center gap-2 px-1 text-sm text-ink-600">
+        <input
+          type="checkbox"
+          checked={filters.unreviewed}
+          onChange={(e) => set({ unreviewed: e.target.checked })}
+        />
+        Unreviewed only
+      </label>
     </div>
   )
 }

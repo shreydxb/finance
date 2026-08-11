@@ -43,6 +43,7 @@ export default function TransactionList({
   flat = false,
   onEntryClick,
   onMarkReviewed,
+  onToggleReviewed,
   emptyMessage,
   categories,
   onCategoryChange,
@@ -72,6 +73,7 @@ export default function TransactionList({
                 showDate={flat}
                 onClick={() => onEntryClick(entry)}
                 onMarkReviewed={onMarkReviewed}
+                onToggleReviewed={onToggleReviewed}
                 categories={categories}
                 onCategoryChange={onCategoryChange}
                 selectable={selectable}
@@ -127,12 +129,33 @@ function SelectCheckbox({ selected, onToggle }) {
   )
 }
 
+function ReviewedToggle({ reviewed, onToggle }) {
+  return (
+    <button
+      type="button"
+      title={reviewed ? 'Reviewed — click to undo' : 'Mark reviewed'}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      className={`mr-3 shrink-0 rounded-lg border px-2 py-1 text-xs font-medium transition-colors ${
+        reviewed
+          ? 'border-transparent bg-pos-50 text-pos-600 hover:bg-pos-50/70'
+          : 'border-ink-300 text-ink-500 hover:bg-ink-50'
+      }`}
+    >
+      {reviewed ? '✓ Reviewed' : 'Mark reviewed'}
+    </button>
+  )
+}
+
 function EntryRow({
   entry,
   accountName,
   showDate,
   onClick,
   onMarkReviewed,
+  onToggleReviewed,
   categories,
   onCategoryChange,
   selectable,
@@ -181,12 +204,16 @@ function EntryRow({
             Looks right
           </button>
         )}
+        {onToggleReviewed && (
+          <ReviewedToggle reviewed={Boolean(t.reviewed_at)} onToggle={() => onToggleReviewed([t.id], !t.reviewed_at)} />
+        )}
       </div>
     )
   }
 
   const total = entry.lines.reduce((sum, l) => sum + Number(l.amount), 0)
   const first = entry.lines[0]
+  const allReviewed = entry.lines.every((l) => l.reviewed_at)
   return (
     <div className="flex items-center border-b border-ink-100 last:border-b-0">
       {selectable && <SelectCheckbox selected={selected} onToggle={() => onToggleSelect(entryKey(entry))} />}
@@ -205,6 +232,12 @@ function EntryRow({
           {entry.lines.map((l) => l.category).join(', ')} · {first.owner} · {accountName(first.account_id)}
         </span>
       </button>
+      {onToggleReviewed && (
+        <ReviewedToggle
+          reviewed={allReviewed}
+          onToggle={() => onToggleReviewed(entry.lines.map((l) => l.id), !allReviewed)}
+        />
+      )}
     </div>
   )
 }
