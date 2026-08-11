@@ -38,7 +38,7 @@ function ProgressBar({ pct }) {
  * mixing the two under one "Goals" label was confusing what this screen was
  * even for. See Debts.jsx for that half.
  */
-export default function Goals() {
+export default function Goals({ navPayload, onConsumeNav }) {
   const { fmt } = usePrefs()
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
@@ -66,6 +66,14 @@ export default function Goals() {
   useEffect(() => {
     refresh()
   }, [])
+
+  // Deep-link from Home's Goals row.
+  useEffect(() => {
+    if (!navPayload?.openGoalId || goals.length === 0) return
+    if (goals.some((g) => g.id === navPayload.openGoalId)) setDetailGoalId(navPayload.openGoalId)
+    onConsumeNav?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goals, navPayload])
 
   async function handleSaveGoal(values) {
     if (editingGoal && editingGoal !== 'new') {

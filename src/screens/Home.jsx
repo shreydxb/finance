@@ -175,7 +175,8 @@ export default function Home({ onNavigate }) {
                   <Row key={entry.id} left={entry.name}
                     sub={`${entry.kind === 'emi' ? 'EMI' : 'Bill'}${entry.autopay ? ' · autopay' : ''}`}
                     right={fmt(toAED(Number(entry.amount) || 0, entry.currency, fxRates))}
-                    rightSub={formatDueIn(days)} urgent={days <= 3} />
+                    rightSub={formatDueIn(days)} urgent={days <= 3}
+                    onClick={() => onNavigate?.('Recurring', { openRecurringId: entry.id })} />
                 ))}
               </Rows>
             )}
@@ -191,7 +192,8 @@ export default function Home({ onNavigate }) {
                     sub={[t.owner, t.note].filter(Boolean).join(' · ')}
                     right={fmt(toAED(Number(t.amount) || 0, t.currency, fxRates))}
                     rightSub={formatDay(t.date)}
-                    badge={t.needs_review ? 'Needs review' : null} />
+                    badge={t.needs_review ? 'Needs review' : null}
+                    onClick={() => onNavigate?.('Transactions', { openTransactionId: t.id })} />
                 ))}
               </Rows>
             )}
@@ -204,7 +206,8 @@ export default function Home({ onNavigate }) {
               <div className="space-y-2">
                 {topGoals.map((g) => (
                   <GoalRow key={g.id} goal={g} saved={savedByGoal.get(g.id) || 0}
-                    account={accountById.get(g.linked_account_id)} fmt={fmt} />
+                    account={accountById.get(g.linked_account_id)} fmt={fmt}
+                    onClick={() => onNavigate?.('Goals', { openGoalId: g.id })} />
                 ))}
               </div>
             )}
@@ -254,9 +257,13 @@ function Rows({ children }) {
   return <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">{children}</div>
 }
 
-function Row({ left, sub, right, rightSub, urgent, badge }) {
+function Row({ left, sub, right, rightSub, urgent, badge, onClick }) {
   return (
-    <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 text-sm last:border-b-0">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
+    >
       <span className="min-w-0">
         <span className="flex items-center gap-2">
           <span className="font-medium text-ink-900">{left}</span>
@@ -272,7 +279,7 @@ function Row({ left, sub, right, rightSub, urgent, badge }) {
         <span className="tnum block font-medium text-ink-700">{right}</span>
         {rightSub && <span className={`block text-xs ${urgent ? 'text-neg-600' : 'text-ink-400'}`}>{rightSub}</span>}
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -284,7 +291,7 @@ function Empty({ children }) {
   )
 }
 
-function GoalRow({ goal, saved, account, fmt }) {
+function GoalRow({ goal, saved, account, fmt, onClick }) {
   // Save-up progress comes from logged contributions; pay-down progress is how
   // far the linked account's balance has fallen from where it started.
   const isSaveUp = goal.kind === 'save_up'
@@ -299,7 +306,11 @@ function GoalRow({ goal, saved, account, fmt }) {
       : 0
 
   return (
-    <div className="rounded-2xl border border-ink-200 bg-surface shadow-card p-4">
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full rounded-2xl border border-ink-200 bg-surface p-4 text-left shadow-card hover:bg-ink-50"
+    >
       <div className="mb-2 flex items-center justify-between text-sm">
         <span className="font-medium text-ink-900">
           {goal.icon} {goal.name}
@@ -314,6 +325,6 @@ function GoalRow({ goal, saved, account, fmt }) {
           style={{ width: `${Math.max(0, Math.min(100, pct))}%`, animation: 'grow .8s cubic-bezier(.16,1,.3,1) both' }}
         />
       </div>
-    </div>
+    </button>
   )
 }

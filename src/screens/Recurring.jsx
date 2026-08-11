@@ -21,7 +21,7 @@ function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function Recurring() {
+export default function Recurring({ navPayload, onConsumeNav }) {
   const [view, setView] = useState('bills')
   const [layout, setLayout] = useState('list') // list | calendar
   const [calendarCursor, setCalendarCursor] = useState(() => {
@@ -55,6 +55,18 @@ export default function Recurring() {
   useEffect(() => {
     refresh()
   }, [])
+
+  // Deep-link from Home's Due-soon row.
+  useEffect(() => {
+    if (!navPayload?.openRecurringId || entries.length === 0) return
+    const entry = entries.find((e) => e.id === navPayload.openRecurringId)
+    if (entry) {
+      setView('bills')
+      setEditingEntry(entry)
+    }
+    onConsumeNav?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, navPayload])
 
   async function handleSaveEntry(values) {
     if (editingEntry && editingEntry !== 'new') {

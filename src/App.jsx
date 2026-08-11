@@ -83,6 +83,17 @@ function DisplayControls() {
 function Dashboard() {
   const { signOut } = useAuth()
   const [screen, setScreen] = useState('Home')
+  // Carries a "and open this specific item" instruction alongside a tab
+  // switch — e.g. Home's Recent-transaction row navigates to Transactions
+  // *and* opens that transaction's edit modal, not just the tab. Cleared by
+  // the target screen once it's consumed (onConsumeNav) so revisiting the
+  // tab later doesn't reopen the same item.
+  const [navPayload, setNavPayload] = useState(null)
+
+  function navigate(target, payload = null) {
+    setScreen(target)
+    setNavPayload(payload)
+  }
 
   const ActiveScreen = BUILT_SCREENS[screen]
 
@@ -139,7 +150,7 @@ function Dashboard() {
       <main key={screen} className="animate-fade">
         {ActiveScreen ? (
           // Home's "see all" links jump between tabs; other screens ignore it.
-          <ActiveScreen onNavigate={setScreen} />
+          <ActiveScreen onNavigate={navigate} navPayload={navPayload} onConsumeNav={() => setNavPayload(null)} />
         ) : (
           <p className="mx-auto max-w-3xl px-6 py-10 text-center text-sm text-ink-500">
             {screen} is coming in a later epic.

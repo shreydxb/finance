@@ -31,7 +31,7 @@ const EMPTY_FILTERS = {
   unreviewed: false,
 }
 
-export default function Transactions() {
+export default function Transactions({ navPayload, onConsumeNav }) {
   const { fmt } = usePrefs()
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -79,6 +79,19 @@ export default function Transactions() {
   useEffect(() => {
     refresh()
   }, [filters])
+
+  // Deep-link from Home's Recent-transaction row: open that specific
+  // transaction's edit modal once its data has arrived, then tell App to
+  // forget the payload so revisiting this tab later doesn't reopen it.
+  useEffect(() => {
+    if (!navPayload?.openTransactionId || transactions.length === 0) return
+    const entry = groupBySplit(transactions).find((e) =>
+      e.kind === 'single' ? e.transaction.id === navPayload.openTransactionId : e.lines.some((l) => l.id === navPayload.openTransactionId)
+    )
+    if (entry) openEdit(entry)
+    onConsumeNav?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, navPayload])
 
   function toggleSelectMode() {
     setSelectMode((v) => !v)
