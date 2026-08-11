@@ -149,6 +149,15 @@
   }
 }
 
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
 /* Currency figures must line up column-to-column; proportional digits make
    a table of money look ragged. Applied to every figure in the app. */
 @utility tnum {

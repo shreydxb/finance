@@ -20,6 +20,8 @@ import { CHART_PALETTE, colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import BreakdownBars from '../components/BreakdownBars'
 import SankeyChart from '../components/SankeyChart'
+import LineChart from '../components/LineChart'
+import VerticalBarChart from '../components/VerticalBarChart'
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -51,6 +53,7 @@ export default function Reports() {
   const [subView, setSubView] = useState('breakdown') // breakdown | trends
   const [spendShape, setSpendShape] = useState('bars')
   const [incomeShape, setIncomeShape] = useState('donut')
+  const [trendShape, setTrendShape] = useState('line') // line | bars
 
   const [transactions, setTransactions] = useState([])
   const [income, setIncome] = useState([])
@@ -279,8 +282,29 @@ export default function Reports() {
               <p className="py-6 text-center text-sm text-ink-500">Loading trend…</p>
             </div>
           ) : (
-            <BreakdownBars title={`Spend, last ${TREND_MONTHS} months`} groups={trendGroups} formatValue={fmt}
-              emptyMessage="No expenses logged in this window." />
+            <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-ink-900">Spend, last {TREND_MONTHS} months</h2>
+                <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+                  {[
+                    { key: 'line', label: '⟋', aria: 'Line view' },
+                    { key: 'bars', label: '▤', aria: 'Bar view' },
+                  ].map((s) => (
+                    <button key={s.key} type="button" onClick={() => setTrendShape(s.key)} aria-label={s.aria}
+                      className={`rounded-md px-2 py-1 font-medium transition-colors ${trendShape === s.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'}`}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {trendGroups.length === 0 ? (
+                <p className="py-6 text-center text-sm text-ink-500">No expenses logged in this window.</p>
+              ) : trendShape === 'line' ? (
+                <LineChart points={trendGroups} formatValue={fmt} height={220} />
+              ) : (
+                <VerticalBarChart points={trendGroups} formatValue={fmt} height={220} />
+              )}
+            </div>
           )}
 
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
