@@ -29,7 +29,12 @@ function shortDay(dayStr) {
   return new Date(`${dayStr}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-export default function Accounts() {
+function scrollToGroup(type) {
+  const el = document.getElementById(`account-group-${type}`)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+export default function Accounts({ onNavigate }) {
   const { accounts, fxRates, loading, error, refresh } = useAccountsAndFx()
   const { fmt } = usePrefs()
   const [editing, setEditing] = useState(null)
@@ -160,7 +165,7 @@ export default function Accounts() {
         <aside className="space-y-4">
           <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
             <h3 className="mb-3 text-sm font-semibold text-ink-900">Summary</h3>
-            <SummaryRow label="Assets" value={fmt(totals.assets)} />
+            <SummaryRow label="Assets" value={fmt(totals.assets)} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
             <div className="my-2 h-2 w-full overflow-hidden rounded-full bg-ink-100">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-pos-500 to-brand-500"
@@ -169,10 +174,15 @@ export default function Accounts() {
                 }}
               />
             </div>
-            <SummaryRow label="Liabilities" value={fmt(totals.liabilities)} tone="neg" />
+            <SummaryRow
+              label="Liabilities"
+              value={fmt(totals.liabilities)}
+              tone="neg"
+              onClick={() => scrollToGroup(liabilityGroups[0]?.type)}
+            />
             <div className="mt-3 space-y-1.5 border-t border-ink-100 pt-3 text-xs">
-              <SummaryRow small label="Investments" value={fmt(totals.investments)} />
-              <SummaryRow small label="Cash & other" value={fmt(totals.assets - totals.investments)} />
+              <SummaryRow small label="Investments" value={fmt(totals.investments)} onClick={() => onNavigate?.('Investments')} />
+              <SummaryRow small label="Cash & other" value={fmt(totals.assets - totals.investments)} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
             </div>
           </div>
 
@@ -202,13 +212,25 @@ export default function Accounts() {
                 const pct = totals.assets > 0 ? (g.value / totals.assets) * 100 : 0
                 return (
                   <li key={g.key}>
-                    <div className="mb-1 flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        groupBy === 'type'
+                          ? g.key === 'investment'
+                            ? onNavigate?.('Investments')
+                            : scrollToGroup(g.key)
+                          : undefined
+                      }
+                      className={`mb-1 flex w-full items-center justify-between text-xs ${
+                        groupBy === 'type' ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                      }`}
+                    >
                       <span className="flex items-center gap-1.5 font-medium text-ink-700">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color }} />
                         {g.label}
                       </span>
                       <span className="tnum text-ink-500">{pct.toFixed(0)}%</span>
-                    </div>
+                    </button>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-100">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: g.color }} />
                     </div>
@@ -255,9 +277,13 @@ export default function Accounts() {
   )
 }
 
-function SummaryRow({ label, value, tone, small }) {
+function SummaryRow({ label, value, tone, small, onClick }) {
   return (
-    <div className="flex items-baseline justify-between">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-baseline justify-between text-left hover:opacity-80"
+    >
       <span className={small ? 'text-ink-500' : 'text-sm text-ink-600'}>{label}</span>
       <span
         className={`tnum font-semibold ${small ? 'text-xs' : 'text-sm'} ${
@@ -266,7 +292,7 @@ function SummaryRow({ label, value, tone, small }) {
       >
         {value}
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -287,7 +313,7 @@ function AccountGroupList({ title, groups, onSelect, fmt, fxRates }) {
       <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-ink-400">{title}</h3>
       <div className="space-y-4">
         {groups.map((g) => (
-          <div key={g.type} className="rounded-2xl border border-ink-200 bg-surface shadow-card">
+          <div key={g.type} id={`account-group-${g.type}`} className="scroll-mt-24 rounded-2xl border border-ink-200 bg-surface shadow-card">
             <div className="flex items-center justify-between border-b border-ink-100 px-4 py-2.5">
               <span className="text-sm font-medium text-ink-700">
                 {typeIcon(g.type)} {typeLabel(g.type)}
