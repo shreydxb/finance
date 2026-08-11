@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   clampConfidence,
   ExtractionError,
+  extractBulkFromText,
   extractFromImage,
   extractFromText,
   matchCategory,
@@ -13,6 +14,7 @@ import {
   normalizeItems,
   OpenRouterClient,
   parseExtraction,
+  parseExtractionArray,
 } from './extract.ts'
 import { CATEGORIES, FakeModel } from './fixtures/fakes.ts'
 import { RECEIPT_CASES, TODAY } from './fixtures/receipts.ts'
@@ -209,6 +211,67 @@ test('voice transcripts are flagged as spoken so numbers are treated cautiously'
   const model = new FakeModel('{"amount":84,"confidence":0.9,"category":"Dining Out"}')
   await extractFromText('spent eighty four dirhams at karak', ctx, model, { spoken: true })
   assert.match(model.lastPromptText(), /transcript of a voice note/)
+})
+
+test('parseExtractionArray: every existing single-transaction fixture still passes, wrapped in [...] once', () => {
+  // docs/telegram-bot-round2-design.md §2: "every existing fixture in
+  // fixtures/receipts.ts still passes with [response] wrapped once."
+  for (const receipt of RECEIPT_CASES) {
+    const [result] = parseExtractionArray(`[${receipt.raw}]`, ctx)
+    assert.equal(result.amount, receipt.expect.amount, receipt.label)
+    assert.equal(result.currency, receipt.expect.currency, receipt.label)
+    assert.equal(result.category, receipt.expect.category, receipt.label)
+  }
+})
+
+test('parseExtractionArray splits a genuine multi-transaction array, one Extraction per element', () => {
+  const raw =
+    '[{"amount":45,"category":"Groceries","confidence":0.9},{"amount":12,"category":"Dining Out","confidence":0.9},{"amount":3000,"category":null,"confidence":0.6}]'
+  const result = parseExtractionArray(raw, ctx)
+
+  assert.equal(result.length, 3)
+  assert.deepEqual(result.map((r) => r.amount), [45, 12, 3000])
+  assert.deepEqual(result.map((r) => r.category), ['Groceries', 'Dining Out', null])
+})
+
+test('parseExtractionArray tolerates markdown fences and a preamble sentence, same as parseExtraction', () => {
+  const fenced = '```json\n[{"amount":45,"confidence":0.9},{"amount":12,"confidence":0.9}]\n```'
+  assert.equal(parseExtractionArray(fenced, ctx).length, 2)
+
+  const preambled = 'Here are the transactions:\n[{"amount":45,"confidence":0.9},{"amount":12,"confidence":0.9}]'
+  assert.equal(parseExtractionArray(preambled, ctx).length, 2)
+})
+
+test('parseExtractionArray caps a runaway array at 20 transactions', () => {
+  const raw = JSON.stringify(Array.from({ length: 50 }, (_, i) => ({ amount: i + 1, confidence: 0.9 })))
+  assert.equal(parseExtractionArray(raw, ctx).length, 20)
+})
+
+test('parseExtractionArray degrades a bare object into a one-element array instead of failing', () => {
+  // The bulk pre-check is a heuristic that can fire on a message that's
+  // really one transaction (docs/telegram-bot-round2-design.md §2) — the
+  // model reasonably answers with a single object in that case.
+  const result = parseExtractionArray('{"amount":43.05,"category":"Shopping","confidence":0.95}', ctx)
+  assert.equal(result.length, 1)
+  assert.equal(result[0].amount, 43.05)
+  assert.equal(result[0].category, 'Shopping')
+})
+
+test('parseExtractionArray raises on unusable input, same as parseExtraction', () => {
+  assert.throws(() => parseExtractionArray('', ctx), ExtractionError)
+  assert.throws(() => parseExtractionArray('I could not read that.', ctx), ExtractionError)
+  assert.throws(() => parseExtractionArray('[]', ctx), ExtractionError, 'an empty array is unusable, not zero rows')
+})
+
+test('extractBulkFromText sends the household context and asks for the array shape', async () => {
+  const model = new FakeModel('[{"amount":45,"category":"Groceries","confidence":0.9},{"amount":12,"category":"Dining Out","confidence":0.9}]')
+  const result = await extractBulkFromText('45 groceries, 12 coffee', ctx, model)
+
+  assert.equal(result.length, 2)
+  const prompt = model.lastPromptText()
+  assert.match(prompt, /JSON array/)
+  assert.match(prompt, /Dining Out/)
+  assert.match(prompt, /45 groceries, 12 coffee/)
 })
 
 test('image extraction attaches the data URL and any caption', async () => {

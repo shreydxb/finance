@@ -11,7 +11,14 @@
 // The model itself is behind ModelClient, so tests drive these rules without a
 // network call.
 
-import { buildCorrectionUserPrompt, buildImageUserPrompt, buildSystemPrompt, buildTextUserPrompt } from './prompt.ts'
+import {
+  buildBulkSystemPrompt,
+  buildBulkTextUserPrompt,
+  buildCorrectionUserPrompt,
+  buildImageUserPrompt,
+  buildSystemPrompt,
+  buildTextUserPrompt,
+} from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
 import type { ChatMessage, Extraction, ExtractionItem, ModelClient, TokenUsage } from '../_shared/types.ts'
 
@@ -124,6 +131,23 @@ export function extractFromImages(
   )
 }
 
+/**
+ * Several spends in one typed message (docs/telegram-bot-round2-design.md
+ * §2) — the array-shaped contract. Only called when bulk.ts's deterministic
+ * pre-check decided the message is worth it; a plain "84 lunch" never reaches
+ * here and keeps using extractFromText's single-object contract untouched.
+ */
+export function extractBulkFromText(text: string, ctx: PromptContext, model: ModelClient): Promise<Extraction[]> {
+  return runBulkExtraction(
+    [
+      { role: 'system', content: buildBulkSystemPrompt(ctx) },
+      { role: 'user', content: buildBulkTextUserPrompt(text) },
+    ],
+    ctx,
+    model
+  )
+}
+
 export function extractCorrection(
   current: Extraction,
   correction: string,
@@ -148,11 +172,47 @@ async function runExtraction(
   return parseExtraction(await model.chat(messages), ctx)
 }
 
+async function runBulkExtraction(
+  messages: ChatMessage[],
+  ctx: PromptContext,
+  model: ModelClient
+): Promise<Extraction[]> {
+  return parseExtractionArray(await model.chat(messages), ctx)
+}
+
 // ── hardening ──────────────────────────────────────────────────────────────
 
 export function parseExtraction(raw: string, ctx: PromptContext): Extraction {
-  const parsed = parseJsonObject(raw)
+  return extractionFromParsed(parseJsonObject(raw), ctx)
+}
 
+/** A 20-transaction message is already an unrealistic amount to type by hand. */
+const MAX_BULK_TRANSACTIONS = 20
+
+/**
+ * The array-shaped counterpart to parseExtraction — same per-element
+ * hardening (amount/category/confidence rules), just run once per element.
+ * An existing single-transaction fixture wrapped in `[...]` produces the same
+ * Extraction as parseExtraction on the raw object (docs/telegram-bot-round2-design.md §2).
+ *
+ * The bulk router gate (bulk.ts's looksLikeBulk) is a heuristic that can
+ * fire on a message that turns out to be one transaction after all — a card
+ * number ("card ending 1657") reads as a second amount. When that happens
+ * the model reasonably answers with a single object instead of the array it
+ * was asked for; that's treated as a one-element array rather than a hard
+ * failure, so a false-positive trigger never costs the household a row.
+ */
+export function parseExtractionArray(raw: string, ctx: PromptContext): Extraction[] {
+  const array = tryParseJsonArray(raw)
+  if (array) {
+    const elements = array.slice(0, MAX_BULK_TRANSACTIONS)
+    if (elements.length === 0) throw new ExtractionError('Model returned an empty array')
+    return elements.map((element) => extractionFromParsed(asRecord(element), ctx))
+  }
+  return [extractionFromParsed(parseJsonObject(raw), ctx)]
+}
+
+function extractionFromParsed(parsed: Record<string, unknown>, ctx: PromptContext): Extraction {
   const amount = normalizeAmount(parsed.amount)
   const category = matchCategory(parsed.category, ctx.categories)
   let confidence = clampConfidence(parsed.confidence)
@@ -173,6 +233,10 @@ export function parseExtraction(raw: string, ctx: PromptContext): Extraction {
     confidence,
     items: normalizeItems(parsed.items),
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
 /** A 40-item Noon cart is the realistic ceiling; beyond that, something's wrong with the read. */
@@ -219,6 +283,29 @@ export function parseJsonObject(raw: string): Record<string, unknown> {
     throw new ExtractionError('Model returned JSON that is not an object')
   }
   return parsed as Record<string, unknown>
+}
+
+/**
+ * Same fence/preamble tolerance as parseJsonObject, but for the bulk array
+ * shape — and tolerant of the shape itself: returns null (never throws) when
+ * the response isn't a JSON array, so parseExtractionArray can fall back to
+ * treating it as a single object instead of failing the message outright.
+ */
+function tryParseJsonArray(raw: string): unknown[] | null {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    throw new ExtractionError('Model returned an empty response')
+  }
+  const withoutFences = raw.replace(/```(?:json)?/gi, '').trim()
+  const start = withoutFences.indexOf('[')
+  const end = withoutFences.lastIndexOf(']')
+  if (start < 0 || end <= start) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(withoutFences.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  return Array.isArray(parsed) ? parsed : null
 }
 
 const CURRENCY_ALIASES: Record<string, string> = {

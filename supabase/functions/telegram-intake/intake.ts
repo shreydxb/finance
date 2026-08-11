@@ -11,6 +11,7 @@
 //   2. Corrections update the row they belong to. They never create a second one.
 
 import { todayInTz } from '../_shared/dates.ts'
+import { extractBulk, looksLikeBulk } from './bulk.ts'
 import { extractCashback, looksLikeCashback } from './cashback.ts'
 import type { CashbackExtraction } from './cashback.ts'
 import { extractCorrection, extractFromImage, extractFromImages, extractFromText, ExtractionError } from './extract.ts'
@@ -127,6 +128,13 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     return handleTransfer(text, message, household, ctx, deps)
   }
 
+  // Several spends in one message ("45 groceries, 12 coffee, paid rent
+  // 3000") — a cheap deterministic pre-check on amount-like tokens, same
+  // text-only scoping as cashback/transfer above. See docs/telegram-bot-round2-design.md §2.
+  if (text && looksLikeBulk(text)) {
+    return handleBulk(text, message, household, ctx, deps)
+  }
+
   const messageType = messageTypeOf(message)
   const t0 = Date.now()
 
@@ -157,6 +165,26 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     return { status: 'error', reason: error instanceof ExtractionError ? error.message : String(error) }
   }
 
+  return writeAndAnnounce(extraction, message, household, senderId, deps, t0, messageType)
+}
+
+/**
+ * The single-spend write-then-flag path: one row, one reply. Shared between
+ * the ordinary message flow above and handleBulk's fallback when the bulk
+ * pre-check fires but the model decides the message was really just one
+ * transaction after all — the household sees the same single-spend reply
+ * either way, not a one-item numbered list.
+ */
+async function writeAndAnnounce(
+  extraction: Extraction,
+  message: TelegramMessage,
+  household: HouseholdContext,
+  senderId: number,
+  deps: IntakeDeps,
+  t0: number,
+  messageType: 'photo' | 'voice' | 'text',
+  stage?: string
+): Promise<IntakeOutcome> {
   const resolved = resolve(extraction, household, senderId)
   const row = await deps.store.insertTransaction({
     date: extraction.date,
@@ -177,6 +205,7 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
 
   const usage = modelUsageOf(deps.model)
   await logInbound(deps, message, household, senderId, messageType, {
+    stage,
     success: true,
     durationMs: Date.now() - t0,
     transactionId: row.id,
@@ -187,6 +216,90 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   const duplicate = await findDuplicate(extraction, resolved, row.id, deps)
   await announce(row.id, extraction, resolved, message, deps, { duplicate })
   return { status: 'logged', transactionId: row.id, needsReview: resolved.needsReview }
+}
+
+/**
+ * Several spends in one typed message (docs/telegram-bot-round2-design.md
+ * §2). Still write-then-flag, scaled to N: every row lands immediately (never
+ * lose any of them), then one reply summarizes the batch. Buttons only show
+ * up when at least one row needs a look — mirroring the single-spend
+ * precedent of a bare "Logged: ... ✓" on a fully clean write.
+ */
+async function handleBulk(
+  text: string,
+  message: TelegramMessage,
+  household: HouseholdContext,
+  ctx: PromptContext,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const t0 = Date.now()
+
+  let extractions: Extraction[]
+  try {
+    extractions = await extractBulk(text, ctx, deps.model)
+  } catch (error) {
+    deps.log?.('bulk extraction failed', { error: String(error) })
+    const hint = errorHint(error)
+    await deps.messenger.sendMessage(
+      message.chat.id,
+      hint
+        ? `I couldn't read that one — ${hint}\n\nSend it again, or add it by hand in the app.`
+        : "I couldn't read that one. Send it again, or add it by hand in the app.",
+      { replyToMessageId: message.message_id }
+    )
+    await logInbound(deps, message, household, senderId, 'text', {
+      stage: 'extract_bulk',
+      success: false,
+      error: error instanceof ExtractionError ? error.message : String(error),
+      durationMs: Date.now() - t0,
+    })
+    return { status: 'error', reason: error instanceof ExtractionError ? error.message : String(error) }
+  }
+
+  // The pre-check is a heuristic, not a classifier — if the model decided the
+  // message was really one transaction after all, fall back to the ordinary
+  // single-spend reply rather than a one-item "Logged 1: ①...".
+  if (extractions.length === 1) {
+    return writeAndAnnounce(extractions[0], message, household, senderId, deps, t0, 'text', 'extract_bulk')
+  }
+
+  const splitGroupId = crypto.randomUUID()
+  const resolvedRows = extractions.map((extraction) => ({ extraction, resolved: resolve(extraction, household, senderId) }))
+
+  const rows = await Promise.all(
+    resolvedRows.map(({ extraction, resolved }) =>
+      deps.store.insertTransaction({
+        date: extraction.date,
+        amount: extraction.amount ?? 0,
+        currency: extraction.currency,
+        account_id: resolved.accountId,
+        category: extraction.category,
+        owner: resolved.owner,
+        note: extraction.note,
+        source: 'telegram',
+        needs_review: resolved.needsReview,
+        telegram_chat_id: message.chat.id,
+        // telegram_msg_id deliberately left unset: all N rows share one
+        // inbound message, so setting it here would make a bare reply to
+        // that message match an arbitrary row. Fix #n threads correctly
+        // anyway because tapping Fix sends its own distinct prompt message
+        // per row (see the 'fix' callback branch — unmodified for bulk).
+        split_group_id: splitGroupId,
+        items: extraction.items,
+      })
+    )
+  )
+
+  await logInbound(deps, message, household, senderId, 'text', {
+    stage: 'extract_bulk',
+    success: true,
+    durationMs: Date.now() - t0,
+    transactionId: rows[0].id,
+  })
+
+  await announceBulk(rows, resolvedRows, message, deps)
+  return { status: 'logged', transactionId: rows[0].id, needsReview: resolvedRows.some(({ resolved }) => resolved.needsReview) }
 }
 
 /**
@@ -493,6 +606,67 @@ function transferConfirmKeyboard(transactionId: string): InlineKeyboardButton[][
   return [[{ text: '✅ Confirm', callback_data: `confirm:${transactionId}` }]]
 }
 
+/**
+ * One reply summarizing every row a bulk message wrote. Buttons appear only
+ * when at least one row needs a look — a fully clean batch reads as a plain
+ * "Logged N: ①...②... ✓" wall, no taps needed, mirroring the single-spend
+ * precedent of hiding Confirm/Fix on a row that didn't need them.
+ */
+async function announceBulk(
+  rows: TransactionRow[],
+  resolvedRows: { extraction: Extraction; resolved: Resolved }[],
+  message: TelegramMessage,
+  deps: IntakeDeps
+): Promise<void> {
+  const anyNeedsReview = resolvedRows.some(({ resolved }) => resolved.needsReview)
+  const lines = [
+    `Logged ${rows.length}:`,
+    ...resolvedRows.map(({ extraction, resolved }, i) => describeBulkLine(i + 1, extraction, resolved)),
+  ]
+
+  if (!anyNeedsReview) {
+    lines.push('✓')
+    await deps.messenger.sendMessage(message.chat.id, lines.join('\n'), { replyToMessageId: message.message_id })
+    return
+  }
+
+  await deps.messenger.sendMessage(message.chat.id, lines.join('\n'), {
+    replyToMessageId: message.message_id,
+    inlineKeyboard: bulkKeyboard(rows),
+  })
+}
+
+const CIRCLED_DIGITS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+
+function bulkMarker(n: number): string {
+  return CIRCLED_DIGITS[n - 1] ?? `${n}.`
+}
+
+function describeBulkLine(n: number, extraction: Extraction, resolved: Resolved): string {
+  const amount =
+    extraction.amount === null ? `amount unreadable (${extraction.currency})` : `${formatAmount(extraction.amount)} ${extraction.currency}`
+  const suffix = resolved.needsReview ? ' — needs review' : ''
+  return `${bulkMarker(n)} ${extraction.category ?? 'Uncategorised'} · ${amount}${suffix}`
+}
+
+/**
+ * Confirm all cascades via split_group_id (confirm_group, below); Fix #n is
+ * plain per-row `fix:<transactionId>` — the existing single-row Fix flow
+ * (its own forceReply prompt, its own telegram_prompt_msg_id) needs no
+ * bulk-specific handling at all, since each button already names its own row.
+ */
+function bulkKeyboard(rows: TransactionRow[]): InlineKeyboardButton[][] {
+  const confirmRow: InlineKeyboardButton[] = [{ text: '✅ Confirm all', callback_data: `confirm_group:${rows[0].id}` }]
+  const fixButtons = rows.map((row, i) => ({ text: `✏️ Fix #${i + 1}`, callback_data: `fix:${row.id}` }))
+  return [confirmRow, ...chunk(fixButtons, 4)]
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
 function messageTypeOf(message: TelegramMessage): 'photo' | 'voice' | 'text' {
   if (message.photo?.length) return 'photo'
   if (message.voice ?? message.audio) return 'voice'
@@ -768,6 +942,38 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     await deps.messenger.answerCallbackQuery(query.id, 'That one is gone from the app.')
     await logCallback(deps, query, chatId, parsed.action, { success: false, error: 'transaction not found' })
     return { status: 'ignored', reason: `transaction ${parsed.transactionId} not found` }
+  }
+
+  if (parsed.action === 'confirm_group') {
+    // Unlike the single-row 'confirm' below (and its split_group_id cascade
+    // for a transfer pair, where both rows always share one amount), a bulk
+    // group's rows can have independently zero amounts — so each sibling is
+    // guarded individually rather than blessing the whole group at once.
+    const groupId = row.split_group_id
+    const siblings = groupId ? await deps.store.findTransactionsBySplitGroup(groupId) : [row]
+    const clearable = siblings.filter((sibling) => Number(sibling.amount) !== 0)
+    const blocked = siblings.filter((sibling) => Number(sibling.amount) === 0)
+
+    const updated = await Promise.all(
+      clearable.map((sibling) => deps.store.updateTransaction(sibling.id, { needs_review: false, telegram_prompt_msg_id: null }))
+    )
+    const updatedById = new Map(updated.map((r) => [r.id, r]))
+    const finalRows = siblings.map((sibling) => updatedById.get(sibling.id) ?? sibling)
+
+    await deps.messenger.answerCallbackQuery(query.id, blocked.length ? 'Confirmed — some still need the amount' : 'Confirmed')
+    if (query.message) {
+      const lines = [
+        blocked.length ? `Confirmed ${clearable.length} of ${siblings.length}:` : `Confirmed ${siblings.length}:`,
+        ...finalRows.map(
+          (r, i) => `${bulkMarker(i + 1)} ${describeRow(r, household)}${r.needs_review ? ' — still needs the amount' : ''}`
+        ),
+      ]
+      // Drop the keyboard so a stale message can't be tapped twice — any row
+      // still needing the amount has to be fixed in the app from here.
+      await deps.messenger.editMessageText(chatId, query.message.message_id, lines.join('\n'))
+    }
+    await logCallback(deps, query, chatId, 'confirm_group', { success: true, transactionId: row.id })
+    return { status: 'confirmed', transactionId: row.id }
   }
 
   if (parsed.action === 'confirm') {

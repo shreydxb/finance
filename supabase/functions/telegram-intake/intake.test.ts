@@ -694,6 +694,158 @@ test('a transfer extraction failure is reported back, nothing written', async ()
   assert.match(h.messenger.last().text ?? '', /couldn't read that transfer/)
 })
 
+test('a 3-amount message writes 3 rows sharing one split_group_id, one reply, no buttons when nothing needs review', async () => {
+  const h = harness(
+    '[' +
+      json({ amount: 45, category: 'Groceries', confidence: 0.95 }) +
+      ',' +
+      json({ amount: 12, category: 'Dining Out', confidence: 0.95 }) +
+      ',' +
+      json({ amount: 200, category: 'Utilities', confidence: 0.95 }) +
+      ']',
+    { defaultAccountId: 'acc-joint' }
+  )
+
+  const outcome = await handleUpdate(textUpdate('spent 45 on groceries, 12 on coffee, and 200 on utilities'), h.deps)
+
+  assert.deepEqual(outcome, { status: 'logged', transactionId: 'tx-1', needsReview: false })
+  assert.equal(h.store.rows.size, 3)
+  const rows = Array.from(h.store.rows.values())
+  assert.ok(rows.every((r) => r.needs_review === false))
+  assert.ok(rows[0].split_group_id, 'linked by a shared split_group_id')
+  assert.ok(rows.every((r) => r.split_group_id === rows[0].split_group_id))
+  assert.ok(
+    rows.every((r) => r.telegram_msg_id === null),
+    'unset — a bare reply to the shared inbound message would otherwise match an arbitrary row'
+  )
+
+  assert.equal(
+    h.messenger.last().text,
+    ['Logged 3:', '① Groceries · 45 AED', '② Dining Out · 12 AED', '③ Utilities · 200 AED', '✓'].join('\n')
+  )
+  assert.equal(h.messenger.last().opts?.inlineKeyboard, undefined, 'no buttons on a fully clean bulk write')
+})
+
+test('a bulk write with a flagged row shows Confirm all + Fix per row, and marks only the flagged line', async () => {
+  const h = harness(
+    '[' +
+      json({ amount: 45, category: 'Groceries', confidence: 0.95 }) +
+      ',' +
+      json({ amount: 12, category: null, confidence: 0.5 }) +
+      ',' +
+      json({ amount: 200, category: 'Utilities', confidence: 0.95 }) +
+      ']',
+    { defaultAccountId: 'acc-joint' }
+  )
+
+  await handleUpdate(textUpdate('45 groceries, 12 something, 200 utilities'), h.deps)
+
+  const rows = Array.from(h.store.rows.values())
+  assert.equal(rows.filter((r) => r.needs_review).length, 1)
+
+  const sent = h.messenger.last()
+  assert.match(sent.text ?? '', /① Groceries · 45 AED\n/)
+  assert.match(sent.text ?? '', /② Uncategorised · 12 AED — needs review/)
+  assert.match(sent.text ?? '', /③ Utilities · 200 AED$/)
+  assert.deepEqual(sent.opts?.inlineKeyboard?.[0], [{ text: '✅ Confirm all', callback_data: `confirm_group:${rows[0].id}` }])
+  assert.deepEqual(
+    sent.opts?.inlineKeyboard?.[1],
+    rows.map((r, i) => ({ text: `✏️ Fix #${i + 1}`, callback_data: `fix:${r.id}` }))
+  )
+})
+
+test('Fix #2 threads a correction to that row only, leaving its siblings untouched', async () => {
+  const h = harness(
+    '[' +
+      json({ amount: 45, category: 'Groceries', confidence: 0.95 }) +
+      ',' +
+      json({ amount: 12, category: null, confidence: 0.5 }) +
+      ',' +
+      json({ amount: 200, category: 'Utilities', confidence: 0.95 }) +
+      ']',
+    { defaultAccountId: 'acc-joint' }
+  )
+  await handleUpdate(textUpdate('45 groceries, 12 something, 200 utilities'), h.deps)
+  const rows = Array.from(h.store.rows.values())
+  const flagged = rows.find((r) => r.needs_review)!
+  const others = rows.filter((r) => r.id !== flagged.id)
+
+  const fixOutcome = await handleUpdate(callbackUpdate('fix', flagged.id), h.deps)
+  assert.equal(fixOutcome.status, 'fix_requested')
+  const promptMsgId = h.store.rows.get(flagged.id)!.telegram_prompt_msg_id!
+
+  h.model.responses = [json({ amount: 12, category: 'Dining Out', note: 'coffee', confidence: 0.97 })]
+  const corrected = await handleUpdate(replyUpdate('it was coffee', promptMsgId), h.deps)
+
+  assert.equal(corrected.status, 'corrected')
+  assert.equal(h.store.rows.get(flagged.id)?.category, 'Dining Out')
+  assert.equal(h.store.rows.get(flagged.id)?.needs_review, false)
+  for (const other of others) {
+    assert.equal(h.store.rows.get(other.id)?.category, other.category, 'untouched by a correction aimed at a different row')
+    assert.equal(h.store.rows.get(other.id)?.amount, other.amount)
+  }
+})
+
+test('Confirm all clears every row whose amount is nonzero, leaving a zero-amount row still flagged', async () => {
+  const h = harness(
+    '[' +
+      json({ amount: 45, category: 'Groceries', confidence: 0.95 }) +
+      ',' +
+      json({ amount: null, category: 'Dining Out', confidence: 0.3 }) +
+      ',' +
+      json({ amount: 200, category: null, confidence: 0.5 }) +
+      ']',
+    { defaultAccountId: 'acc-joint' }
+  )
+  await handleUpdate(textUpdate('45 groceries, unreadable amount, 200 something'), h.deps)
+  const rows = Array.from(h.store.rows.values())
+  const clean = rows.find((r) => r.amount === 45)!
+  const zeroAmount = rows.find((r) => r.amount === 0)!
+  const flaggedCategory = rows.find((r) => r.amount === 200)!
+  assert.equal(clean.needs_review, false)
+  assert.equal(zeroAmount.needs_review, true)
+  assert.equal(flaggedCategory.needs_review, true)
+
+  const outcome = await handleUpdate(callbackUpdate('confirm_group', rows[0].id), h.deps)
+
+  assert.equal(outcome.status, 'confirmed')
+  assert.equal(h.store.rows.get(clean.id)?.needs_review, false)
+  assert.equal(
+    h.store.rows.get(flaggedCategory.id)?.needs_review,
+    false,
+    'a nonzero-amount row is cleared even though its category was unresolved'
+  )
+  assert.equal(h.store.rows.get(zeroAmount.id)?.needs_review, true, 'a zero amount is never blessed, even inside Confirm all')
+
+  const edit = h.messenger.sent.find((s) => s.method === 'editMessageText')
+  assert.match(edit?.text ?? '', /Confirmed 2 of 3:/)
+  assert.match(edit?.text ?? '', /still needs the amount/)
+  assert.equal(edit?.opts?.inlineKeyboard, undefined, 'keyboard dropped so it cannot be tapped twice')
+})
+
+test('a bulk-looking message that is really one transaction falls back to the ordinary single-spend reply', async () => {
+  const h = harness('[' + CLEAN + ']')
+
+  const outcome = await handleUpdate(textUpdate('84 aed at Noon, order #12345'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.rows.size, 1)
+  const row = h.store.only()
+  assert.ok(row.telegram_msg_id, 'the ordinary single-spend path sets telegram_msg_id, unlike a real bulk write')
+  assert.equal(row.split_group_id, null)
+  assert.match(h.messenger.last().text ?? '', /^Logged: /, 'reads exactly like a normal single spend, not a numbered list')
+})
+
+test('a bulk extraction failure is reported back, nothing written', async () => {
+  const h = harness('THROW:OpenRouter 500: server error')
+
+  const outcome = await handleUpdate(textUpdate('45 groceries, 12 coffee'), h.deps)
+
+  assert.equal(outcome.status, 'error')
+  assert.equal(h.store.rows.size, 0)
+  assert.match(h.messenger.last().text ?? '', /couldn't read that one/)
+})
+
 test('Fix asks for the correction and remembers which message it hangs off', async () => {
   const h = harness(json({ amount: 48, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.5 }))
   await handleUpdate(textUpdate('lunch'), h.deps)

@@ -39,6 +39,7 @@ Two invariants the code is built around, both covered by tests:
 | `extract.ts` | OpenRouter call + the hardening that validates whatever comes back |
 | `cashback.ts` | The cashback router gate + its own small propose-then-tap extraction |
 | `transfer.ts` | The transfer router gate + its own small write-then-flag extraction |
+| `bulk.ts` | The bulk-input router gate (`looksLikeBulk`) + the array-shaped extraction call |
 | `transcribe.ts` | Groq Whisper for voice notes |
 | `prompt.ts` | The extraction prompt (categories, currency rules, confidence rubric) |
 | `config.ts` | Secrets → typed config, with defaults |
@@ -220,6 +221,36 @@ a transfer would need its own from/to extraction prompt that doesn't exist
 yet. Confirm is pair-aware: it clears the flag on both rows, not just the one
 the button was attached to.
 
+Several spends in one typed message ("45 groceries, 12 coffee, and paid rent
+3000") are extracted as an array instead of silently collapsing to one
+transaction — a cheap deterministic pre-check (more than one amount-like token
+in the text) decides whether to ask the model for the array shape. All N rows
+write immediately (write-then-flag, scaled to N — this is still a spend, not
+propose-then-tap), then one reply summarizes the batch:
+
+```
+Logged 3:
+① Groceries · 45 AED
+② Dining Out · 12 AED
+③ Rent & Housing · 3,000 AED
+✓
+```
+
+Buttons (**Confirm all** + a numbered **Fix #n** per row) appear only when at
+least one row needs a look — a fully clean batch reads exactly like the block
+above, no taps needed. **Fix #n** is a plain per-row Fix button (its own
+forceReply prompt, its own `telegram_prompt_msg_id`) — no new threading
+mechanism, since each button already names its own row. **Confirm all**
+cascades over every row sharing the batch's `split_group_id`, but — unlike a
+transfer pair, where both halves always share one amount — guards each row's
+zero-amount case independently, so it never blesses an unreadable amount into
+the budget even inside a bulk confirm. If the pre-check fires on a message
+that turns out to be one transaction after all (a card number reads as a
+second "amount"), the model typically answers with a single object instead of
+the array it was asked for; that degrades to the ordinary single-spend reply
+rather than failing the message. Scope is typed text only — a receipt photo
+is still exactly one purchase.
+
 **Confirm** clears the flag. **Fix** asks for a correction; reply to that
 message ("84 not 48", "it was groceries", "paid from the Wio account") and it
 goes back through the same extraction, updating that row. Replying directly to
@@ -249,7 +280,7 @@ trust on real receipts.
 ## Testing
 
 ```bash
-npm test              # 123 tests, no network, no keys
+npm test              # 139 tests, no network, no keys
 npm run demo:telegram # prints the whole conversation against mocked payloads
 ```
 

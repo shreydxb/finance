@@ -101,6 +101,78 @@ Be honest and calibrated. A low score costs the household one tap; a
 falsely-high score puts a wrong number into their budget silently.`
 }
 
+const BULK_OUTPUT_CONTRACT = `Return ONLY a JSON array, no prose, no markdown fences — one object per
+distinct spend described in the message, each with exactly these keys:
+{
+  "date": "YYYY-MM-DD",
+  "amount": number,
+  "currency": "AED" | "INR" | "USD",
+  "category": string,
+  "paid_by": string,
+  "paid_with": string,
+  "note": string,
+  "confidence": number
+}
+Use null for any value you genuinely cannot determine. Never invent a plausible
+number to fill a gap — null plus a low confidence is always the better answer.`
+
+/**
+ * The array-shaped counterpart to buildSystemPrompt — same field rules, minus
+ * itemization (a typed bulk message doesn't carry line items the way a
+ * receipt photo does). Only used when bulk.ts's deterministic pre-check
+ * decides the message describes more than one spend — see
+ * docs/telegram-bot-round2-design.md §2.
+ */
+export function buildBulkSystemPrompt(ctx: PromptContext): string {
+  return `You extract one or more personal-finance transactions from a single message sent by a couple living in Dubai, UAE. The message describes several spends at once, e.g. "spent 45 on groceries, 12 on coffee, and paid rent 3000" — three separate transactions, not one.
+
+Today's date is ${ctx.today}. The household's default currency is ${ctx.defaultCurrency}.
+
+${BULK_OUTPUT_CONTRACT}
+
+Field rules (apply to every object in the array):
+- date: the date the money was actually spent. Use today unless the message
+  says otherwise ("yesterday", "on Friday" — resolve relative to today). Never
+  return a future date. Different items in the same message are usually the
+  same date unless it says otherwise.
+- amount: the actual amount paid for that one spend.
+- currency: AED for "AED", "Dhs", "DHS", "د.إ" or unmarked. INR for "₹", "Rs",
+  "Rs.", "INR". USD for "$" or "USD". Default to ${ctx.defaultCurrency} when
+  nothing indicates otherwise.
+- category: EXACTLY one of these, copied character for character:
+${ctx.categories.map((c) => `  - ${c}`).join('\n')}
+  If none of them is a defensible fit, return null rather than forcing "Other".
+- paid_by: which person spent it, one of: ${ctx.people.join(', ') || 'unknown'}.
+  Default to the sender unless the message clearly says otherwise. Different
+  items in the same message can have different payers ("I paid for lunch,
+  Tarika got the cab").
+- paid_with: the account or card used, matched to one of these when you can:
+${ctx.accounts.length ? ctx.accounts.map((a) => `  - ${a}`).join('\n') : '  (no accounts configured)'}
+  Return what the message says if it doesn't match a known account; return
+  null if not mentioned.
+- note: a short label for that one spend — "groceries", "coffee", "rent".
+  Keep under 80 characters, no newlines.
+
+Split into separate objects whenever the amounts are for genuinely different
+things — "45 groceries, 12 coffee" is two objects. A single spend whose total
+happens to be a sum of several items ("milk, bread and eggs came to 45") is
+still ONE object — don't split a single receipt's contents into several
+transactions just because more than one item is named.
+
+confidence, on a 0–1 scale, same meaning as for a single transaction:
+- 0.90–1.00: the amount and category are both explicit/obvious for that item.
+- 0.70–0.89: the amount is certain but the category is inferred.
+- 0.40–0.69: something material about that one item is ambiguous.
+- 0.00–0.39: you could not read the amount for that item, or you're guessing
+  at more than one field.
+Score each object independently — one item being clear doesn't make another
+one clear too.`
+}
+
+export function buildBulkTextUserPrompt(text: string): string {
+  return `This is a typed message that may describe more than one spend.\n\nMessage:\n"""\n${text}\n"""`
+}
+
 export function buildImageUserPrompt(caption: string | null, imageCount = 1): string {
   const base =
     imageCount > 1

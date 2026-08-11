@@ -14,7 +14,7 @@ session fully replayable. Nine issues came back from it in one sitting:
 | # | Report | Status |
 | --- | --- | --- |
 | 1 | Duplicate payments — add something, forget, add again | ✅ Shipped (§1), `telegram-intake` v19 |
-| 2 | Bulk input — several spends in one message | **Designed here (§2)** |
+| 2 | Bulk input — several spends in one message | ✅ Shipped (§2), `telegram-intake` v22 |
 | 3 | Wrong/no account match, no way to pick | ✅ Fixed — tied accounts are now named in the review prompt (`0f547f3`) |
 | 4 | Fund transfer between the household's own accounts | ✅ Shipped (§3), `telegram-intake` v21 |
 | 5 | One purchase needs 2+ screenshots (first one cropped the price) | ✅ Shipped (§6) — album batching, `telegram-intake` v17 |
@@ -91,6 +91,43 @@ against.
 ---
 
 ## 2. Bulk input
+
+**✅ Shipped** — `telegram-intake` redeployed as v22. No migration needed:
+`split_group_id` and `telegram_prompt_msg_id` already existed (`006`/`011`),
+so a bulk batch reuses both exactly as designed. Built mostly as designed
+below, with corrections in three places:
+
+1. **Fix #n needed zero new mechanism**, not the `fix:<row>:<n>` namespace or
+   reply-by-position this section floated. Each numbered button just carries
+   the *existing* per-row `fix:<transactionId>` callback — the single-row Fix
+   flow (its own forceReply prompt, its own `telegram_prompt_msg_id`) already
+   isolates a correction to one row with no bulk awareness at all. This also
+   resolves open question #3 below: a reply describing several corrections at
+   once was never in scope, and now there's no shared prompt message for such
+   a reply to even land on — each Fix tap spawns its own.
+2. **Confirm all is a new `confirm_group` action, not a reuse of `confirm`.**
+   The existing `confirm` handler's `split_group_id` cascade (built for
+   transfers, where both halves always share one amount) blindly clears
+   `needs_review` on every sibling. A bulk group's rows can have
+   independently-zero amounts, so blindly cascading would bless an unreadable
+   amount into the budget — exactly the case `confirm`'s own top-level guard
+   exists to prevent. `confirm_group` clears each sibling individually,
+   skipping (not blocking the whole tap on) any row whose amount is still
+   zero, and reports "Confirmed N of M" when some are left over.
+3. **Buttons appear only when ≥1 row needs review** — a design call this
+   section left implicit (its own mockup shows buttons on an example that
+   reads as already-clean). Chosen to mirror the single-spend precedent
+   exactly: a fully clean write is a bare "Logged N: ①...②... ✓" with no taps
+   needed, rather than a functional no-op Confirm all on a batch that didn't
+   need it.
+
+One more hardening beyond the original design: the amount-count pre-check can
+false-positive on a card number ("43.05 to Noon, card ending 1657" reads as
+two amounts). Rather than tighten the regex, `parseExtractionArray` degrades a
+bare-object model response into a one-element array instead of throwing — the
+model reasonably answers with a single object when it decides (correctly or
+not) that the message was really one transaction, and that's treated as the
+N=1 fallback (below) rather than a failed message.
 
 **The report:** "spent 45 on groceries, 12 on coffee, and paid 3000 rent" —
 today this is fed whole to `extractFromText`, which is built for exactly one
@@ -407,8 +444,9 @@ ledger (§4) reserves its own numbers for unbuilt work (`pending_actions`,
 whoever picks up either doc first should renumber on the fly rather than trust
 placeholder numbers blindly. `017_media_groups.sql` (§6), `018_transaction_items.sql`
 (§5), `019_pending_income.sql` (§4) and `020_transfers.sql` (§3) are all
-applied — every migration this epic needs is now shipped, leaving only §2
-(bulk input) unbuilt, and it needs none.
+applied. §2 (bulk input) is also now shipped, and needed no migration of its
+own — every table it touches (`split_group_id`, `telegram_prompt_msg_id`)
+already existed. Every item in this epic is now shipped.
 
 Duplicate detection (§1) needs no schema — it's a query against existing
 columns. Cashback (§4) needed one table after all, `pending_income` — see §4's
@@ -448,8 +486,10 @@ real seconds and the debounce race can't be deterministically exercised.
    pair if the household already dismissed it once)?
 2. **§3** — one transfer row with a `kind` column vs. two linked rows (leaning
    two; see §3's own open question).
-3. **§2** — how does Fix-by-number interact with a *reply* that itself
-   describes several corrections at once ("2 was 15, 3 was groceries")? Out
-   of scope for a first cut; start with one Fix per numbered item.
+3. **§2** — ~~how does Fix-by-number interact with a *reply* that itself
+   describes several corrections at once ("2 was 15, 3 was groceries")?~~
+   Resolved by the shipped implementation: Fix #n is a plain per-row button,
+   not a reply-parsing scheme, so there's no shared prompt for a multi-fix
+   reply to land on in the first place — moot rather than out of scope.
 4. **§6** — is 1200ms right, or should it scale with how many photos have
    landed so far (a 5-photo album needs longer than a 2-photo one)?
