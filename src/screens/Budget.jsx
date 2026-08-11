@@ -107,109 +107,116 @@ export default function Budget() {
   const leftToBudget = totalIncome - totalBudgeted - totalContributions
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-6">
-        <p className="text-sm text-ink-500">Left to budget</p>
-        <p className="mt-1 text-4xl font-semibold text-ink-900">{fmt(leftToBudget)}</p>
-        <p className="mt-2 text-xs text-ink-400">
-          Income logged this month {fmt(totalIncome)} − budgeted {fmt(totalBudgeted)} − goal contributions {fmt(totalContributions)}
-        </p>
-      </div>
-
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-surface shadow-card px-4 py-3">
-        <button
-          type="button"
-          onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, -1))}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100"
-        >
-          ← Prev
-        </button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-ink-900">{monthLabel(ym.year, ym.month)}</span>
-          <button
-            type="button"
-            onClick={() => setYm(currentYearMonth())}
-            className="rounded-lg border border-ink-300 px-2 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50"
-          >
-            Today
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, 1))}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100"
-        >
-          Next →
-        </button>
-      </div>
-
-      {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
-      )}
-
-      {BUDGET_GROUPS.map((group) => {
-        const items = budgeted.filter((r) => r.budget.group === group)
-        if (items.length === 0) return null
-        return (
-          <div key={group} className="mb-6">
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
-            <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-                <span>Category</span>
-                <span className="w-20 text-right">Planned</span>
-                <span className="w-20 text-right">Actual</span>
-                <span className="w-20 text-right">Remaining</span>
-              </div>
-              {items.map((r) => (
-                <button
-                  key={r.category.id}
-                  type="button"
-                  onClick={() => setEditingCategory(r.category)}
-                  className="grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
-                >
-                  <span className="truncate font-medium text-ink-900">
-                    {r.category.icon} {r.category.name}
-                  </span>
-                  <span className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
-                  <span className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
-                  <span className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
-                    {fmt(r.remaining)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-
-      <div className="mb-6">
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Contributions</h3>
-        <ContributionSubsection title="Save up" rows={saveUpContribRows} fmt={fmt} />
-        <ContributionSubsection title="Pay down" rows={payDownContribRows} fmt={fmt} />
-      </div>
-
-      {unbudgeted.length > 0 && (
-        <div className="mb-6">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Not yet budgeted</h3>
-          <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
-            {unbudgeted.map((r) => (
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="grid gap-5 lg:grid-cols-[1fr_280px] lg:items-start">
+        <div className="min-w-0 lg:order-2">
+          <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-surface shadow-card px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, -1))}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100"
+            >
+              ← Prev
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-ink-900">{monthLabel(ym.year, ym.month)}</span>
               <button
-                key={r.category.id}
                 type="button"
-                onClick={() => setEditingCategory(r.category)}
-                className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
+                onClick={() => setYm(currentYearMonth())}
+                className="rounded-lg border border-ink-300 px-2 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50"
               >
-                <span className="font-medium text-ink-900">
-                  {r.category.icon} {r.category.name}
-                </span>
-                <span className="text-xs font-medium text-ink-400 underline">Set a limit</span>
+                Today
               </button>
-            ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setYm((cur) => shiftMonth(cur.year, cur.month, 1))}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100"
+            >
+              Next →
+            </button>
           </div>
+
+          {error && (
+            <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
+              {error}
+            </p>
+          )}
+
+          {BUDGET_GROUPS.map((group) => {
+            const items = budgeted.filter((r) => r.budget.group === group)
+            if (items.length === 0) return null
+            return (
+              <div key={group} className="mb-6">
+                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
+                <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
+                  <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+                    <span>Category</span>
+                    <span className="w-20 text-right">Planned</span>
+                    <span className="w-20 text-right">Actual</span>
+                    <span className="w-20 text-right">Remaining</span>
+                  </div>
+                  {items.map((r) => (
+                    <button
+                      key={r.category.id}
+                      type="button"
+                      onClick={() => setEditingCategory(r.category)}
+                      className="grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
+                    >
+                      <span className="truncate font-medium text-ink-900">
+                        {r.category.icon} {r.category.name}
+                      </span>
+                      <span className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
+                      <span className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
+                      <span className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
+                        {fmt(r.remaining)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+
+          <div className="mb-6">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Contributions</h3>
+            <ContributionSubsection title="Save up" rows={saveUpContribRows} fmt={fmt} />
+            <ContributionSubsection title="Pay down" rows={payDownContribRows} fmt={fmt} />
+          </div>
+
+          {unbudgeted.length > 0 && (
+            <div className="mb-6">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Not yet budgeted</h3>
+              <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
+                {unbudgeted.map((r) => (
+                  <button
+                    key={r.category.id}
+                    type="button"
+                    onClick={() => setEditingCategory(r.category)}
+                    className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
+                  >
+                    <span className="font-medium text-ink-900">
+                      {r.category.icon} {r.category.name}
+                    </span>
+                    <span className="text-xs font-medium text-ink-400 underline">Set a limit</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Sticky so "left to budget" stays on screen while the category list
+            scrolls — it's the one number worth checking mid-scroll, not just
+            at the top of the page. */}
+        <aside className="rounded-2xl border border-ink-200 bg-surface p-6 shadow-card lg:sticky lg:top-24 lg:order-1 lg:h-fit">
+          <p className="text-sm text-ink-500">Left to budget</p>
+          <p className="mt-1 text-4xl font-semibold text-ink-900">{fmt(leftToBudget)}</p>
+          <p className="mt-2 text-xs text-ink-400">
+            Income logged this month {fmt(totalIncome)} − budgeted {fmt(totalBudgeted)} − goal contributions {fmt(totalContributions)}
+          </p>
+        </aside>
+      </div>
 
       {editingCategory && (
         <BudgetLimitForm
