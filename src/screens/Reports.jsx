@@ -54,6 +54,9 @@ export default function Reports() {
   const [spendShape, setSpendShape] = useState('bars')
   const [incomeShape, setIncomeShape] = useState('donut')
   const [trendShape, setTrendShape] = useState('line') // line | bars
+  const [cashFlowShape, setCashFlowShape] = useState('sankey') // sankey | bars
+  const [sankeyGrouping, setSankeyGrouping] = useState('group') // group | category
+  const [flowDetail, setFlowDetail] = useState(null) // { label, items: [...], total, kind: 'expense' | 'income' }
 
   const [transactions, setTransactions] = useState([])
   const [income, setIncome] = useState([])
@@ -120,12 +123,15 @@ export default function Reports() {
     return groupsFromMap(sumByCategoryAED(transactions, fxRates))
   }, [transactions, fxRates, groupingMode, categoryGroupByName])
 
-  // Always by category-group (Needs/Wants/Savings), regardless of Spending's
-  // own toggle — a Sankey with 8+ individual-category destinations turns into
-  // an unreadable tangle, where 3-6 groups reads as an actual flow.
+  // Defaults to category-group (Needs/Wants/Savings) — a Sankey with 8+
+  // individual-category destinations can turn into a tangle — but Category
+  // is one tap away via sankeyGrouping for whoever wants the finer read.
   const sankeyDestGroups = useMemo(
-    () => groupsFromMap(sumByGroupAED(transactions, fxRates, categoryGroupByName)),
-    [transactions, fxRates, categoryGroupByName]
+    () =>
+      sankeyGrouping === 'category'
+        ? groupsFromMap(sumByCategoryAED(transactions, fxRates))
+        : groupsFromMap(sumByGroupAED(transactions, fxRates, categoryGroupByName)),
+    [transactions, fxRates, categoryGroupByName, sankeyGrouping]
   )
 
   const stats = useMemo(() => transactionStats(transactions), [transactions])
@@ -153,6 +159,24 @@ export default function Reports() {
     }
     return groupsFromMap(map)
   }, [income, fxRates])
+
+  // Sankey node click → the transactions/income rows behind that number,
+  // matched the same way sumByCategoryAED/sumByGroupAED/incomeBySource
+  // grouped them in the first place, so the total in the detail header
+  // always ties back exactly to the node's own value.
+  function openFlowDetail(kind, node) {
+    if (kind === 'income') {
+      const items = income.filter((i) => (i.source?.trim() || i.kind || 'Other') === node.key)
+      setFlowDetail({ kind, label: node.label, total: node.value, items })
+      return
+    }
+    const items = transactions.filter((t) => {
+      if (t.category === 'Transfer') return false
+      const key = sankeyGrouping === 'category' ? t.category || 'Uncategorised' : categoryGroupByName.get(t.category) || 'Uncategorised'
+      return key === node.key
+    })
+    setFlowDetail({ kind, label: node.label, total: node.value, items })
+  }
 
   function downloadCSV() {
     const csv = transactionsToCSV(transactions)
@@ -223,18 +247,53 @@ export default function Reports() {
       {section === 'cashflow' && (
         <div className="space-y-5">
           <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
-            <h3 className="mb-1 text-sm font-semibold text-ink-900">Where it came from, where it went</h3>
-            <p className="mb-4 text-xs text-ink-400">{label}</p>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-ink-900">Where it came from, where it went</h3>
+              <div className="flex items-center gap-2">
+                {cashFlowShape === 'sankey' && (
+                  <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+                    {[
+                      { key: 'group', label: 'Group' },
+                      { key: 'category', label: 'Category' },
+                    ].map((t) => (
+                      <button key={t.key} type="button" onClick={() => setSankeyGrouping(t.key)}
+                        className={`rounded-md px-2.5 py-1 font-medium transition-colors ${sankeyGrouping === t.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'}`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+                  {[
+                    { key: 'sankey', label: '⟿', aria: 'Sankey view' },
+                    { key: 'bars', label: '▤', aria: 'Bar view' },
+                  ].map((s) => (
+                    <button key={s.key} type="button" onClick={() => setCashFlowShape(s.key)} aria-label={s.aria}
+                      className={`rounded-md px-2 py-1 font-medium transition-colors ${cashFlowShape === s.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'}`}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <p className="mb-4 text-xs text-ink-400">{label}{cashFlowShape === 'sankey' ? ' · click a node to see its transactions' : ''}</p>
             {totalIncome === 0 && totalExpenses === 0 ? (
               <p className="py-10 text-center text-sm text-ink-500">Nothing logged for {label} yet.</p>
-            ) : (
+            ) : cashFlowShape === 'sankey' ? (
               <SankeyChart
                 sources={incomeBySource}
                 destinations={sankeyDestGroups}
                 hubLabel="Income"
                 hubValue={totalIncome}
                 formatValue={fmt}
+                onSourceClick={(n) => openFlowDetail('income', n)}
+                onDestClick={(n) => openFlowDetail('expense', n)}
               />
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2">
+                <BreakdownBars title="Income" groups={incomeBySource} formatValue={fmt} emptyMessage="No income logged." />
+                <BreakdownBars title="Expenses" groups={sankeyDestGroups} formatValue={fmt} emptyMessage="No expenses logged." />
+              </div>
             )}
           </div>
 
@@ -324,6 +383,51 @@ export default function Reports() {
           <PersonBreakdown incomeByPerson={incomeByPerson} totalIncome={totalIncome} target={splitTarget} />
         </div>
       )}
+
+      {flowDetail && (
+        <FlowDetail detail={flowDetail} fxRates={fxRates} fmt={fmt} onClose={() => setFlowDetail(null)} />
+      )}
+    </div>
+  )
+}
+
+function FlowDetail({ detail, fxRates, fmt, onClose }) {
+  const { kind, label, total, items } = detail
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-ink-900">{label}</h2>
+          <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
+            Close
+          </button>
+        </div>
+        <p className="mb-4 text-xs text-ink-400">
+          {items.length} {kind === 'income' ? (items.length === 1 ? 'entry' : 'entries') : items.length === 1 ? 'transaction' : 'transactions'} · {fmt(total)} total
+        </p>
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-ink-500">Nothing here for this period.</p>
+        ) : (
+          <ul className="divide-y divide-ink-100 rounded-2xl border border-ink-200">
+            {items
+              .slice()
+              .sort((a, b) => (a.date < b.date ? 1 : -1))
+              .map((item) => (
+                <li key={item.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <span className="min-w-0">
+                    <span className="block text-ink-600">{item.date}</span>
+                    <span className="block truncate text-xs text-ink-400">
+                      {kind === 'income' ? item.person : [item.owner, item.note].filter(Boolean).join(' · ') || 'No note'}
+                    </span>
+                  </span>
+                  <span className="tnum shrink-0 pl-2 font-medium text-ink-900">
+                    {fmt(toAED(Number(item.amount) || 0, item.currency, fxRates))}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

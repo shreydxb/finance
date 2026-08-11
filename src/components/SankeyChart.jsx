@@ -12,7 +12,7 @@ import { useState } from 'react'
  * `sources` / `destinations`: [{ key, label, value, color }]. `hubLabel` /
  * `hubValue` describe the middle node (normally "Income", total inflow).
  */
-export default function SankeyChart({ sources, destinations, hubLabel, hubValue, formatValue, height = 380 }) {
+export default function SankeyChart({ sources, destinations, hubLabel, hubValue, formatValue, height = 380, onSourceClick, onDestClick }) {
   const [hover, setHover] = useState(null) // { side: 'source'|'dest', key }
 
   if (sources.length === 0 && destinations.length === 0) {
@@ -121,7 +121,8 @@ export default function SankeyChart({ sources, destinations, hubLabel, hubValue,
             key={n.key}
             onMouseEnter={() => setHover({ side: 'source', key: n.key })}
             onMouseLeave={() => setHover(null)}
-            className="cursor-default"
+            onClick={onSourceClick ? () => onSourceClick(n) : undefined}
+            className={onSourceClick ? 'cursor-pointer' : 'cursor-default'}
           >
             <rect x={colX.source} y={n.y} width={nodeW} height={n.h} rx="3" fill={n.color} opacity={dim('source', n.key) ? 0.4 : 1} />
             <text x={colX.source - 8} y={n.y + n.h / 2 - 6} textAnchor="end" className="fill-ink-700 text-[12px] font-medium">
@@ -138,7 +139,8 @@ export default function SankeyChart({ sources, destinations, hubLabel, hubValue,
             key={n.key}
             onMouseEnter={() => setHover({ side: 'dest', key: n.key })}
             onMouseLeave={() => setHover(null)}
-            className="cursor-default"
+            onClick={onDestClick ? () => onDestClick(n) : undefined}
+            className={onDestClick ? 'cursor-pointer' : 'cursor-default'}
           >
             <rect x={colX.dest} y={n.y} width={nodeW} height={n.h} rx="3" fill={n.color} opacity={dim('dest', n.key) ? 0.4 : 1} />
             <text x={colX.dest + nodeW + 8} y={n.y + n.h / 2 - 6} className="fill-ink-700 text-[12px] font-medium">
