@@ -25,3 +25,10 @@ verify_jwt = true
 
 [functions.refresh-fx]
 verify_jwt = true
+
+# Called by pg_cron (via pg_net) with the service-role key in the Authorization
+# header, and occasionally by hand. It reads every table and holds the backup
+# passphrase, so platform JWT verification is the boundary — there is no
+# browser caller and therefore no reason to relax it.
+[functions.backup]
+verify_jwt = true
