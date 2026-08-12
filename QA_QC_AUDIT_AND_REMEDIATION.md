@@ -16,19 +16,23 @@ The original audit inherited its production claims from `CLAUDE.md` and said so.
 
 | Claim in `CLAUDE.md` / audit | Live reality (12 Aug 2026) |
 |---|---|
-| "Zero transactions logged in production, ever" | **63 active transactions** — 41 Telegram, 21 manual, dated 18 May – 10 Aug |
+| "Zero transactions logged in production, ever" | **13 real transactions**, all Telegram-sourced, 11 Jul – 10 Aug (plus 50 `[TEST]` fixtures, since deleted) |
 | "`refresh-prices` has never completed a successful run" | **HTTP 200 on 11 Aug**; `refresh-fx` 200 on 12 Aug and FX rates written |
-| "Receipt-photo accuracy is unproven, no real photo through the pipeline" | **8 real photo extractions: 4 succeeded, 4 failed (50% failure rate)** |
+| "Receipt-photo accuracy is unproven, no real photo through the pipeline" | **8 real photo extractions: 4 succeeded, 4 failed** — and neither failure cause was accuracy (BOT-02) |
 
-This raises SEC-01's severity: the fail-open webhook guards 63 real financial
-rows in a live group chat, not an empty table.
+This raises SEC-01's severity: the fail-open webhook guards real financial rows
+in a live group chat, not an empty table.
 
 ### Live database facts
 
+Counts below are **post-cleanup** (see `docs/data-ops/2026-08-12-test-data-cleanup.md`).
+The first pass of this audit read 63 transactions; 50 of those were `[TEST]`
+fixtures and are gone.
+
 - Schema: repo migrations `008`–`022` are **all applied**; `001`–`007` manual, as documented. **No repo/live schema drift.**
 - 46 accounts — **25 INR, 16 USD, 5 AED**. Mixed currency is the norm, not an edge case.
-- 63 transactions (62 AED, 1 USD); 0 soft-deleted; 3 zero-amount; 9 `needs_review`; **39 never reviewed**.
-- 3 `split_group_id` groups total: 2 real category splits, 1 transfer (2 rows, 1,000 AED).
+- **13 transactions**; 3 zero-amount; 3 uncategorised; 4 `needs_review`; **none ever reviewed**. Real spend total **2,717.57 AED**.
+- **0 `split_group_id` groups.** All 3 belonged to the fixture set, so no real category split or transfer has ever been recorded — DATA-01 has nothing to backfill.
 - **0** duplicate budgets, **0** orphaned category names, **0** account type/liability contradictions, **0** malformed investment rows.
 - All 19 RLS policies are `using(true) with check(true)` for role `authenticated`.
 - Edge Functions: `telegram-intake` v22 (`verify_jwt: false`), `refresh-prices` v2 and `refresh-fx` v1 (both `verify_jwt: true`).
@@ -46,7 +50,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 - **`TELEGRAM_WEBHOOK_SECRET` / `DEMO_MODE` presence** — no secrets-listing tool; last Telegram traffic (10 Aug) is outside the 24h log window. SEC-01's live status is genuinely unknown. The code path is fail-open regardless, so the fix stands either way.
 - **Auth configuration** — signup status, providers, user list, MFA, redirect URLs.
 - **Backups / PITR** — no tool. **This gates SEC-02.**
-- **Netlify entirely** — connector exposes no tools in this session. Only `netlify.toml` was read.
+- **Netlify**: project is `apna-rokda` (team `nf_team_dev`), production serves `main--apna-rokda.netlify.app`, current deploy `ready`. Build settings and env-var names were not enumerated.
 
 ---
 
@@ -56,7 +60,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 |---|---|---|---|
 | SEC-01 | P0 | Missing webhook secret fails open; body-supplied identity is forgeable | **Confirmed, severity raised** — ✅ **fixed in repo** |
 | SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ⛔ blocked on backup + Auth UUIDs |
-| DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed, scope tiny** (3 groups) — pending |
+| DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed in code; zero live rows to migrate** — pending |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — partially addressed |
 | DATA-02 | P0 | Multi-row writes not atomic or idempotent | Confirmed (code structure) — pending |
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
@@ -78,9 +82,9 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 |---|---|---|
 | MONEY-02b | P1 | `sumByOwnerAED` also lacked the transfer guard — ✅ fixed |
 | MONEY-01b | P0 | FX conversion duplicated across two modules with independent silent fallbacks (`settings.js:toAED`, `money.js:convert`) — partially addressed |
-| BOT-02 | **P1** | **50% receipt-photo extraction failure rate** in real usage (4 of 8). Real telemetry; appears in no other document |
-| DATA-05 | P2 | 3 zero-amount transactions live; no constraint prevents them |
-| OPS-03 | P2 | 39 of 63 transactions never reviewed — reconciliation backlog |
+| BOT-02 | **P1** | **50% receipt-photo extraction failure rate** in real usage (4 of 8). Root-caused — ✅ **fixed in repo** |
+| DATA-05 | P2 | 3 of 13 real transactions have `amount = 0`; no constraint prevents them |
+| OPS-03 | P2 | None of the 13 real transactions has ever been marked reviewed |
 | OPS-04 | P2 | `netlify.toml` sets no security headers (no CSP, HSTS, `X-Frame-Options`) |
 
 ---
@@ -140,9 +144,36 @@ calculation fix; the reconciliation is a read-only confirmation of its effect.
 
 **Rollback:** revert the listed files. No migration, no data change.
 
-### Gate results after WP1 + WP3 + WP7a
+### ✅ WP8 — BOT-02: receipt-photo extraction failures
 
-**162/162 tests pass** (139 pre-existing + 16 gate + 7 reports).
+**Changed:** `supabase/functions/telegram-intake/extract.ts`, `extract.test.ts`
+(3 tests), `CLAUDE.md`.
+
+`intake_logs` root-causes all 4 real failures, and **neither cause was model
+accuracy** — the framing recorded in `CLAUDE.md` and inherited by the audit:
+
+| Failures | Cause | Status |
+|---|---|---|
+| 2 (10 Aug 15:59) | `Unsupported MIME type: application/octet-stream` — Telegram serves photos as generic binary | **Already fixed** in `f829ce9`, deployed |
+| 2 (10 Aug 16:12) | Model cut off at the `max_tokens: 500` cap mid-array | **Fixed here** |
+
+The second pair is the interesting one. A truncated response is *valid JSON that
+stops mid-object*, so `parseJsonObject` reported `Model returned malformed JSON`.
+That error names the symptom and hides the cause — the model had been correct up
+to the byte it was cut off at. It is why the project notes say receipt accuracy
+is unproven, and why this went unfixed for two days.
+
+- `max_tokens` 500 → **2,000**. The pipeline asks for an *array* — one object per line item for itemized receipts (018) and bulk messages (round2 §2) — at roughly 60–80 tokens each, so 500 covered about six items. This is a ceiling, not a spend: tokens bill as generated.
+- `finish_reason: 'length'` is now detected and raised as an explicit truncation error, so a future cap breach names itself instead of masquerading as a parse failure.
+
+**Rollback:** revert the two files. No migration, no production state touched.
+
+**Not verifiable locally:** that a real receipt now extracts end to end. That
+needs a deploy and a live photo — the remaining acceptance criterion.
+
+### Gate results after WP1 + WP3 + WP7a + WP8
+
+**165/165 tests pass** (139 pre-existing + 16 gate + 7 reports + 3 extraction).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

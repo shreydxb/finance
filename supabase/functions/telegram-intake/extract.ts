@@ -26,6 +26,23 @@ export class ExtractionError extends Error {}
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
+/**
+ * Output cap for a single extraction.
+ *
+ * Was 500, which is comfortable for a one-line spend and far too tight for the
+ * shapes this pipeline actually asks for: an itemized receipt (018) and a bulk
+ * message (round2 §2) both return an *array* of items, each with date, amount,
+ * currency, category, paid_by, paid_with, note and confidence. Two real
+ * receipts on 10 Aug were cut off mid-array at ~500 tokens and recorded as
+ * extraction failures.
+ *
+ * This is a ceiling, not a spend: tokens are billed as generated, so raising it
+ * costs nothing on the receipts that never approach it. At Gemini Flash-Lite's
+ * output pricing even a full 2,000-token response is a fraction of a US cent,
+ * against a household budget of well under $0.50/month.
+ */
+const MAX_COMPLETION_TOKENS = 2000
+
 type FetchLike = typeof fetch
 
 export class OpenRouterClient implements ModelClient {
@@ -55,7 +72,7 @@ export class OpenRouterClient implements ModelClient {
       body: JSON.stringify({
         model: this.model,
         temperature: 0,
-        max_tokens: 500,
+        max_tokens: MAX_COMPLETION_TOKENS,
         response_format: { type: 'json_object' },
         messages,
       }),
@@ -64,7 +81,7 @@ export class OpenRouterClient implements ModelClient {
       throw new ExtractionError(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`)
     }
     const payload = (await res.json()) as {
-      choices?: { message?: { content?: string } }[]
+      choices?: { message?: { content?: string }; finish_reason?: string }[]
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
     }
     this.lastUsage = payload.usage
@@ -76,6 +93,19 @@ export class OpenRouterClient implements ModelClient {
       : null
     const content = payload.choices?.[0]?.message?.content
     if (!content) throw new ExtractionError('OpenRouter returned no content')
+
+    // A truncated response is *valid JSON that stops mid-object*, so the parser
+    // downstream reports it as "malformed JSON" — which is how two real receipt
+    // failures on 10 Aug were read as the model being inaccurate, when the
+    // model had been right up to the byte it was cut off at. Name it here,
+    // where the cause is actually knowable.
+    if (payload.choices?.[0]?.finish_reason === 'length') {
+      throw new ExtractionError(
+        `Model response truncated at the ${MAX_COMPLETION_TOKENS}-token cap ` +
+          `(finish_reason=length). The receipt is longer than the cap allows, not misread.`
+      )
+    }
+
     return content
   }
 

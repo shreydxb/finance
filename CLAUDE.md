@@ -28,20 +28,26 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
 
 ## Open items (as of 9 Aug 2026, verified against live DB/deploy)
 
-- **`refresh-prices` has never completed a successful run.** The Edge Function
-  is deployed (version 2) and the button is live on Accounts → Investments,
-  but every observed invocation so far failed. The first bug — it rejected the
-  browser's CORS preflight with 405, so the POST never fired — is fixed and
-  redeployed; nothing has been run since. Check
-  `get_logs(service='edge-function')` before assuming it works. Two tickers are
-  unproven against Yahoo in particular: `SKHY` (an ADR) and any future NSE
-  symbol.
-- **Zero transactions logged in production, ever** — not one, manual or
-  Telegram. Receipt-photo accuracy is unproven; text intake works end to end
-  but no real photograph has been through the pipeline yet. Note this is now
-  the *only* major table still empty: accounts, recurring, budgets, goals and
-  goal_contributions all carry real data. See the tuning pass in the function
-  README.
+- **`refresh-prices` has now succeeded** — HTTP 200 on 11 Aug 2026 (verified
+  12 Aug via edge logs), and `refresh-fx` returned 200 on 12 Aug with rates
+  written to `settings.fx_rates`. The earlier "never completed a successful
+  run" note is obsolete. Two tickers remain unproven against Yahoo
+  specifically: `SKHY` (an ADR) and any future NSE symbol.
+- **13 real transactions in production** (verified 12 Aug against the live DB).
+  All are Telegram-sourced, dated 11 Jul – 10 Aug; 3 carry `amount = 0` and 3
+  have no category, which is the residue of the extraction failures below.
+  None has ever been marked reviewed. A further 50 rows carrying a `[TEST]`
+  note prefix — 79% of the table, and the source of every inflated total the
+  app was showing — were deleted on 12 Aug; see
+  `docs/data-ops/2026-08-12-test-data-cleanup.md`.
+- **Receipt-photo extraction failed 4 times out of 8 in real use, and neither
+  cause was model accuracy.** `intake_logs` records both. Two failures were
+  `Unsupported MIME type: application/octet-stream` — fixed same day in
+  `f829ce9` and deployed. The other two were the model being cut off at the
+  `max_tokens: 500` cap partway through an itemized array; the truncated JSON
+  was then reported as "malformed JSON", which is what made this look like an
+  accuracy problem. The cap is now 2,000 and `finish_reason: 'length'` is
+  detected and named explicitly (`extract.ts`). **Not yet deployed.**
 - **The Telegram webhook secret is unset — and as of 10 Aug this is a blocker,
   not a tolerated gap.** The function skips the header check (it logs a warning),
   so the household allowlist is the only gate — and that allowlist reads
