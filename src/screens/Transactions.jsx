@@ -5,7 +5,7 @@ import {
   createSplitTransaction,
   updateTransaction,
   deleteTransaction,
-  deleteSplitGroup,
+  deleteTransactionGroup,
   countNeedsReview,
   markReviewed,
   countUnreviewed,
@@ -17,7 +17,8 @@ import { listCategories } from '../lib/categories'
 import { sortByAmountAED, transactionStats, transactionsToCSV } from '../lib/reports'
 import { usePrefs } from '../lib/PrefsContext'
 import TransactionForm from '../components/TransactionForm'
-import TransactionList, { groupBySplit, entryKey } from '../components/TransactionList'
+import TransactionList from '../components/TransactionList'
+import { groupEntries, entryKey } from '../lib/transactionGroups'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -85,7 +86,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   // forget the payload so revisiting this tab later doesn't reopen it.
   useEffect(() => {
     if (!navPayload?.openTransactionId || transactions.length === 0) return
-    const entry = groupBySplit(transactions).find((e) =>
+    const entry = groupEntries(transactions).find((e) =>
       e.kind === 'single' ? e.transaction.id === navPayload.openTransactionId : e.lines.some((l) => l.id === navPayload.openTransactionId)
     )
     if (entry) openEdit(entry)
@@ -109,7 +110,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
 
   const selectedEntries = useMemo(() => {
     const keys = new Set(selectedIds)
-    return groupBySplit(transactions).filter((e) => keys.has(entryKey(e)))
+    return groupEntries(transactions).filter((e) => keys.has(entryKey(e)))
   }, [transactions, selectedIds])
 
   async function handleCreateRule(pattern, category) {
@@ -156,7 +157,16 @@ export default function Transactions({ navPayload, onConsumeNav }) {
     setBulkBusy(true)
     try {
       await Promise.all(
-        selectedEntries.map((e) => (e.kind === 'single' ? deleteTransaction(e.transaction.id) : deleteSplitGroup(e.splitGroupId)))
+        // Only a category split deletes as a unit — its lines are meaningless
+        // apart. A transfer's two rows are deleted together too, but by id, so
+        // the intent stays explicit. Anything else deletes one row at a time.
+        selectedEntries.map((e) =>
+          e.kind === 'single'
+            ? deleteTransaction(e.transaction.id)
+            : e.kind === 'split'
+              ? deleteTransactionGroup(e.groupId)
+              : Promise.all(e.lines.map((l) => deleteTransaction(l.id)))
+        )
       )
       setSelectedIds(new Set())
       await refresh()
@@ -188,11 +198,18 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   }
 
   function openEdit(entry) {
+    if (entry.kind === 'transfer') {
+      // Editing a transfer through the split editor would rewrite both sides
+      // from one row's fields and lose the pairing. Until it has an editor of
+      // its own, open the outgoing row alone (DATA-01).
+      setEditing(entry.out ?? entry.lines[0])
+      return
+    }
     if (entry.kind === 'split') {
       const first = entry.lines[0]
       setEditing({
         id: first.id,
-        split_group_id: entry.splitGroupId,
+        transaction_group_id: entry.groupId,
         splitGroup: entry.lines,
         date: first.date,
         currency: first.currency,
@@ -211,7 +228,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
 
     if (isEditingExisting) {
       if (editing.splitGroup) {
-        await deleteSplitGroup(editing.split_group_id)
+        await deleteTransactionGroup(editing.transaction_group_id)
       } else if (!result.split) {
         await updateTransaction(editing.id, result.fields)
         setEditing(null)
@@ -260,7 +277,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
 
   async function handleDelete() {
     if (editing.splitGroup) {
-      await deleteSplitGroup(editing.split_group_id)
+      await deleteTransactionGroup(editing.transaction_group_id)
     } else {
       await deleteTransaction(editing.id)
     }

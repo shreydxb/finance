@@ -60,7 +60,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 |---|---|---|---|
 | SEC-01 | P0 | Missing webhook secret fails open; body-supplied identity is forgeable | **Confirmed, severity raised** — ✅ **fixed in repo** |
 | SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ✅ **APPLIED to production & verified** |
-| DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed in code; zero live rows to migrate** — pending |
+| DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed; zero live rows to migrate** — ✅ code done; migration 025 awaiting apply |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
 | DATA-02 | P0 | Multi-row writes not atomic or idempotent | Confirmed (code structure) — pending |
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
@@ -312,9 +312,58 @@ whether the caller is themselves a member.
 Auth config), and a real sign-in by each user — the probe proves the policies,
 only a login proves the app.
 
-### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10
+### ✅ WP4 — DATA-01: explicit transaction group semantics
 
-**190/190 tests pass** — 139 pre-existing plus 51 added across the gate, reports, extraction, money, dates and mixed-currency suites.
+**Changed:** `supabase/schema/025_transaction_groups.sql` (new),
+`src/lib/transactionGroups.js` (new) + `transactionGroups.test.js` (new, 10 tests),
+`src/components/TransactionList.jsx`, `src/screens/Transactions.jsx`,
+`src/lib/transactions.js`, `_shared/types.ts`, `_shared/store.ts`,
+`telegram-intake/intake.ts`, `fixtures/fakes.ts`, `intake.test.ts`.
+
+`split_group_id` meant one thing in 006 — the lines of one purchase across
+categories. Transfers (020) and bulk batches (round2 §2) reused the column for
+different relationships without recording which, so the frontend guessed, and
+guessed "category split" every time.
+
+**The schema now records the relationship:** `transaction_group_id` +
+`group_kind` (`category_split` / `transfer` / `bulk_batch`) +
+`transfer_direction`, with check constraints making a group id without a kind
+impossible, and a direction legal only on a transfer. `split_group_id` is
+retained, unused and documented as deprecated — the schema is additive-only.
+
+**Behaviour fixed:**
+
+| Kind | Before | After |
+|---|---|---|
+| Category split | one entry, correct | unchanged |
+| Transfer | "Split", total **doubled** | one movement, one amount, from → to, labelled *not a spend* |
+| Bulk batch | unrelated spends **merged** into one row showing only the first's date/account/note | independent rows, each with its own key |
+
+**Two cross-contamination paths closed.** Bulk-batch rows can no longer be
+deleted as a group when one is selected — they delete individually. And the
+single-row Confirm in Telegram now cascades **only** for `group_kind =
+'transfer'`; previously it cascaded to any group sibling, so confirming one row
+of a bulk batch silently confirmed unrelated spends.
+
+**An unknown or absent `group_kind` falls back to independent rows** — the safe
+direction, showing each row as it is rather than merging rows that may not
+belong together.
+
+The grouping logic moved out of `TransactionList.jsx` into `src/lib/`: Node
+cannot load `.jsx`, so logic living there is untestable without a build step —
+the same trap that left `toAED` untested inside `settings.js`. Side effect:
+lint warnings dropped 9 → 6.
+
+**Dry-run validated against production:** `backfilled=0`,
+`constraint_violations=0`, `total_rows=13`, then rolled back. Zero rows carry a
+group id, so there is nothing ambiguous to classify and no exceptions report.
+
+**Rollback:** drop the three constraints; the nullable columns can stay.
+Reverting the application code restores the old behaviour.
+
+### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4
+
+**221/221 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

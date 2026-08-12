@@ -31,14 +31,17 @@ export async function createTransaction(fields) {
 }
 
 export async function createSplitTransaction(baseFields, splitLines) {
-  const splitGroupId = crypto.randomUUID()
+  const groupId = crypto.randomUUID()
   const rows = splitLines.map((line) => ({
     ...baseFields,
     category: line.category,
     amount: line.amount,
     source: 'manual',
     needs_review: false,
-    split_group_id: splitGroupId,
+    // Declared, never inferred: these rows are lines of one purchase, which is
+    // a different relationship from a transfer pair or a bulk batch (DATA-01).
+    transaction_group_id: groupId,
+    group_kind: 'category_split',
   }))
   const { data, error } = await supabase.from('transactions').insert(rows).select()
   if (error) throw error
@@ -95,7 +98,15 @@ export async function deleteTransaction(id) {
   if (error) throw error
 }
 
-export async function deleteSplitGroup(splitGroupId) {
-  const { error } = await supabase.from('transactions').delete().eq('split_group_id', splitGroupId)
+/**
+ * Delete every row of one group.
+ *
+ * Only ever called for a category split, whose lines are meaningless apart.
+ * Transfers and bulk batches must not be routed here: a bulk batch's rows are
+ * independent spends that merely arrived together, and deleting the batch
+ * because one row was selected destroys the others.
+ */
+export async function deleteTransactionGroup(groupId) {
+  const { error } = await supabase.from('transactions').delete().eq('transaction_group_id', groupId)
   if (error) throw error
 }

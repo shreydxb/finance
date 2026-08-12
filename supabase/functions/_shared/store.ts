@@ -143,8 +143,8 @@ export class PostgrestStore implements IntakeStore {
     return rows[0] ?? null
   }
 
-  async findTransactionsBySplitGroup(splitGroupId: string): Promise<TransactionRow[]> {
-    return this.request<TransactionRow[]>(`/transactions?split_group_id=eq.${encodeURIComponent(splitGroupId)}`)
+  async findTransactionsByGroup(groupId: string): Promise<TransactionRow[]> {
+    return this.request<TransactionRow[]>(`/transactions?transaction_group_id=eq.${encodeURIComponent(groupId)}`)
   }
 
   async getSetting(key: string): Promise<unknown | null> {

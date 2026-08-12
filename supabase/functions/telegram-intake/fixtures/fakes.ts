@@ -89,13 +89,16 @@ export class FakeStore implements IntakeStore {
       items: row.items ?? null,
       deleted_at: row.deleted_at ?? null,
       split_group_id: row.split_group_id ?? null,
+      transaction_group_id: row.transaction_group_id ?? null,
+      group_kind: row.group_kind ?? null,
+      transfer_direction: row.transfer_direction ?? null,
     }
     this.rows.set(id, stored)
     return Promise.resolve(stored)
   }
 
-  findTransactionsBySplitGroup(splitGroupId: string): Promise<TransactionRow[]> {
-    return Promise.resolve(Array.from(this.rows.values()).filter((row) => row.split_group_id === splitGroupId))
+  findTransactionsByGroup(groupId: string): Promise<TransactionRow[]> {
+    return Promise.resolve(Array.from(this.rows.values()).filter((row) => row.transaction_group_id === groupId))
   }
 
   updateTransaction(id: string, patch: Partial<TransactionRow>): Promise<TransactionRow> {

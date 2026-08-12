@@ -264,7 +264,7 @@ async function handleBulk(
     return writeAndAnnounce(extractions[0], message, household, senderId, deps, t0, 'text', 'extract_bulk')
   }
 
-  const splitGroupId = crypto.randomUUID()
+  const batchId = crypto.randomUUID()
   const resolvedRows = extractions.map((extraction) => ({ extraction, resolved: resolve(extraction, household, senderId) }))
 
   const rows = await Promise.all(
@@ -285,7 +285,11 @@ async function handleBulk(
         // that message match an arbitrary row. Fix #n threads correctly
         // anyway because tapping Fix sends its own distinct prompt message
         // per row (see the 'fix' callback branch — unmodified for bulk).
-        split_group_id: splitGroupId,
+        // These rows are independent spends that merely arrived in one
+        // message. Declaring the kind stops the UI merging them into a single
+        // "split" row and stops a confirm on one cascading to the others.
+        transaction_group_id: batchId,
+        group_kind: 'bulk_batch',
         items: extraction.items,
       })
     )
@@ -472,7 +476,7 @@ function cashbackKeyboard(pendingId: string): InlineKeyboardButton[][] {
 /**
  * A transfer between the household's own accounts — write-then-flag like a
  * spend (rule #3: it's still a `transactions` write), never propose-then-tap.
- * Two rows land immediately, category='Transfer', sharing one split_group_id
+ * Two rows land immediately, category='Transfer', sharing one transaction_group_id with group_kind='transfer' and opposite transfer_direction
  * so `src/lib/reports.js`/Budget exclude both from every spend/budget total.
  * accounts.value is never touched (docs/telegram-bot-round2-design.md §3).
  */
@@ -510,7 +514,7 @@ async function handleTransfer(
   const sameAccount = Boolean(fromAccount && toAccount && fromAccount.id === toAccount.id)
   const needsReview = extraction.amount === null || !fromAccount || !toAccount || sameAccount
   const owner = household.people.get(senderId) || null
-  const splitGroupId = crypto.randomUUID()
+  const transferId = crypto.randomUUID()
 
   const outRow = await deps.store.insertTransaction({
     date: extraction.date,
@@ -524,7 +528,9 @@ async function handleTransfer(
     needs_review: needsReview,
     telegram_chat_id: message.chat.id,
     telegram_msg_id: message.message_id,
-    split_group_id: splitGroupId,
+    transaction_group_id: transferId,
+    group_kind: 'transfer',
+    transfer_direction: 'out',
   })
   await deps.store.insertTransaction({
     date: extraction.date,
@@ -538,7 +544,9 @@ async function handleTransfer(
     needs_review: needsReview,
     telegram_chat_id: message.chat.id,
     telegram_msg_id: message.message_id,
-    split_group_id: splitGroupId,
+    transaction_group_id: transferId,
+    group_kind: 'transfer',
+    transfer_direction: 'in',
   })
 
   await logInbound(deps, message, household, senderId, 'text', {
@@ -601,7 +609,7 @@ function missingTransferFields(extraction: TransferExtraction, fromAccount: Acco
 // Deliberately just Confirm, not the spend Confirm/Fix pair — a Fix reply
 // would need its own from/to correction extraction, which isn't built here.
 // Reuses the 'confirm' callback action so handleCallback's existing branch
-// (made split_group_id-aware below) applies to both rows of the pair.
+// (made group-aware below) applies to both rows of the pair.
 function transferConfirmKeyboard(transactionId: string): InlineKeyboardButton[][] {
   return [[{ text: '✅ Confirm', callback_data: `confirm:${transactionId}` }]]
 }
@@ -650,7 +658,7 @@ function describeBulkLine(n: number, extraction: Extraction, resolved: Resolved)
 }
 
 /**
- * Confirm all cascades via split_group_id (confirm_group, below); Fix #n is
+ * Confirm all cascades via transaction_group_id (confirm_group, below); Fix #n is
  * plain per-row `fix:<transactionId>` — the existing single-row Fix flow
  * (its own forceReply prompt, its own telegram_prompt_msg_id) needs no
  * bulk-specific handling at all, since each button already names its own row.
@@ -945,12 +953,12 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
   }
 
   if (parsed.action === 'confirm_group') {
-    // Unlike the single-row 'confirm' below (and its split_group_id cascade
+    // Unlike the single-row 'confirm' below (and its transfer-only cascade
     // for a transfer pair, where both rows always share one amount), a bulk
     // group's rows can have independently zero amounts — so each sibling is
     // guarded individually rather than blessing the whole group at once.
-    const groupId = row.split_group_id
-    const siblings = groupId ? await deps.store.findTransactionsBySplitGroup(groupId) : [row]
+    const groupId = row.transaction_group_id
+    const siblings = groupId ? await deps.store.findTransactionsByGroup(groupId) : [row]
     const clearable = siblings.filter((sibling) => Number(sibling.amount) !== 0)
     const blocked = siblings.filter((sibling) => Number(sibling.amount) === 0)
 
@@ -1007,9 +1015,12 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     }
 
     const updated = await deps.store.updateTransaction(row.id, { needs_review: false, telegram_prompt_msg_id: null })
-    if (updated.split_group_id) {
-      // A transfer's pair: Confirm applies to the pair as a unit, not just the half that carried the button.
-      const siblings = await deps.store.findTransactionsBySplitGroup(updated.split_group_id)
+    // Only a transfer confirms as a unit: its two halves are one movement, so
+    // blessing one must bless the other. A bulk batch must NOT cascade — its
+    // rows are independent spends, and confirming one says nothing about the
+    // rest (they use the confirm_group action instead).
+    if (updated.transaction_group_id && updated.group_kind === 'transfer') {
+      const siblings = await deps.store.findTransactionsByGroup(updated.transaction_group_id)
       await Promise.all(
         siblings.filter((sibling) => sibling.id !== updated.id).map((sibling) => deps.store.updateTransaction(sibling.id, { needs_review: false }))
       )
