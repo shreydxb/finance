@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { toAED } from './settings'
+import { toAED } from './money'
 
 export function useNetWorth(accounts, fxRates) {
   return useMemo(() => {

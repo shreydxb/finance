@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { typeLabel } from '../lib/accounts'
-import { toAED } from '../lib/settings'
+import { toAED } from '../lib/money'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import BreakdownBars from './BreakdownBars'

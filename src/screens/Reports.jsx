@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { listTransactions } from '../lib/transactions'
 import { listIncome } from '../lib/income'
 import { listCategories } from '../lib/categories'
-import { getSetting, toAED } from '../lib/settings'
+import { getSetting } from '../lib/settings'
+import { toAED } from '../lib/money'
 import { sumByCategoryAED, sumByGroupAED, sumByMerchantAED, totalAED, transactionStats, monthlyTrend, transactionsToCSV } from '../lib/reports'
 import {
   currentYearMonth,

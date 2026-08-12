@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { updateAccount } from '../lib/accounts'
-import { toAED } from '../lib/settings'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { supabase } from '../lib/supabaseClient'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
-import { formatMoney } from '../lib/money'
+import { formatMoney, toAED } from '../lib/money'
 import AccountForm from '../components/AccountForm'
 import BreakdownBars from '../components/BreakdownBars'
 

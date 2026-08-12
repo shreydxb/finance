@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient'
-import { toAED } from './settings'
+import { toAED } from './money'
 
 /**
  * Net-worth history, recorded client-side.

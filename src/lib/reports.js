@@ -1,4 +1,4 @@
-import { toAED } from './settings'
+import { toAED } from './money.js'
 
 // A transfer between the household's own accounts (Telegram bot round2 §3)
 // is logged as two real `transactions` rows — visible in the Transactions
@@ -7,9 +7,27 @@ import { toAED } from './settings'
 // in the Transfer group, by construction (020_transfers.sql).
 const TRANSFER_CATEGORY = 'Transfer'
 
+/**
+ * The one predicate that decides whether a row counts as household spending.
+ *
+ * Every spend/budget/report total must go through this. It used to be an
+ * inline `t.category === 'Transfer'` check repeated per function, which is
+ * exactly how `sumByMerchantAED`, `monthlyTrend` and `sumByOwnerAED` ended up
+ * without it — a transfer writes two positive rows, so those three were each
+ * inflated by twice the transfer amount.
+ */
+export function isSpend(t) {
+  return t.category !== TRANSFER_CATEGORY
+}
+
+/** Convenience wrapper so callers can't forget to filter before aggregating. */
+export function spendOnly(transactions) {
+  return transactions.filter(isSpend)
+}
+
 export function totalAED(transactions, fxRates) {
   return transactions.reduce(
-    (sum, t) => (t.category === TRANSFER_CATEGORY ? sum : sum + toAED(Number(t.amount) || 0, t.currency, fxRates)),
+    (sum, t) => (isSpend(t) ? sum + toAED(Number(t.amount) || 0, t.currency, fxRates) : sum),
     0
   )
 }
@@ -17,7 +35,7 @@ export function totalAED(transactions, fxRates) {
 export function sumByCategoryAED(transactions, fxRates) {
   const map = new Map()
   for (const t of transactions) {
-    if (t.category === TRANSFER_CATEGORY) continue
+    if (!isSpend(t)) continue
     const key = t.category || 'Uncategorised'
     const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
     map.set(key, (map.get(key) || 0) + aed)
@@ -28,6 +46,7 @@ export function sumByCategoryAED(transactions, fxRates) {
 export function sumByOwnerAED(transactions, fxRates) {
   const map = new Map()
   for (const t of transactions) {
+    if (!isSpend(t)) continue
     const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
     map.set(t.owner, (map.get(t.owner) || 0) + aed)
   }
@@ -38,7 +57,7 @@ export function sumByOwnerAED(transactions, fxRates) {
 export function sumByGroupAED(transactions, fxRates, categoryGroupByName) {
   const map = new Map()
   for (const t of transactions) {
-    if (t.category === TRANSFER_CATEGORY) continue
+    if (!isSpend(t)) continue
     const key = categoryGroupByName.get(t.category) || 'Uncategorised'
     const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
     map.set(key, (map.get(key) || 0) + aed)
@@ -50,6 +69,7 @@ export function sumByGroupAED(transactions, fxRates, categoryGroupByName) {
 export function sumByMerchantAED(transactions, fxRates) {
   const map = new Map()
   for (const t of transactions) {
+    if (!isSpend(t)) continue
     const key = t.note?.trim() || 'No note'
     const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
     map.set(key, (map.get(key) || 0) + aed)
@@ -82,6 +102,7 @@ export function monthlyTrend(transactions, fxRates, months, to = new Date()) {
   }
   const byBucket = new Map(buckets.map((b) => [b.key, 0]))
   for (const t of transactions) {
+    if (!isSpend(t)) continue
     const key = t.date.slice(0, 7)
     if (byBucket.has(key)) {
       byBucket.set(key, byBucket.get(key) + toAED(Number(t.amount) || 0, t.currency, fxRates))

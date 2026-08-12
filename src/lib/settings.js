@@ -15,9 +15,3 @@ export async function upsertSetting(key, value) {
   if (error) throw error
   return data
 }
-
-export function toAED(value, currency, fxRates) {
-  const rate = fxRates?.[currency]
-  if (!rate) return value
-  return value * rate
-}

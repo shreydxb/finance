@@ -1,0 +1,27 @@
+# Supabase project config, committed so the Edge Functions' authentication
+# boundary is reviewable from source instead of living only in dashboard state.
+#
+# Verified against production (`our-rokda`, wrxqgfbolryveivgdjia) on 12 Aug 2026
+# via the Management API: the deployed values already match what is pinned here.
+# This file exists so that stays true — an accidental `--no-verify-jwt` on a
+# later deploy is the kind of change nothing would otherwise catch.
+
+project_id = "wrxqgfbolryveivgdjia"
+
+# Telegram cannot present a Supabase JWT, so this function is deliberately the
+# one public entry point. Its authentication is the webhook secret, enforced
+# fail-closed in telegram-intake/gate.ts — if TELEGRAM_WEBHOOK_SECRET is unset
+# the function refuses every request rather than processing it. Changing
+# verify_jwt here does not change that; the two are independent gates and the
+# function holds a service-role key, so both matter.
+[functions.telegram-intake]
+verify_jwt = false
+
+# Called from the browser by an already-signed-in user. verify_jwt is the real
+# security boundary — the permissive CORS headers in these functions are not
+# authorization and must never be mistaken for it.
+[functions.refresh-prices]
+verify_jwt = true
+
+[functions.refresh-fx]
+verify_jwt = true

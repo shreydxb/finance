@@ -24,6 +24,25 @@ export function fromAED(aed, to, fxRates) {
 }
 
 /**
+ * Convert an amount in `currency` into AED.
+ *
+ * Moved here from settings.js, which imports the Supabase client and so cannot
+ * be loaded outside a browser/Vite context — that made every calculation
+ * depending on it untestable. Conversion is pure arithmetic and belongs beside
+ * the other conversion helpers, as one FX source rather than two.
+ *
+ * NOTE: the missing-rate fallback below is a known silent-failure path
+ * (a missing USD/INR rate is treated as 1:1 AED). It is preserved verbatim
+ * here so this move changes no behaviour; replacing it with a fail-visible
+ * state is MONEY-01 in QA_QC_AUDIT_AND_REMEDIATION.md.
+ */
+export function toAED(value, currency, fxRates) {
+  const rate = fxRates?.[currency]
+  if (!rate) return value
+  return value * rate
+}
+
+/**
  * Format a bare number as money in `currency`.
  *
  * Sign goes before the symbol ("-$1,200", not "$-1,200") because a leading
