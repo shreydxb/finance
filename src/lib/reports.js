@@ -77,12 +77,18 @@ export function sumByMerchantAED(transactions, fxRates) {
   return map
 }
 
-/** Total/largest/average transaction size and first/last date for the given set. */
-export function transactionStats(transactions) {
+/**
+ * Total/largest/average transaction size and first/last date for the given set.
+ *
+ * `largest` and `average` are in AED. They used to compare raw stored amounts,
+ * so a ₹1,000 row outranked a $100 one despite being worth a fraction as much,
+ * and the result was then formatted as though it were AED.
+ */
+export function transactionStats(transactions, fxRates) {
   if (transactions.length === 0) {
     return { count: 0, largest: 0, average: 0, first: null, last: null }
   }
-  const amounts = transactions.map((t) => Math.abs(Number(t.amount) || 0))
+  const amounts = transactions.map((t) => Math.abs(toAED(Number(t.amount) || 0, t.currency, fxRates)))
   const dates = transactions.map((t) => t.date).sort()
   return {
     count: transactions.length,
@@ -109,6 +115,27 @@ export function monthlyTrend(transactions, fxRates, months, to = new Date()) {
     }
   }
   return buckets.map((b) => ({ key: b.key, label: `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][b.month - 1]}`, value: byBucket.get(b.key) }))
+}
+
+/**
+ * Sort a transaction list by size, largest first, comparing AED values.
+ *
+ * Postgres orders by the stored `amount`, which is meaningless across
+ * currencies: ₹1,000 sorts above $100 despite being worth a twelfth as much.
+ * The database sort stays as-is (it is the right coarse order for the common
+ * all-AED case); this re-sorts what was loaded so the displayed order is
+ * actually by value. Rows whose currency has no rate sort last rather than
+ * being dropped — they are still real transactions.
+ */
+export function sortByAmountAED(transactions, fxRates) {
+  return transactions.slice().sort((a, b) => {
+    const aAED = Math.abs(toAED(Number(a.amount) || 0, a.currency, fxRates))
+    const bAED = Math.abs(toAED(Number(b.amount) || 0, b.currency, fxRates))
+    if (Number.isNaN(aAED) && Number.isNaN(bAED)) return 0
+    if (Number.isNaN(aAED)) return 1
+    if (Number.isNaN(bAED)) return -1
+    return bAED - aAED
+  })
 }
 
 /** Client-side CSV export of a transaction list. Returns the CSV string. */

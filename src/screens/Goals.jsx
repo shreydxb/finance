@@ -12,6 +12,7 @@ import {
 import { listAccounts } from '../lib/accounts'
 import { createTransaction } from '../lib/transactions'
 import { usePrefs } from '../lib/PrefsContext'
+import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
 import ContributionForm from '../components/ContributionForm'
 
@@ -39,7 +40,7 @@ function ProgressBar({ pct }) {
  * even for. See Debts.jsx for that half.
  */
 export default function Goals({ navPayload, onConsumeNav }) {
-  const { fmt } = usePrefs()
+  const { fmt, fxRates } = usePrefs()
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -127,9 +128,15 @@ export default function Goals({ navPayload, onConsumeNav }) {
   // A goal linked to an account (typically a Fixed Deposit) tracks that
   // account's real balance directly instead of summing logged contributions —
   // same pattern Debts already uses for a linked liability account.
+  // Goal targets are held in AED, so a linked account's balance is converted
+  // before it is compared against one. Every goal happens to be linked to an
+  // AED account today, but 41 of the household's 46 accounts are not AED — the
+  // first goal linked to one of those would otherwise compare, say, a rupee
+  // balance against a dirham target and report wild progress.
   function savedFor(goal) {
     const linked = accountById.get(goal.linked_account_id)
-    return linked ? Number(linked.value) : savedByGoal.get(goal.id) || 0
+    if (!linked) return savedByGoal.get(goal.id) || 0
+    return toAED(Number(linked.value) || 0, linked.currency, fxRates)
   }
 
   const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null

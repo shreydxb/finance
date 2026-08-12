@@ -66,7 +66,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
 | MONEY-02 | P1 | Transfers inflate merchant + trend reports | **Confirmed, wider than audited** — ✅ **fixed in repo** |
 | MONEY-03 | P1 | UTC dates wrong around Dubai midnight | **Confirmed (4 sites)** — ✅ **fixed in repo** |
-| MONEY-04 | P1 | Raw mixed currencies compared/summed | Confirmed — pending |
+| MONEY-04 | P1 | Raw mixed currencies compared/summed | **Confirmed; latent, not live** — ✅ **fixed in repo** |
 | DATA-03 | P1 | Free-text categories; duplicate budgets possible | **Partially disproven** — 0 live violations; preventive only |
 | BOT-01 | P1 | Telegram concurrency/idempotency gaps | Confirmed — pending |
 | UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed**, crash latent (0 live rows with `avg_cost=0`) — pending |
@@ -216,13 +216,39 @@ number.
 
 **Rollback:** revert the listed files. No migration, no data change.
 
-**Not addressed here (MONEY-04):** `transactionStats` still compares raw
-amounts across currencies, and goals/debts still sum linked account values
-without conversion.
+**MONEY-04 followed in WP10.**
 
-### Gate results after WP1 + WP3 + WP7a + WP8 + WP9
+### ✅ WP10 — MONEY-04: one FX snapshot, no raw-currency comparisons
 
-**184/184 tests pass** (139 pre-existing + 16 gate + 7 reports + 3 extraction + 12 money + 8 dates − 1 flake fix).
+**Changed:** `src/lib/reports.js`, `reports.test.js` (+8 tests),
+`src/lib/useAccountsAndFx.js`, `src/screens/Reports.jsx`, `Budget.jsx`,
+`Transactions.jsx`, `Goals.jsx`, `Debts.jsx`.
+
+**Four independent FX copies collapsed into one.** `useAccountsAndFx`, Reports
+and Budget each fetched `fx_rates` separately, then formatted the result with
+`PrefsContext`'s copy — so a screen could compute an AED subtotal from one
+snapshot and display it using another. All three now read `usePrefs().fxRates`.
+Settings keeps its own copy deliberately: it displays the stored rates and
+their timestamp, which is a different job. This is the half of MONEY-01 that
+WP9 did not reach.
+
+**Raw-currency comparisons removed:**
+
+- `transactionStats` — `largest`/`average` were computed on stored amounts, so ₹1,000 outranked $100 despite being worth a twelfth as much, and the result was then formatted as AED. Now converted first, and both callers pass rates.
+- **Sorting by amount** — Postgres orders by the raw column. Added `sortByAmountAED`, applied when the amount sort is active. Unconvertible rows sort last rather than being dropped; the input array is not mutated.
+- **Goals** — `savedFor` returned a linked account's raw balance and compared it against an AED target. Now converted.
+- **Debts** — `totalPrincipal`, `DebtCard` and `DebtDetail` all compared raw linked balances against an AED `starting_balance` and passed them to `fmt`, which assumes AED. All converted.
+
+**Live status: latent, not live.** All six goals/debts currently link to AED
+accounts, so no figure on screen was wrong today. It would have become wrong
+the first time a goal linked to one of the 41 non-AED accounts — which is most
+of them.
+
+**Rollback:** revert the listed files. No migration, no data change.
+
+### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10
+
+**190/190 tests pass** — 139 pre-existing plus 51 added across the gate, reports, extraction, money, dates and mixed-currency suites.
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

@@ -14,7 +14,7 @@ import {
 import { listRules, createRule, deleteRule } from '../lib/categoryRules'
 import { listAccounts, OWNERS } from '../lib/accounts'
 import { listCategories } from '../lib/categories'
-import { transactionStats, transactionsToCSV } from '../lib/reports'
+import { sortByAmountAED, transactionStats, transactionsToCSV } from '../lib/reports'
 import { usePrefs } from '../lib/PrefsContext'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList, { groupBySplit, entryKey } from '../components/TransactionList'
@@ -32,7 +32,7 @@ const EMPTY_FILTERS = {
 }
 
 export default function Transactions({ navPayload, onConsumeNav }) {
-  const { fmt } = usePrefs()
+  const { fmt, fxRates } = usePrefs()
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
   const [categories, setCategories] = useState([])
@@ -171,7 +171,10 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   }, [accounts])
 
   const flat = filters.sort === 'amount'
-  const stats = transactionStats(transactions)
+  // Postgres sorted these by raw amount, which does not order mixed currencies
+  // by value. Re-sort by AED for display (MONEY-04).
+  const ordered = flat ? sortByAmountAED(transactions, fxRates) : transactions
+  const stats = transactionStats(transactions, fxRates)
 
   function downloadCSV() {
     const csv = transactionsToCSV(transactions)
@@ -346,7 +349,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
           <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
 
           <TransactionList
-            transactions={transactions}
+            transactions={ordered}
             accountName={accountName}
             flat={flat}
             onEntryClick={selectMode ? (entry) => toggleSelect(entryKey(entry)) : openEdit}
