@@ -47,6 +47,14 @@ export class PostgrestStore implements IntakeStore {
   fetchImpl: FetchLike
   fallbackThreshold: number
   fallbackTelegramIds: number[]
+  /**
+   * Injectable clock. `Date.now()` has millisecond resolution, so two media-group
+   * joins in the same millisecond produce an identical `updated_at` — which made
+   * the "a later join is detectable" test fail on roughly one run in six. The
+   * behaviour is worth asserting, so the clock is injectable rather than the
+   * assertion weakened.
+   */
+  now: () => string
 
   constructor(opts: {
     supabaseUrl: string
@@ -54,12 +62,14 @@ export class PostgrestStore implements IntakeStore {
     fetchImpl?: FetchLike
     fallbackThreshold?: number
     fallbackTelegramIds?: number[]
+    now?: () => string
   }) {
     this.baseUrl = `${opts.supabaseUrl.replace(/\/$/, '')}/rest/v1`
     this.serviceKey = opts.serviceKey
     this.fetchImpl = opts.fetchImpl ?? fetch
     this.fallbackThreshold = opts.fallbackThreshold ?? FALLBACK_CONFIDENCE_THRESHOLD
     this.fallbackTelegramIds = opts.fallbackTelegramIds ?? []
+    this.now = opts.now ?? (() => new Date().toISOString())
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -178,7 +188,7 @@ export class PostgrestStore implements IntakeStore {
   }
 
   async joinMediaGroup(mediaGroupId: string, chatId: number, fileId: string, caption: string | null): Promise<MediaGroupState> {
-    const nowIso = new Date().toISOString()
+    const nowIso = this.now()
     const existing = await this.request<MediaGroupRow[]>(
       `/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`
     )
@@ -217,7 +227,7 @@ export class PostgrestStore implements IntakeStore {
     await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}`, {
       method: 'PATCH',
       headers: { prefer: 'return=representation' },
-      body: JSON.stringify({ processed_at: new Date().toISOString() }),
+      body: JSON.stringify({ processed_at: this.now() }),
     })
   }
 

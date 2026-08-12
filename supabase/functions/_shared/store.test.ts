@@ -117,7 +117,12 @@ test('joinMediaGroup creates then appends, and claimMediaGroup marks it processe
     return new Response(JSON.stringify([stored]), { status: method === 'POST' ? 201 : 200 })
   }) as unknown as typeof fetch
 
-  const store = new PostgrestStore({ supabaseUrl: 'https://project.supabase.co', serviceKey: 'service-key', fetchImpl })
+  // A fixed, strictly-increasing clock. Real Date.now() has millisecond
+  // resolution, so two joins in the same millisecond produced an identical
+  // updated_at and failed the assertion below on roughly one run in six.
+  let tick = 0
+  const now = () => new Date(Date.UTC(2026, 7, 12, 10, 0, 0) + ++tick * 1000).toISOString()
+  const store = new PostgrestStore({ supabaseUrl: 'https://project.supabase.co', serviceKey: 'service-key', fetchImpl, now })
 
   const first = await store.joinMediaGroup('grp-1', -100, 'file-a', 'weekly shop')
   assert.deepEqual(first.fileIds, ['file-a'])
