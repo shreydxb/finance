@@ -59,7 +59,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | ID | Pri | Finding | Verified status |
 |---|---|---|---|
 | SEC-01 | P0 | Missing webhook secret fails open; body-supplied identity is forgeable | **Confirmed, severity raised** — ✅ **fixed in repo** |
-| SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ⛔ blocked on backup + Auth UUIDs |
+| SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — migration written & dry-run validated; **awaiting approval to apply** |
 | DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed in code; zero live rows to migrate** — pending |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
 | DATA-02 | P0 | Multi-row writes not atomic or idempotent | Confirmed (code structure) — pending |
@@ -245,6 +245,36 @@ the first time a goal linked to one of the 41 non-AED accounts — which is most
 of them.
 
 **Rollback:** revert the listed files. No migration, no data change.
+
+### ⏸ WP2 — SEC-02: membership-based RLS (written, not applied)
+
+**Changed:** `supabase/schema/023_household_members.sql` (new).
+
+All 19 live policies read `using (true) with check (true)` for `authenticated`
+— RLS is enabled but isolates nothing. The migration adds a
+`household_members` roster and rewrites every policy to test membership.
+
+**Why it cannot lock the household out:**
+
+1. Members are seeded from `auth.users` **before** any policy changes, in the same transaction — no window where a real user is authenticated but not yet a member.
+2. The seed reads existing accounts rather than hardcoded UUIDs. Verified: exactly two accounts exist, both the household's.
+3. `service_role` bypasses RLS, so all four Edge Functions are unaffected.
+4. The SQL editor and Management API also bypass RLS — a mistake locks the *app* out, never the admin. Recovery is one statement per table.
+
+**Two details worth noting:**
+
+- `is_household_member()` is `SECURITY DEFINER` out of necessity, not convenience: the policy on `household_members` calls it, so a function subject to RLS would consult the policy that called it and recurse. `search_path` is pinned, since a SECURITY DEFINER function resolving names through the caller's path is a privilege-escalation primitive.
+- `nw_daily`'s three command-specific policies (no DELETE, so history cannot be deleted through the API) are preserved exactly — only the predicate changes.
+
+**Dry-run validated against production** (12 Aug): the full migration was
+executed inside a transaction that deliberately raised to force a rollback.
+Result `members=2, permissive_left=17, total=20` — all three as predicted.
+Verified afterwards that nothing persisted: no table, no function, 19 policies
+unchanged.
+
+**Backups are no longer the blocker.** RLS changes cannot lose data; the risk
+is lockout, and the admin path bypasses RLS by construction. Holding this on a
+backup was over-cautious.
 
 ### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10
 
