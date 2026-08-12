@@ -59,7 +59,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | ID | Pri | Finding | Verified status |
 |---|---|---|---|
 | SEC-01 | P0 | Missing webhook secret fails open; body-supplied identity is forgeable | **Confirmed, severity raised** — ✅ **fixed in repo** |
-| SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — migration written & dry-run validated; **awaiting approval to apply** |
+| SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ✅ **APPLIED to production & verified** |
 | DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed in code; zero live rows to migrate** — pending |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
 | DATA-02 | P0 | Multi-row writes not atomic or idempotent | Confirmed (code structure) — pending |
@@ -246,7 +246,7 @@ of them.
 
 **Rollback:** revert the listed files. No migration, no data change.
 
-### ⏸ WP2 — SEC-02: membership-based RLS (written, not applied)
+### ✅ WP2 — SEC-02: membership-based RLS (APPLIED to production)
 
 **Changed:** `supabase/schema/023_household_members.sql` (new).
 
@@ -275,6 +275,42 @@ unchanged.
 **Backups are no longer the blocker.** RLS changes cannot lose data; the risk
 is lockout, and the admin path bypasses RLS by construction. Holding this on a
 backup was over-cautious.
+
+**Applied 12 Aug 2026** as migrations `023_household_members` and
+`024_revoke_anon_household_fn`.
+
+Post-apply state: **2 members, 20 policies across 18 tables, 0 still
+permissive**, 19 predicate-based plus `nw_daily`'s INSERT policy which carries
+the check in `with_check` and correctly has no `using` clause.
+
+**Security matrix, probed against production** inside a rolled-back transaction
+by impersonating each role via `set local role` and `request.jwt.claims`:
+
+| Role | Reads `transactions` | Expected |
+|---|---|---|
+| Household member | **13 rows** | ✅ full access |
+| Authenticated non-member | **0 rows** | ✅ blocked |
+| Signed out (`anon`) | **0 rows** | ✅ blocked |
+| Member insert | **succeeded** | ✅ |
+
+Verified afterwards that the probe insert did not persist: 13 transactions,
+2,717.57 AED, unchanged.
+
+**Advisor follow-up.** The security advisor then flagged
+`is_household_member()` as callable by `anon`. 023's `revoke all from public`
+had not covered it — Supabase grants EXECUTE to anon/authenticated/service_role
+explicitly via default privileges, so the grant is not inherited from PUBLIC.
+`024` revokes it from `anon`.
+
+`authenticated` deliberately keeps EXECUTE: RLS policy expressions evaluate
+with the querying user's privileges, so revoking it there would make every
+policy fail — the exact lockout 023 was built to avoid. Advisor lint 0029 is
+accepted and documented; the function takes no arguments and discloses only
+whether the caller is themselves a member.
+
+**Still open:** leaked-password protection (dashboard toggle, no tool reaches
+Auth config), and a real sign-in by each user — the probe proves the policies,
+only a login proves the app.
 
 ### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10
 

@@ -1,0 +1,38 @@
+-- 024_revoke_anon_household_fn.sql
+--
+-- Follow-up to 023, applied the same day. Supabase's security advisor flagged
+-- `public.is_household_member()` as callable by `anon` via
+-- /rest/v1/rpc/is_household_member (lint 0028).
+--
+-- 023's `revoke all ... from public` did not cover it: Supabase grants EXECUTE
+-- on new public-schema functions to anon / authenticated / service_role
+-- *explicitly*, through default privileges, so the grant is not inherited from
+-- PUBLIC and a revoke from PUBLIC leaves it in place. Verified on the live
+-- ACL, which read `anon=X/postgres` after 023.
+--
+-- Signed out, `auth.uid()` is null and the answer is always false, so anon has
+-- nothing legitimate to gain here — but a public RPC endpoint that need not
+-- exist should not exist.
+--
+-- ---------------------------------------------------------------------------
+-- `authenticated` deliberately keeps EXECUTE
+-- ---------------------------------------------------------------------------
+--
+-- RLS policy expressions are evaluated with the querying user's privileges.
+-- Revoking EXECUTE from `authenticated` would make every policy on every table
+-- fail to evaluate — a complete lockout of both household members, which is
+-- precisely the failure 023 was designed to avoid.
+--
+-- Advisor lint 0029 ("signed-in users can execute this SECURITY DEFINER
+-- function") is therefore expected and accepted for this function. It
+-- discloses only whether the caller is themselves a member; it takes no
+-- arguments and cannot be used to enumerate or test anyone else.
+
+revoke execute on function public.is_household_member() from anon;
+
+-- Verify:
+--   select array_to_string(proacl::text[], ' | ') from pg_proc p
+--   join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and p.proname = 'is_household_member';
+--
+-- Expect: postgres=X | authenticated=X | service_role=X   (no anon)
