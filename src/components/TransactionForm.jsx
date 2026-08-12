@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { OWNERS } from '../lib/accounts'
 import { matchRule } from '../lib/categoryRules'
+import { todayLocal } from '../lib/dates'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return todayLocal()
 }
 
 function sumSplits(lines) {

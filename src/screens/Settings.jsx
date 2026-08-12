@@ -4,6 +4,7 @@ import { listAccounts, updateAccount } from '../lib/accounts'
 import { getSetting, upsertSetting } from '../lib/settings'
 import { supabase } from '../lib/supabaseClient'
 import CategoryForm from '../components/CategoryForm'
+import { usePrefs } from '../lib/PrefsContext'
 
 function formatRelativeTime(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -25,6 +26,7 @@ const BUCKETS = [
 ]
 
 export default function Settings() {
+  const { refreshFx } = usePrefs()
   const [categories, setCategories] = useState([])
   const [accounts, setAccounts] = useState([])
   const [split, setSplit] = useState({ shrey: 0.69, tarika: 0.31 })
@@ -51,7 +53,9 @@ export default function Settings() {
     try {
       const { data, error: fnError } = await supabase.functions.invoke('refresh-fx', { method: 'POST' })
       if (fnError || data?.ok === false) throw new Error(data?.error || fnError?.message || 'refresh failed')
-      await loadFx()
+      // Both copies, or the app keeps formatting every screen with the rates it
+      // read at login while this panel shows the new ones.
+      await Promise.all([loadFx(), refreshFx()])
     } catch {
       setFxError('Could not refresh FX rates. Try again.')
     } finally {

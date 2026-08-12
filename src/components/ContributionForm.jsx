@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { todayLocal } from '../lib/dates'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return todayLocal()
 }
 
 export default function ContributionForm({ accounts = [], onSave, onCancel }) {

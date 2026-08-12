@@ -61,11 +61,11 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | SEC-01 | P0 | Missing webhook secret fails open; body-supplied identity is forgeable | **Confirmed, severity raised** — ✅ **fixed in repo** |
 | SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ⛔ blocked on backup + Auth UUIDs |
 | DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed in code; zero live rows to migrate** — pending |
-| MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — partially addressed |
+| MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
 | DATA-02 | P0 | Multi-row writes not atomic or idempotent | Confirmed (code structure) — pending |
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
 | MONEY-02 | P1 | Transfers inflate merchant + trend reports | **Confirmed, wider than audited** — ✅ **fixed in repo** |
-| MONEY-03 | P1 | UTC dates wrong around Dubai midnight | Confirmed (4 sites) — pending |
+| MONEY-03 | P1 | UTC dates wrong around Dubai midnight | **Confirmed (4 sites)** — ✅ **fixed in repo** |
 | MONEY-04 | P1 | Raw mixed currencies compared/summed | Confirmed — pending |
 | DATA-03 | P1 | Free-text categories; duplicate budgets possible | **Partially disproven** — 0 live violations; preventive only |
 | BOT-01 | P1 | Telegram concurrency/idempotency gaps | Confirmed — pending |
@@ -81,7 +81,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | ID | Pri | Finding |
 |---|---|---|
 | MONEY-02b | P1 | `sumByOwnerAED` also lacked the transfer guard — ✅ fixed |
-| MONEY-01b | P0 | FX conversion duplicated across two modules with independent silent fallbacks (`settings.js:toAED`, `money.js:convert`) — partially addressed |
+| MONEY-01b | P0 | FX conversion duplicated across two modules with independent silent fallbacks (`settings.js:toAED`, `money.js:convert`) — ✅ fixed |
 | BOT-02 | **P1** | **50% receipt-photo extraction failure rate** in real usage (4 of 8). Root-caused — ✅ **fixed in repo** |
 | DATA-05 | P2 | 3 of 13 real transactions have `amount = 0`; no constraint prevents them |
 | OPS-03 | P2 | None of the 13 real transactions has ever been marked reviewed |
@@ -171,9 +171,58 @@ is unproven, and why this went unfixed for two days.
 **Not verifiable locally:** that a real receipt now extracts end to end. That
 needs a deploy and a live photo — the remaining acceptance criterion.
 
-### Gate results after WP1 + WP3 + WP7a + WP8
+### ✅ WP9 — MONEY-01 / MONEY-03: fail-visible FX and Dubai dates
 
-**165/165 tests pass** (139 pre-existing + 16 gate + 7 reports + 3 extraction).
+**Changed:** `src/lib/money.js`, `money.test.js` (new, 12 tests),
+`src/lib/dates.js` (new), `dates.test.js` (new, 8 tests), `src/lib/snapshots.js`,
+`src/lib/PrefsContext.jsx`, `src/screens/Settings.jsx`, and the three date-defaulting forms.
+
+**The silent 1:1 fallback is gone.** `toAED`/`convert`/`fromAED` return `NaN`
+when a rate is missing, zero, negative, non-finite or non-numeric — instead of
+substituting 1, which rendered 100 USD as "AED 100": a wrong number
+indistinguishable from a right one. NaN is contagious by design, so one unknown
+rate invalidates the sum rather than quietly under-counting it.
+
+`formatMoney` was the last place a missing rate could still become plausible:
+`Number(x) || 0` turned NaN into a confident "AED 0". It now renders any
+non-finite figure as `—`.
+
+**Changing `toAED`'s contract was rejected as too risky** — 24 call sites, and
+returning `null` would have propagated arithmetic errors into live totals. The
+NaN-plus-formatter approach makes an unconvertible figure unrenderable without
+touching a single call site.
+
+**`nw_daily` is now protected.** It is keyed by day, upserted and never
+backfilled, and the household holds 25 INR and 16 USD accounts — so an unloaded
+rate would have written a permanent NaN. `recordDailyNetWorth` now refuses to
+write when any account currency is unconvertible and returns
+`{ skipped: true, reason: 'fx-unavailable', currencies }`. Skipping costs one
+day of history; writing costs a corrupt chart with no way back.
+
+**The stale second copy is fixed.** `PrefsContext` exposes `refreshFx()` and a
+`fxLoaded` flag that distinguishes "not loaded yet" from "loaded, and USD
+genuinely has no rate". Settings' FX refresh now updates both copies, so the app
+no longer formats every screen with the rates it read at login.
+
+**MONEY-03**: all four UTC date sites now use `todayLocal()` (`Asia/Dubai`, via
+`Intl.DateTimeFormat` with `en-CA`) — the same fix `_shared/dates.ts` already
+had server-side. Tested across the 20:00–23:59 UTC window, month end, year end,
+and the no-DST property.
+
+**Live safety check:** production `settings.fx_rates` holds AED, USD and INR,
+refreshed 12 Aug 09:39 UTC. With all three present, behaviour is byte-identical
+to before; the new path engages only where the old one would have shown a wrong
+number.
+
+**Rollback:** revert the listed files. No migration, no data change.
+
+**Not addressed here (MONEY-04):** `transactionStats` still compares raw
+amounts across currencies, and goals/debts still sum linked account values
+without conversion.
+
+### Gate results after WP1 + WP3 + WP7a + WP8 + WP9
+
+**184/184 tests pass** (139 pre-existing + 16 gate + 7 reports + 3 extraction + 12 money + 8 dates − 1 flake fix).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

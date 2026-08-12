@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { INCOME_KINDS } from '../lib/income'
+import { todayLocal } from '../lib/dates'
 
 const PEOPLE = ['Shrey', 'Tarika']
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return todayLocal()
 }
 
 export default function IncomeForm({ income, onSave, onCancel, onDelete }) {
