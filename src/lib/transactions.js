@@ -30,20 +30,32 @@ export async function createTransaction(fields) {
   return data
 }
 
-export async function createSplitTransaction(baseFields, splitLines) {
-  const groupId = crypto.randomUUID()
-  const rows = splitLines.map((line) => ({
-    ...baseFields,
-    category: line.category,
-    amount: line.amount,
-    source: 'manual',
-    needs_review: false,
-    // Declared, never inferred: these rows are lines of one purchase, which is
-    // a different relationship from a transfer pair or a bulk batch (DATA-01).
-    transaction_group_id: groupId,
-    group_kind: 'category_split',
-  }))
-  const { data, error } = await supabase.from('transactions').insert(rows).select()
+/**
+ * Create, or atomically replace, a set of category-split lines.
+ *
+ * Goes through a Postgres function rather than a delete followed by an insert
+ * (DATA-02). The old sequence removed the original rows first, so a dropped
+ * connection between the two calls destroyed the transaction outright and left
+ * nothing in its place. Inside the function both steps share one transaction:
+ * either the replacement exists or the original still does.
+ *
+ * @param replaces  { groupId } to replace a whole split, { transactionId } to
+ *                  convert a single row into one, or nothing to create anew.
+ */
+export async function replaceCategorySplit(baseFields, splitLines, replaces = {}) {
+  const { data, error } = await supabase.rpc('replace_category_split', {
+    p_group_id: replaces.groupId ?? null,
+    p_transaction_id: replaces.transactionId ?? null,
+    p_base: {
+      date: baseFields.date,
+      currency: baseFields.currency ?? 'AED',
+      account_id: baseFields.account_id ?? null,
+      owner: baseFields.owner ?? null,
+      note: baseFields.note ?? null,
+      tags: baseFields.tags ?? [],
+    },
+    p_lines: splitLines.map((line) => ({ category: line.category, amount: line.amount })),
+  })
   if (error) throw error
   return data
 }

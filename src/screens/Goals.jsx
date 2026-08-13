@@ -5,12 +5,11 @@ import {
   updateGoal,
   deleteGoal,
   listAllContributions,
-  createContribution,
+  createContributionWithTransfer,
   projectedCompletionDate,
   projectedFDCompletion,
 } from '../lib/goals'
 import { listAccounts } from '../lib/accounts'
-import { createTransaction } from '../lib/transactions'
 import { usePrefs } from '../lib/PrefsContext'
 import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
@@ -95,24 +94,20 @@ export default function Goals({ navPayload, onConsumeNav }) {
 
   async function handleAddContribution({ fromAccountId, ...values }) {
     const goal = goals.find((g) => g.id === detailGoalId)
-    await createContribution({ goal_id: detailGoalId, ...values })
-    // Written as an ordinary Transfer transaction too (write-then-flag, same
-    // as any other money movement) so a contribution is visible/auditable in
-    // Transactions and Budget, not just inside the Goals detail view. Never
-    // touches accounts.value — the goal's own linked-account balance (if any)
-    // still comes only from the next statement re-entry.
-    if (fromAccountId) {
-      const fromAccount = accounts.find((a) => a.id === fromAccountId)
-      await createTransaction({
-        date: values.date,
-        amount: values.amount,
-        currency: fromAccount?.currency ?? 'AED',
-        account_id: fromAccountId,
-        category: 'Transfer',
-        owner: fromAccount?.owner ?? null,
-        note: `Transfer out → Goal: ${goal?.name ?? 'goal'}`,
-      })
-    }
+    // One call, one database transaction. The contribution and its Transfer
+    // transaction used to be written separately, so a failure between them
+    // left Goals and Transactions disagreeing about the same event (DATA-02).
+    // The transaction exists so a contribution is auditable in Transactions
+    // and Budget, not only inside this screen; accounts.value is still never
+    // touched, since balances come from statements.
+    await createContributionWithTransfer({
+      goalId: detailGoalId,
+      amount: values.amount,
+      date: values.date,
+      note: values.note,
+      fromAccountId: fromAccountId ?? null,
+      goalName: goal?.name ?? null,
+    })
     setAddingContribution(false)
     await refresh()
   }

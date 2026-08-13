@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   listTransactions,
   createTransaction,
-  createSplitTransaction,
+  replaceCategorySplit,
   updateTransaction,
   deleteTransaction,
   deleteTransactionGroup,
@@ -226,24 +226,28 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   async function handleSave(result) {
     const isEditingExisting = editing && editing !== 'new'
 
-    if (isEditingExisting) {
-      if (editing.splitGroup) {
-        await deleteTransactionGroup(editing.transaction_group_id)
-      } else if (!result.split) {
-        await updateTransaction(editing.id, result.fields)
-        setEditing(null)
-        await refresh()
-        return
-      } else {
-        await deleteTransaction(editing.id)
-      }
-    }
-
+    // Every branch below is now a single call. The old shape deleted the
+    // existing rows and *then* inserted their replacement, so a failure
+    // between the two destroyed the transaction and left nothing behind
+    // (DATA-02). replace_category_split does both inside one database
+    // transaction.
     if (result.split) {
-      await createSplitTransaction(result.baseFields, result.splitLines)
+      await replaceCategorySplit(result.baseFields, result.splitLines, {
+        groupId: isEditingExisting ? (editing.transaction_group_id ?? null) : null,
+        transactionId: isEditingExisting && !editing.splitGroup ? editing.id : null,
+      })
+    } else if (isEditingExisting && editing.splitGroup) {
+      // Split collapsing back to one row: same all-or-nothing guarantee, with
+      // a single line.
+      await replaceCategorySplit(result.fields, [{ category: result.fields.category, amount: result.fields.amount }], {
+        groupId: editing.transaction_group_id,
+      })
+    } else if (isEditingExisting) {
+      await updateTransaction(editing.id, result.fields)
     } else {
       await createTransaction(result.fields)
     }
+
     setEditing(null)
     await refresh()
   }

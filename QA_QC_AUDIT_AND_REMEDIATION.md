@@ -60,9 +60,9 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 |---|---|---|---|
 | SEC-01 | P0 | Missing webhook secret fails open; body-supplied identity is forgeable | **Confirmed, severity raised** — ✅ **fixed in repo** |
 | SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ✅ **APPLIED to production & verified** |
-| DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed; zero live rows to migrate** — ✅ code done; migration 025 awaiting apply |
+| DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed; zero live rows to migrate** — ✅ **APPLIED to production & verified** |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
-| DATA-02 | P0 | Multi-row writes not atomic or idempotent | Confirmed (code structure) — pending |
+| DATA-02 | P0 | Multi-row writes not atomic or idempotent | **Confirmed** — ✅ frontend paths done (026 awaiting apply); Telegram paths tracked under BOT-01 |
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
 | MONEY-02 | P1 | Transfers inflate merchant + trend reports | **Confirmed, wider than audited** — ✅ **fixed in repo** |
 | MONEY-03 | P1 | UTC dates wrong around Dubai midnight | **Confirmed (4 sites)** — ✅ **fixed in repo** |
@@ -361,7 +361,35 @@ group id, so there is nothing ambiguous to classify and no exceptions report.
 **Rollback:** drop the three constraints; the nullable columns can stay.
 Reverting the application code restores the old behaviour.
 
-### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4
+### 🔶 WP5 — DATA-02: atomic frontend writes (partial)
+
+**Changed:** `supabase/schema/026_atomic_writes.sql` (new),
+`src/lib/transactions.js`, `src/lib/goals.js`, `src/screens/Transactions.jsx`,
+`src/screens/Goals.jsx`.
+
+Two client paths wrote financial rows across several independent REST calls,
+with no way to recover if one failed partway:
+
+- **Editing a split deleted the whole group, then inserted its replacement.** A dropped connection between the two destroyed the transaction outright and left nothing behind. Converting a single row into a split had the same shape.
+- **A goal contribution and its Transfer transaction were separate inserts.** A failure between them left Goals and Transactions disagreeing about the same event, with nothing marking which was right.
+
+Both now go through PL/pgSQL functions, whose bodies run in a single
+transaction: either the replacement exists or the original still does.
+
+`replace_category_split` also absorbed the collapse-a-split-back-to-one-row
+case, which previously deleted the group and inserted a plain transaction as
+two calls.
+
+**SECURITY INVOKER is deliberate.** These run as the calling user so the
+membership policies from 023 still apply. A SECURITY DEFINER function here
+would hand any caller a route around RLS — precisely what 023 closed.
+
+**Scope, honestly:** this covers the two frontend paths. The Telegram-side
+gaps — transfer's two sequential inserts, bulk's concurrent inserts, cashback
+apply's insert-then-delete, and the absence of an update-level idempotency
+ledger — are **not** fixed here and remain open under BOT-01.
+
+### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4 + WP5
 
 **221/221 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
