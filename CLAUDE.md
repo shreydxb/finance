@@ -146,19 +146,36 @@ Project `our-rokda` (`wrxqgfbolryveivgdjia`).
 ## Tests
 
 ```bash
-npm test              # 261 tests: Edge Functions + src/, node --test, no network, no keys
+npm test              # 268 tests: Edge Functions + src/, node --test, no network, no keys
+npm run test:db       # 32 tests: supabase/schema/*.sql applied from empty against real Postgres
 npm run lint          # oxlint — 0 errors, 6 warnings
 npm run build         # vite
 npm run demo:telegram # walks the Telegram flow against mocked payloads
 ```
 
-`.github/workflows/ci.yml` runs `npm ci`, lint, test and build on every push,
-plus an advisory production-dependency audit.
+`.github/workflows/ci.yml` runs two jobs on every push: `check` (`npm ci`,
+lint, `npm test`, build, advisory audit) and `db-integration` (`npm run
+test:db` against a `postgres:16` service container). See
+`supabase/db-test/README.md` for what the second one stands in for and what
+it deliberately doesn't.
 
-**What the suite does not cover:** browser rendering, Auth/RLS from a real
-client, migrations against a clean database, and the external APIs. Those still
-need a person. The RLS matrix and the intake functions were verified by probing
-production directly (see `QA_QC_AUDIT_AND_REMEDIATION.md`), not by unit tests.
+**What `npm test`'s fakes do not cover, and `test:db` now does:** RPCs
+(`replace_category_split`, `create_transfer`, `create_bulk_transactions`,
+`apply_pending_income`, `claim_media_group`, `save_telegram_settings`)
+against the real schema, the RLS matrix (anon / non-member / member), the
+zero-amount and transfer-direction constraints, and — the point of the whole
+exercise — `supabase/schema/*.sql` applied in order from an empty database,
+which had never been tested before Taskiv #101. Building it surfaced one more
+real gap the same shape as the three below: `transactions_transfer_direction_valid`
+(025) used `transfer_direction in ('out','in')`, and Postgres CHECK
+constraints treat a NULL result as satisfied — so a transfer row with a null
+direction passed a constraint written to block exactly that. Fixed in `034`.
+Nothing in the app had ever hit it; `create_transfer` always sets both sides
+explicitly.
+
+**Still not covered:** browser rendering, Auth from a real client (a signed-in
+session, not just the RLS predicate), and the external APIs (Yahoo, CoinGecko,
+Telegram). Those still need a person.
 
 One rule learned three times this round: **pure logic must not live in a module
 that imports the Supabase client**, because Node cannot load it and it silently

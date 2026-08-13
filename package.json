@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "node --test \"supabase/functions/**/*.test.ts\" \"src/**/*.test.js\"",
+    "test:db:setup": "node supabase/db-test/setup-db.mjs",
+    "test:db": "npm run test:db:setup && node --test \"supabase/db-test/**/*.test.mjs\"",
     "demo:telegram": "node supabase/functions/telegram-intake/demo.ts"
   },
   "dependencies": {
@@ -23,6 +25,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
+    "pg": "^8.23.0",
     "vite": "^8.2.0"
   }
 }

@@ -74,7 +74,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | UI-03 | P1 | Telegram settings UI/backend mismatch | **Confirmed (all 4)** — ✅ **APPLIED to production & probe-verified** |
 | INT-01 | P1 | Realtime published but never subscribed | **Confirmed live** (4 tables published, 0 subscribers) — ✅ **fixed in repo** |
 | OPS-01 | P1 | Migration/doc drift | **Confirmed — docs only** — ✅ **fixed in repo** |
-| TEST-01 | P1 | No frontend/DB/E2E/CI gates | **Confirmed** — ✅ CI + 261 tests; DB-integration and E2E still open |
+| TEST-01 | P1 | No frontend/DB/E2E/CI gates | **Confirmed** — ✅ CI + 268 tests + 32 DB-integration tests (Taskiv #101); E2E still open |
 
 ### Findings added by the live pass (not in the original audit)
 

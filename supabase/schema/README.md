@@ -47,6 +47,10 @@ findings each one closes, and the verification evidence.
 | `028_price_provenance` | `price_updated_at`, `price_source` | UI-01 |
 | `029_pin_function_search_path` | Pins `search_path` on all six new functions | advisor 0011 |
 | `030_telegram_settings_rpc` | `save_telegram_settings` — one transaction, validated | UI-03 |
+| `031_transaction_integrity` | Zero amount allowed only while `needs_review`; blocked once reviewed | DATA-05 |
+| `032_soft_delete_in_split_replace` | `replace_category_split` soft-deletes instead of hard-deleting | DATA-04 |
+| `033_plain_idempotency_unique_index` | Idempotency index made non-partial — PostgREST's `on_conflict=` can't express a predicate | BOT-01 follow-up |
+| `034_transfer_direction_null_safe` | Closes a NULL-passes-CHECK gap in the 025 transfer-direction constraint | found by `test:db` (Taskiv #101) |
 
 ## Rules
 
@@ -54,6 +58,7 @@ findings each one closes, and the verification evidence.
 - New changes go in a new `NNN_description.sql`, never as edits to an applied file.
 - Every file is written to be safe to re-run: `create table if not exists`, `add column if not exists`, `drop policy if exists` before `create policy`, guarded or `on conflict` seeds.
 - **Run the security advisor after any schema change.** It caught three real problems in this round that reading the SQL did not: an `anon` grant that a `revoke ... from public` did not remove, and mutable `search_path` on six new functions.
+- **Run `npm run test:db` before applying.** It builds a scratch database from empty, applies every file in this directory in order, and exercises every RPC, RLS policy and constraint — see `supabase/db-test/README.md`. It found `034`'s bug on the first run.
 - **Probe new functions against the real schema before trusting them.** `save_telegram_settings` looked correct and failed on every one-person setup, because an unconfigured slot arrives as SQL `NULL` and `settings.value` is `NOT NULL`.
 
 ## Two policies that look wrong and are not

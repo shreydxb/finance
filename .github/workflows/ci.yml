@@ -46,3 +46,38 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
+
+  # Separate job, separate failure signal: `check` above runs entirely offline
+  # against fakes and stays fast. This runs supabase/schema/*.sql from empty
+  # against a real Postgres (same major version as our-rokda) and exercises
+  # every RPC, RLS policy and constraint against it — the boundary that let
+  # three bugs reach production in one day despite 268 passing fake-backed
+  # tests. See supabase/db-test/README.md.
+  db-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Database-integration tests
+        run: npm run test:db
