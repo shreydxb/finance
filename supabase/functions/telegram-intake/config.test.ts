@@ -52,3 +52,19 @@ test('parseIdList takes commas or whitespace and drops junk', () => {
   assert.deepEqual(parseIdList(''), [])
   assert.deepEqual(parseIdList(undefined), [])
 })
+
+test('a webhook secret pasted with stray whitespace still matches', () => {
+  // A dashboard field is filled in by hand and very easily picks up a trailing
+  // newline or space. Telegram's header never carries one, so an untrimmed
+  // value fails every request forever with nothing visible but a 403 — which
+  // is exactly what happened on 13 Aug 2026.
+  const config = loadConfig({ ...MINIMAL, TELEGRAM_WEBHOOK_SECRET: '  s3cr3tValue\n' })
+  assert.equal(config.telegramWebhookSecret, 's3cr3tValue')
+})
+
+test('a secret of only whitespace counts as unset, not as a valid secret', () => {
+  // Otherwise the gate would fail closed with 403 rather than 503, hiding a
+  // misconfiguration behind what looks like an authentication failure.
+  const config = loadConfig({ ...MINIMAL, TELEGRAM_WEBHOOK_SECRET: '   ' })
+  assert.equal(config.telegramWebhookSecret, null)
+})
