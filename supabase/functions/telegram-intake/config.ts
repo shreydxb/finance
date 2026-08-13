@@ -76,7 +76,18 @@ export function loadConfig(env: Env): Config {
     groqApiKey: env.GROQ_API_KEY || null,
     groqWhisperModel: env.GROQ_WHISPER_MODEL || DEFAULTS.groqWhisperModel,
     supabaseUrl: required(env, 'SUPABASE_URL'),
-    supabaseServiceKey: required(env, 'SUPABASE_SERVICE_ROLE_KEY'),
+    // Prefers SERVICE_ROLE_KEY, a secret this project sets itself, and falls
+    // back to the platform-injected SUPABASE_SERVICE_ROLE_KEY.
+    //
+    // Supabase has migrated this project to JWT Signing Keys and marked the
+    // injected key deprecated. It is now minted per request, and on 13 Aug 2026
+    // PostgREST began rejecting it outright with PGRST303 "JWT issued at
+    // future" — the freshly-stamped `iat` running ahead of the server checking
+    // it. Nothing in this function can fix a clock, and a custom secret cannot
+    // be named SUPABASE_* (the dashboard forbids the prefix), so the escape
+    // hatch is a differently-named override holding a static key.
+    supabaseServiceKey:
+      (env.SERVICE_ROLE_KEY ?? '').trim() || required(env, 'SUPABASE_SERVICE_ROLE_KEY'),
     confidenceThreshold: parseThreshold(env.AI_CONFIDENCE_THRESHOLD, DEFAULTS.confidenceThreshold),
     allowedTelegramIds: parseIdList(env.TELEGRAM_ALLOWED_IDS),
     defaultCurrency: env.DEFAULT_CURRENCY || DEFAULTS.defaultCurrency,

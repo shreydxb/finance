@@ -68,3 +68,20 @@ test('a secret of only whitespace counts as unset, not as a valid secret', () =>
   const config = loadConfig({ ...MINIMAL, TELEGRAM_WEBHOOK_SECRET: '   ' })
   assert.equal(config.telegramWebhookSecret, null)
 })
+
+test('SERVICE_ROLE_KEY overrides the deprecated platform key', () => {
+  // The platform's injected key is minted per request and started failing with
+  // "JWT issued at future" once this project moved to JWT Signing Keys. A
+  // custom secret cannot be named SUPABASE_*, so the override carries its own
+  // name.
+  const config = loadConfig({ ...MINIMAL, SERVICE_ROLE_KEY: 'static-key' })
+  assert.equal(config.supabaseServiceKey, 'static-key')
+})
+
+test('the platform key is still used when no override is set', () => {
+  assert.equal(loadConfig(MINIMAL).supabaseServiceKey, 'service-key')
+})
+
+test('a blank override falls back rather than booting with an empty key', () => {
+  assert.equal(loadConfig({ ...MINIMAL, SERVICE_ROLE_KEY: '   ' }).supabaseServiceKey, 'service-key')
+})

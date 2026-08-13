@@ -35,6 +35,11 @@ begin;
 
 alter table transactions add column if not exists idempotency_key text;
 
+-- NOTE: superseded by 033. This index is partial, which raw SQL can target by
+-- repeating the predicate but PostgREST's `on_conflict=` cannot — so the
+-- single-spend upsert failed with 42P10 until 033 replaced it with a plain
+-- unique index. The predicate was never necessary: NULLs are distinct in a
+-- Postgres unique index.
 create unique index if not exists transactions_idempotency_key_idx
   on transactions (idempotency_key)
   where idempotency_key is not null;
