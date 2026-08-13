@@ -72,7 +72,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed** — ✅ **APPLIED to production** |
 | UI-02 | P1 | Bills include income; calendar ignores `end_date` | **Confirmed** — ✅ **fixed in repo** |
 | UI-03 | P1 | Telegram settings UI/backend mismatch | **Confirmed (all 4)** — ✅ **APPLIED to production & probe-verified** |
-| INT-01 | P1 | Realtime published but never subscribed | **Confirmed** — zero `.channel(` calls in `src/` |
+| INT-01 | P1 | Realtime published but never subscribed | **Confirmed live** (4 tables published, 0 subscribers) — ✅ **fixed in repo** |
 | OPS-01 | P1 | Migration/doc drift | **Confirmed — docs only**; repo and live schema agree |
 | TEST-01 | P1 | No frontend/DB/E2E/CI gates | Confirmed — partially addressed |
 
@@ -496,9 +496,34 @@ time this shape has hidden a bug — after `toAED` in `settings.js` and the
 grouping logic in `TransactionList.jsx`. Anything worth testing must not live
 in a module that reaches for the network.
 
+### ✅ WP8 — UI-03 / INT-01: settings validation and realtime
+
+**UI-03** — see the commit; the screen disagreed with the backend in four ways
+and was the optimistic one. Rules now shared from one module (18 tests), saved
+through one transaction (`030`).
+
+**INT-01** — verified live: `supabase_realtime` publishes `accounts`,
+`goal_contributions`, `income` and `transactions`, and `src/` contained **zero**
+`.channel(` calls. The feature has been half-built since migration 003, which
+for a two-person household with a Telegram bot means most changes arrived
+invisibly until someone reloaded.
+
+`useRealtimeRefresh` subscribes Transactions, Reports, Budget, Goals and
+everything built on `useAccountsAndFx`. Three things it gets right that a naive
+subscription would not:
+
+- **One refresh per burst.** A bulk Telegram message writes several rows, arriving as several events; debounced into a single reload rather than five.
+- **Catch-up on reconnect.** While the socket is down no events arrive, so nothing will ever announce what was missed. Every `SUBSCRIBED` after the first triggers one immediate refresh.
+- **A stable callback**, held in a ref, so an inline `onChange` does not tear down and rebuild the subscription on every render.
+
+Subscriptions are scoped per screen — Reports listens to transactions and
+income but not accounts, since it shows no balances. A test asserts every
+subscribed table is one the database actually publishes, so a typo cannot
+become silent dead weight.
+
 ### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4 + WP5 + WP6 + WP7
 
-**236/236 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
+**261/261 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

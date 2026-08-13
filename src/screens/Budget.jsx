@@ -8,6 +8,8 @@ import { toAED } from '../lib/money'
 import { currentYearMonth, monthRange, monthLabel, shiftMonth } from '../lib/period'
 import { usePrefs } from '../lib/PrefsContext'
 import BudgetLimitForm from '../components/BudgetLimitForm'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 export default function Budget() {
   // One FX source for compute and display alike — see MONEY-01.
@@ -52,6 +54,10 @@ export default function Budget() {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ym.year, ym.month])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.budget, refresh)
 
   async function handleSaveBudget(values) {
     await upsertBudget(values)

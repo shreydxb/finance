@@ -19,6 +19,8 @@ import { usePrefs } from '../lib/PrefsContext'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'
 import { groupEntries, entryKey } from '../lib/transactionGroups'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -80,6 +82,10 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   useEffect(() => {
     refresh()
   }, [filters])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.transactions, refresh)
 
   // Deep-link from Home's Recent-transaction row: open that specific
   // transaction's edit modal once its data has arrived, then tell App to

@@ -14,6 +14,8 @@ import { usePrefs } from '../lib/PrefsContext'
 import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
 import ContributionForm from '../components/ContributionForm'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -66,6 +68,10 @@ export default function Goals({ navPayload, onConsumeNav }) {
   useEffect(() => {
     refresh()
   }, [])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.goals, refresh)
 
   // Deep-link from Home's Goals row.
   useEffect(() => {

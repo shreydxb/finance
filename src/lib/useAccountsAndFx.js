@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { listAccounts } from './accounts'
 import { usePrefs } from './PrefsContext'
+import { useRealtimeRefresh } from './useRealtime'
+import { REALTIME_TABLES } from './realtime'
 
 /**
  * Accounts, plus the household's FX rates.
@@ -31,6 +33,10 @@ export function useAccountsAndFx() {
   useEffect(() => {
     refresh()
   }, [])
+
+  // Balances change from the other person's device and from price refreshes;
+  // every screen built on this hook now sees that without a manual reload.
+  useRealtimeRefresh(REALTIME_TABLES.accounts, refresh)
 
   return { accounts, fxRates, loading, error, refresh }
 }

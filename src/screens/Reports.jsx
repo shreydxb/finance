@@ -23,6 +23,8 @@ import BreakdownBars from '../components/BreakdownBars'
 import SankeyChart from '../components/SankeyChart'
 import LineChart from '../components/LineChart'
 import VerticalBarChart from '../components/VerticalBarChart'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -96,6 +98,10 @@ export default function Reports() {
   useEffect(() => {
     refresh()
   }, [from, to])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.reports, refresh)
 
   useEffect(() => {
     if (section !== 'spending' || subView !== 'trends') return
