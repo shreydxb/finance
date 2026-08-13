@@ -65,7 +65,12 @@ export function parseIdList(raw: string | undefined): number[] {
 export function loadConfig(env: Env): Config {
   return {
     telegramBotToken: required(env, 'TELEGRAM_BOT_TOKEN'),
-    telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || null,
+    // Trimmed on purpose. This value is pasted into a dashboard field by
+    // hand, which very easily carries a trailing newline or space; the header
+    // Telegram sends never does, so an untrimmed comparison fails forever with
+    // nothing to see but a 403. Trimming cannot weaken the check — the
+    // comparison is still the full secret, still constant-time.
+    telegramWebhookSecret: (env.TELEGRAM_WEBHOOK_SECRET ?? '').trim() || null,
     openRouterApiKey: required(env, 'OPENROUTER_API_KEY'),
     openRouterModel: env.OPENROUTER_MODEL || DEFAULTS.openRouterModel,
     groqApiKey: env.GROQ_API_KEY || null,

@@ -76,8 +76,19 @@ export function authorizeWebhook(headers: HeaderBag, config: GateConfig, content
     }
   }
 
-  if (!secretsMatch(headers.get(SECRET_HEADER), config.telegramWebhookSecret)) {
-    return { ok: false, status: 403, error: 'forbidden', reason: 'bad or missing secret header' }
+  const provided = headers.get(SECRET_HEADER)
+  if (!secretsMatch(provided, config.telegramWebhookSecret)) {
+    // Report the two lengths, never the values. A mismatch is otherwise
+    // completely undiagnosable from outside: "403" looks identical whether the
+    // secret was truncated by a URL, carries stray whitespace, or was simply
+    // set to something different in one of the two places. Lengths distinguish
+    // those cases immediately and disclose nothing usable.
+    const detail =
+      provided === null
+        ? 'no header sent — Telegram was not given a secret_token'
+        : `header ${provided.length} chars vs configured ${config.telegramWebhookSecret.length}` +
+          (provided.length === config.telegramWebhookSecret.length ? ' (same length, different value)' : '')
+    return { ok: false, status: 403, error: 'forbidden', reason: `bad secret header: ${detail}` }
   }
 
   if (contentLength) {
