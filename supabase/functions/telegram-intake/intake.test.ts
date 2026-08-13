@@ -616,6 +616,33 @@ test('a plain spend message never gets routed into the cashback flow', async () 
 // same message arriving twice is a normal operating condition, not an edge
 // case. Before 027 each retry wrote a second copy of the money.
 
+test('a redelivered single spend updates one row instead of adding another', async () => {
+  // Exactly what happened live on 13 Aug 2026. The transaction is written
+  // *before* the reply is sent, so when sendMessage failed against a revoked
+  // bot token the function errored, Telegram retried, and eight identical
+  // "Karak House" rows landed in the ledger. Bulk and transfer were keyed;
+  // the single-spend path — much the most common — was not.
+  const h = harness([CLEAN, CLEAN, CLEAN])
+  const update = textUpdate('84 dhs lunch at karak house')
+
+  await handleUpdate(update, h.deps)
+  assert.equal(h.store.rows.size, 1)
+
+  await handleUpdate(update, h.deps)
+  await handleUpdate(update, h.deps)
+
+  assert.equal(h.store.rows.size, 1, 'three deliveries, one spend')
+})
+
+test('two genuinely different messages still write two rows', async () => {
+  // The keying must not collapse real spends that merely look alike.
+  const h = harness([CLEAN, CLEAN])
+  await handleUpdate(textUpdate('84 dhs lunch at karak house'), h.deps)
+  await handleUpdate(textUpdate('84 dhs lunch at karak house'), h.deps)
+
+  assert.equal(h.store.rows.size, 2, 'different messages, different rows')
+})
+
 test('a redelivered transfer message writes nothing the second time', async () => {
   const h = harness([
     '{"amount":2000,"currency":"AED","from_account":"Wio Personal","to_account":"Joint Current","date":"2026-08-06"}',

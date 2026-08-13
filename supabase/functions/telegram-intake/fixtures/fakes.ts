@@ -102,6 +102,18 @@ export class FakeStore implements IntakeStore {
     return Promise.resolve(stored)
   }
 
+  /** Mirrors the unique index: a replayed key updates the row, never adds one. */
+  insertTransactionOnce(row: Partial<TransactionRow>, idempotencyKey: string): Promise<TransactionRow> {
+    for (const [id, existing] of this.rows) {
+      if (existing.idempotency_key === idempotencyKey) {
+        const updated = { ...existing, ...row, idempotency_key: idempotencyKey }
+        this.rows.set(id, updated)
+        return Promise.resolve(updated)
+      }
+    }
+    return this.insertTransaction({ ...row, idempotency_key: idempotencyKey })
+  }
+
   findTransactionsByGroup(groupId: string): Promise<TransactionRow[]> {
     return Promise.resolve(Array.from(this.rows.values()).filter((row) => row.transaction_group_id === groupId))
   }

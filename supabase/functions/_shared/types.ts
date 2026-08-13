@@ -239,6 +239,8 @@ export interface IntakeStore {
   insertIncome(row: IncomeInsert): Promise<void>
   /** The other rows sharing one transaction_group_id, whatever the group's kind. */
   findTransactionsByGroup(groupId: string): Promise<TransactionRow[]>
+  /** BOT-01: one row per Telegram message, however many times it is delivered. */
+  insertTransactionOnce(row: Partial<TransactionRow>, idempotencyKey: string): Promise<TransactionRow>
   /** BOT-01: both transfer rows in one transaction, idempotent against redelivery. */
   createTransfer(args: TransferArgs): Promise<TransactionRow[]>
   /** BOT-01: all bulk rows in one transaction, idempotent per row. */
