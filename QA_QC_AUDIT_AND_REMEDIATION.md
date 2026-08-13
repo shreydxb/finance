@@ -83,9 +83,9 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | MONEY-02b | P1 | `sumByOwnerAED` also lacked the transfer guard — ✅ fixed |
 | MONEY-01b | P0 | FX conversion duplicated across two modules with independent silent fallbacks (`settings.js:toAED`, `money.js:convert`) — ✅ fixed |
 | BOT-02 | **P1** | **50% receipt-photo extraction failure rate** in real usage (4 of 8). Root-caused — ✅ **fixed in repo** |
-| DATA-05 | P2 | 3 of 13 real transactions have `amount = 0`; no constraint prevents them |
+| DATA-05 | P2 | 3 of 13 real transactions have `amount = 0` — all are intentional flagged placeholders — ✅ **fixed** (031) |
 | OPS-03 | P2 | None of the 13 real transactions has ever been marked reviewed |
-| OPS-04 | P2 | `netlify.toml` sets no security headers (no CSP, HSTS, `X-Frame-Options`) |
+| OPS-04 | P2 | `netlify.toml` sets no security headers — ✅ **fixed in repo** |
 
 ---
 
@@ -100,6 +100,8 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | 028 | `price_updated_at` / `price_source` | 2 columns present |
 | 029 | Pinned `search_path` on all six new functions | Advisor lint 0011 cleared (6 → 0) |
 | 030 | `save_telegram_settings` — one transaction, validated | Probed: accepts one/two people, rejects a loan account and an out-of-range threshold |
+| 031 | Zero-amount invariants | Probed: flagged placeholder allowed, unflagged zero blocked, reviewing a zero blocked |
+| 032 | `replace_category_split` soft-deletes | Probed: 2 replaced lines preserved, not destroyed |
 
 **Live functional probe (rolled back), 12 Aug:**
 

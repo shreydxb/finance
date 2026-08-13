@@ -2,6 +2,39 @@
   command = "npm run build"
   publish = "dist"
 
+# Security headers (OPS-04). None were set, so the app shipped with no
+# clickjacking, MIME-sniffing or referrer protection at all.
+#
+# There is no CSP here yet, deliberately. Tailwind v4 and Vite inject inline
+# styles, so a correct policy needs `style-src 'unsafe-inline'` at minimum and
+# wants testing against a real build before it is switched on — a CSP that
+# breaks the app is worse than none, and one written blind tends to.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # This app is never embedded anywhere.
+    X-Frame-Options = "DENY"
+    # Stops the browser second-guessing a declared content type.
+    X-Content-Type-Options = "nosniff"
+    # Don't leak the household's URLs to third parties.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # HTTPS only, for a year, once seen. Netlify serves HTTPS already.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # Nothing here needs a camera, a microphone or a location.
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+
+# Hashed build assets are immutable; index.html must never be, or a deploy
+# would not reach a browser that already has it cached.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -105,8 +105,27 @@ export async function updateTransaction(id, patch) {
   return data
 }
 
+/**
+ * Remove a transaction.
+ *
+ * Soft delete, not a real one (DATA-04). `deleted_at` was added in 015 for the
+ * bot's `/undo` and every read here already filters on it, but the UI still
+ * issued a hard DELETE — so a mis-tap in the app was unrecoverable while the
+ * same mistake made from Telegram was not. Now they behave the same way, and
+ * the row survives as an audit trail.
+ */
 export async function deleteTransaction(id) {
-  const { error } = await supabase.from('transactions').delete().eq('id', id)
+  const { error } = await supabase
+    .from('transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null)
+  if (error) throw error
+}
+
+/** Undo a soft delete. */
+export async function restoreTransaction(id) {
+  const { error } = await supabase.from('transactions').update({ deleted_at: null }).eq('id', id)
   if (error) throw error
 }
 
@@ -119,6 +138,10 @@ export async function deleteTransaction(id) {
  * because one row was selected destroys the others.
  */
 export async function deleteTransactionGroup(groupId) {
-  const { error } = await supabase.from('transactions').delete().eq('transaction_group_id', groupId)
+  const { error } = await supabase
+    .from('transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('transaction_group_id', groupId)
+    .is('deleted_at', null)
   if (error) throw error
 }
