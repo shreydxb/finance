@@ -123,6 +123,28 @@ export class PostgrestStore implements IntakeStore {
     })
   }
 
+  /**
+   * Insert a Telegram-sourced row exactly once, however many times the update
+   * is delivered.
+   *
+   * Telegram retries whenever the webhook errors — and the write happens
+   * before the reply is attempted, so a failure *after* the insert (a revoked
+   * bot token, say) makes every retry write another copy of the same spend.
+   * That is not hypothetical: it produced eight identical rows on 13 Aug 2026.
+   *
+   * `merge-duplicates` on the unique idempotency key turns the replay into an
+   * update of the same row, and still returns it, so the caller can announce
+   * normally without special-casing a replay.
+   */
+  async insertTransactionOnce(row: Partial<TransactionRow>, idempotencyKey: string): Promise<TransactionRow> {
+    const rows = await this.request<TransactionRow[]>('/transactions?on_conflict=idempotency_key', {
+      method: 'POST',
+      headers: { prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ ...row, idempotency_key: idempotencyKey }),
+    })
+    return rows[0]
+  }
+
   async insertTransaction(row: Partial<TransactionRow>): Promise<TransactionRow> {
     const rows = await this.request<TransactionRow[]>('/transactions', {
       method: 'POST',

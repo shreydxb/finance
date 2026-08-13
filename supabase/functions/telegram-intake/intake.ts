@@ -186,22 +186,29 @@ async function writeAndAnnounce(
   stage?: string
 ): Promise<IntakeOutcome> {
   const resolved = resolve(extraction, household, senderId)
-  const row = await deps.store.insertTransaction({
-    date: extraction.date,
-    // A row with an unreadable total is still worth more than a lost one: it
-    // lands at 0 with needs_review set, so it shows up in the app either way.
-    amount: extraction.amount ?? 0,
-    currency: extraction.currency,
-    account_id: resolved.accountId,
-    category: extraction.category,
-    owner: resolved.owner,
-    note: extraction.note,
-    source: 'telegram',
-    needs_review: resolved.needsReview,
-    telegram_chat_id: message.chat.id,
-    telegram_msg_id: message.message_id,
-    items: extraction.items,
-  })
+  // Keyed on the message, so a redelivery updates this row instead of adding
+  // another. The write happens before the reply is sent, so anything that
+  // fails afterwards — a revoked bot token, a Telegram outage — makes Telegram
+  // retry an update whose spend is already recorded.
+  const row = await deps.store.insertTransactionOnce(
+    {
+      date: extraction.date,
+      // A row with an unreadable total is still worth more than a lost one: it
+      // lands at 0 with needs_review set, so it shows up in the app either way.
+      amount: extraction.amount ?? 0,
+      currency: extraction.currency,
+      account_id: resolved.accountId,
+      category: extraction.category,
+      owner: resolved.owner,
+      note: extraction.note,
+      source: 'telegram',
+      needs_review: resolved.needsReview,
+      telegram_chat_id: message.chat.id,
+      telegram_msg_id: message.message_id,
+      items: extraction.items,
+    },
+    `tg:${message.chat.id}:${message.message_id}:single`
+  )
 
   const usage = modelUsageOf(deps.model)
   await logInbound(deps, message, household, senderId, messageType, {
