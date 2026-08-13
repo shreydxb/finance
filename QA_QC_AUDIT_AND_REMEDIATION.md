@@ -62,14 +62,14 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ✅ **APPLIED to production & verified** |
 | DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed; zero live rows to migrate** — ✅ **APPLIED to production & verified** |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
-| DATA-02 | P0 | Multi-row writes not atomic or idempotent | **Confirmed** — ✅ frontend (026) **and** Telegram (027) paths done; both awaiting apply |
+| DATA-02 | P0 | Multi-row writes not atomic or idempotent | **Confirmed** — ✅ **APPLIED to production & probe-verified** |
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
 | MONEY-02 | P1 | Transfers inflate merchant + trend reports | **Confirmed, wider than audited** — ✅ **fixed in repo** |
 | MONEY-03 | P1 | UTC dates wrong around Dubai midnight | **Confirmed (4 sites)** — ✅ **fixed in repo** |
 | MONEY-04 | P1 | Raw mixed currencies compared/summed | **Confirmed; latent, not live** — ✅ **fixed in repo** |
 | DATA-03 | P1 | Free-text categories; duplicate budgets possible | **Partially disproven** — 0 live violations; preventive only |
-| BOT-01 | P1 | Telegram concurrency/idempotency gaps | **Confirmed (all 5)** — ✅ code done; migration 027 awaiting apply |
-| UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed** — ✅ code done (028 awaiting apply) |
+| BOT-01 | P1 | Telegram concurrency/idempotency gaps | **Confirmed (all 5)** — ✅ **APPLIED to production & probe-verified** |
+| UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed** — ✅ **APPLIED to production** |
 | UI-02 | P1 | Bills include income; calendar ignores `end_date` | **Confirmed** — ✅ **fixed in repo** |
 | UI-03 | P1 | Telegram settings UI/backend mismatch | Confirmed — pending |
 | INT-01 | P1 | Realtime published but never subscribed | **Confirmed** — zero `.channel(` calls in `src/` |
@@ -88,6 +88,32 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | OPS-04 | P2 | `netlify.toml` sets no security headers (no CSP, HSTS, `X-Frame-Options`) |
 
 ---
+
+## Migrations applied to production
+
+| # | What | Verified |
+|---|---|---|
+| 023 / 024 | Membership RLS + roster; revoke anon on the predicate | Role matrix probed: member 13 rows, non-member 0, anon 0 |
+| 025 | `transaction_group_id` / `group_kind` / `transfer_direction` | 0 backfilled, 0 constraint violations |
+| 026 | `replace_category_split`, `create_goal_contribution` | Split replace creates 2 lines; empty-lines input aborts cleanly |
+| 027 | Idempotency key, `media_group_files`, 4 intake functions | See probe table below |
+| 028 | `price_updated_at` / `price_source` | 2 columns present |
+| 029 | Pinned `search_path` on all six new functions | Advisor lint 0011 cleared (6 → 0) |
+
+**Live functional probe (rolled back), 12 Aug:**
+
+| Operation | First call | Replay |
+|---|---|---|
+| `create_bulk_transactions` | 2 rows | **0 rows** |
+| `create_transfer` | 2 rows | **0 rows** |
+| `apply_pending_income` | income logged | **null** |
+| `claim_media_group` | `true` | **`false`** |
+
+**Reconciliation after every migration:** 13 transactions, **2,717.57 AED**,
+46 accounts, 1 income, 6 goals — unchanged throughout. Zero probe rows persisted.
+
+All six new functions are `SECURITY INVOKER` (`prosecdef = false`), so the
+membership policies from 023 apply to them.
 
 ## Work package status
 
