@@ -71,7 +71,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | BOT-01 | P1 | Telegram concurrency/idempotency gaps | **Confirmed (all 5)** — ✅ **APPLIED to production & probe-verified** |
 | UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed** — ✅ **APPLIED to production** |
 | UI-02 | P1 | Bills include income; calendar ignores `end_date` | **Confirmed** — ✅ **fixed in repo** |
-| UI-03 | P1 | Telegram settings UI/backend mismatch | Confirmed — pending |
+| UI-03 | P1 | Telegram settings UI/backend mismatch | **Confirmed (all 4)** — ✅ **APPLIED to production & probe-verified** |
 | INT-01 | P1 | Realtime published but never subscribed | **Confirmed** — zero `.channel(` calls in `src/` |
 | OPS-01 | P1 | Migration/doc drift | **Confirmed — docs only**; repo and live schema agree |
 | TEST-01 | P1 | No frontend/DB/E2E/CI gates | Confirmed — partially addressed |
@@ -99,6 +99,7 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | 027 | Idempotency key, `media_group_files`, 4 intake functions | See probe table below |
 | 028 | `price_updated_at` / `price_source` | 2 columns present |
 | 029 | Pinned `search_path` on all six new functions | Advisor lint 0011 cleared (6 → 0) |
+| 030 | `save_telegram_settings` — one transaction, validated | Probed: accepts one/two people, rejects a loan account and an out-of-range threshold |
 
 **Live functional probe (rolled back), 12 Aug:**
 

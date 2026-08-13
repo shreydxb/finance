@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { listCategories, createCategory, updateCategory, deleteCategory, GROUPS } from '../lib/categories'
 import { listAccounts, updateAccount } from '../lib/accounts'
-import { getSetting, upsertSetting } from '../lib/settings'
+import { getSetting, saveTelegramSettings, upsertSetting } from '../lib/settings'
+import {
+  describeConfiguration,
+  payableAccounts,
+  validateTelegramSettings,
+} from '../lib/telegramSettings'
 import { supabase } from '../lib/supabaseClient'
 import CategoryForm from '../components/CategoryForm'
 import { usePrefs } from '../lib/PrefsContext'
@@ -312,6 +317,13 @@ export default function Settings() {
 
 const PERSON_KEYS = ['tg_id_1', 'tg_id_2']
 
+/** Shape the backend expects for a person slot; both fields or neither. */
+function personValue(entry) {
+  const name = entry.person.trim()
+  const id = entry.telegramUserId.trim()
+  return name && id ? { person: name, telegram_user_id: Number(id) } : null
+}
+
 /**
  * Configures the telegram-intake Edge Function. The two Telegram user ids are
  * the function's allowlist: until both are filled in it accepts nothing, so
@@ -363,29 +375,31 @@ function TelegramIntake({ accounts }) {
     setError('')
     setStatus('')
 
-    const invalidId = people.some((p) => p.telegramUserId !== '' && !/^\d+$/.test(p.telegramUserId.trim()))
-    if (invalidId) {
-      setError('A Telegram user id is a plain number — send /id to the bot to get yours.')
-      return
-    }
-    const percent = Number(threshold)
-    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
-      setError('Confidence threshold must be between 0 and 100.')
+    // One set of rules, shared with the backend's own (UI-03). This screen used
+    // to accept an id with no name — which the Edge Function silently drops —
+    // and report the person as configured.
+    const check = validateTelegramSettings({
+      people,
+      thresholdPercent: threshold,
+      defaultAccountId,
+      accounts: payable,
+    })
+    if (!check.ok) {
+      setError(check.error)
       return
     }
 
     setSaving(true)
     try {
-      await Promise.all([
-        ...PERSON_KEYS.map((key, i) =>
-          upsertSetting(key, {
-            person: people[i].person.trim() || null,
-            telegram_user_id: people[i].telegramUserId.trim() ? Number(people[i].telegramUserId.trim()) : null,
-          })
-        ),
-        upsertSetting('ai_confidence_threshold', percent / 100),
-        upsertSetting('tg_default_account_id', defaultAccountId || null),
-      ])
+      // One transaction, not four concurrent upserts. A partial save left the
+      // household believing a configuration was stored while the bot read
+      // something else.
+      await saveTelegramSettings({
+        person1: personValue(people[0]),
+        person2: personValue(people[1]),
+        threshold: Number(threshold) / 100,
+        defaultAccountId: defaultAccountId || null,
+      })
       setStatus('Saved.')
     } catch {
       setError('Could not save. Try again.')
@@ -394,14 +408,19 @@ function TelegramIntake({ accounts }) {
     }
   }
 
-  const configured = people.filter((p) => p.telegramUserId.trim()).length
+  // Describes what the bot will actually do, rather than asserting it does
+  // nothing until both slots are filled — which was untrue with one configured.
+  const configuration = describeConfiguration(people)
+  // The bot only matches receipts against cash and credit cards; offering
+  // anything else meant a silent no-op when chosen.
+  const payable = payableAccounts(accounts)
 
   return (
     <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
       <h2 className="mb-1 text-lg font-semibold text-ink-900">Telegram intake</h2>
       <p className="mb-4 text-sm text-ink-500">
         Who the bot accepts spends from. Send <code className="rounded bg-ink-100 px-1">/id</code> to the bot in your
-        group to get each number. {configured < 2 && 'Until both are filled in, the bot ignores everything.'}
+        group to get each number. {configuration.message}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -466,7 +485,7 @@ function TelegramIntake({ accounts }) {
               className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="">Flag for review instead</option>
-              {accounts.map((a) => (
+              {payable.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
