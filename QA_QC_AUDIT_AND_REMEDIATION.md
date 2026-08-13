@@ -62,13 +62,13 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | SEC-02 | P0 | Any authenticated user has full CRUD on all finance data | **Confirmed live** (19/19 policies) — ✅ **APPLIED to production & verified** |
 | DATA-01 | P0 | `split_group_id` conflates split / transfer / bulk batch | **Confirmed; zero live rows to migrate** — ✅ **APPLIED to production & verified** |
 | MONEY-01 | P0 | Duplicated, stale FX state; silent 1:1 fallback | **Confirmed, worse than audited** — ✅ **fixed in repo** |
-| DATA-02 | P0 | Multi-row writes not atomic or idempotent | **Confirmed** — ✅ frontend paths done (026 awaiting apply); Telegram paths tracked under BOT-01 |
+| DATA-02 | P0 | Multi-row writes not atomic or idempotent | **Confirmed** — ✅ frontend (026) **and** Telegram (027) paths done; both awaiting apply |
 | SEC-03 | P1 | Function JWT config not versioned | **Partially disproven** — prod is correct; ✅ now pinned |
 | MONEY-02 | P1 | Transfers inflate merchant + trend reports | **Confirmed, wider than audited** — ✅ **fixed in repo** |
 | MONEY-03 | P1 | UTC dates wrong around Dubai midnight | **Confirmed (4 sites)** — ✅ **fixed in repo** |
 | MONEY-04 | P1 | Raw mixed currencies compared/summed | **Confirmed; latent, not live** — ✅ **fixed in repo** |
 | DATA-03 | P1 | Free-text categories; duplicate budgets possible | **Partially disproven** — 0 live violations; preventive only |
-| BOT-01 | P1 | Telegram concurrency/idempotency gaps | Confirmed — pending |
+| BOT-01 | P1 | Telegram concurrency/idempotency gaps | **Confirmed (all 5)** — ✅ code done; migration 027 awaiting apply |
 | UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed**, crash latent (0 live rows with `avg_cost=0`) — pending |
 | UI-02 | P1 | Bills include income; calendar ignores `end_date` | Confirmed — pending |
 | UI-03 | P1 | Telegram settings UI/backend mismatch | Confirmed — pending |
@@ -389,9 +389,46 @@ gaps — transfer's two sequential inserts, bulk's concurrent inserts, cashback
 apply's insert-then-delete, and the absence of an update-level idempotency
 ledger — are **not** fixed here and remain open under BOT-01.
 
-### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4 + WP5
+### ✅ WP6 — BOT-01: Telegram atomicity and idempotency
 
-**221/221 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
+**Changed:** `supabase/schema/027_intake_atomicity.sql` (new),
+`_shared/store.ts`, `_shared/types.ts`, `telegram-intake/intake.ts`,
+`fixtures/fakes.ts`, `_shared/store.test.ts` (+4 tests),
+`telegram-intake/intake.test.ts` (+3 tests).
+
+**Telegram retries an update whenever the webhook times out or answers 5xx**, so
+redelivery is a normal operating condition. Nothing defended against it: every
+retry wrote a second copy of the money.
+
+| Failure | Fix |
+|---|---|
+| Transfer's two rows inserted sequentially — a failure between them left money leaving an account and arriving nowhere | `create_transfer` writes both in one transaction |
+| Bulk inserted N rows as N concurrent requests — any subset could fail, leaving a partial batch nobody was told about | `create_bulk_transactions` writes all or none |
+| Cashback inserted income then deleted the proposal — a retry logged it twice | `apply_pending_income` deletes first, and that delete **is** the idempotency guard |
+| `joinMediaGroup` read a JSON array, appended, wrote it back — two photos of one album arriving together overwrote each other, so a photo silently vanished | membership is now one row per photo, keyed `(media_group_id, file_id)` |
+| `claimMediaGroup` checked `processed_at` then patched it — two invocations could both claim and both extract | `claim_media_group` is one conditional UPDATE; exactly one caller gets `true` |
+
+Transfers and bulk rows also carry an `idempotency_key`
+(`tg:<chat>:<message>:<slot>`) under a unique index, so a replayed update
+collides instead of inserting. Both call sites now return early on an empty
+result — announcing again would tell the household they had spent the money
+twice.
+
+**Two bugs the new tests caught, both mine:**
+
+- The replay guard existed on the transfer path but not on bulk, which then dereferenced `rows[0].id` on an empty result.
+- `request()` called `res.json()` on every non-204 response, but a `return=minimal` write can answer 201 with an empty body — producing "Unexpected end of JSON input" a long way from its cause. It now tolerates an empty body, which also protects `logEvent`.
+
+The `FakeStore` models idempotency and compare-and-set faithfully rather than
+always succeeding — a permissive fake would have hidden exactly the races this
+package exists to close.
+
+**Rollback:** drop the four functions and the unique index; the added column
+and `media_group_files` are additive and can stay.
+
+### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4 + WP5 + WP6
+
+**227/227 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

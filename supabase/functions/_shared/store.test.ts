@@ -106,23 +106,55 @@ test('loadHouseholdContext only fetches payable account types, not debt/asset tr
   assert.match(accountsCall!.url, /type=in\.\(cash,credit_card\)/)
 })
 
-test('joinMediaGroup creates then appends, and claimMediaGroup marks it processed', async () => {
-  let stored: Record<string, unknown> | null = null
-  const fetchImpl = (async (url: string, init: RequestInit = {}) => {
-    const method = init.method ?? 'GET'
-    if (!url.includes('/media_groups')) return new Response('[]', { status: 200 })
-    if (method === 'GET') return new Response(JSON.stringify(stored ? [stored] : []), { status: 200 })
-    const body = JSON.parse(String(init.body))
-    stored = method === 'POST' ? body : { ...stored, ...body }
-    return new Response(JSON.stringify([stored]), { status: method === 'POST' ? 201 : 200 })
-  }) as unknown as typeof fetch
+/**
+ * A fake of the album storage introduced in 027: a header row plus one row per
+ * photo, keyed by (media_group_id, file_id).
+ */
+function albumBackend() {
+  const headers = new Map()
+  const files = new Set()
+  let claimed = false
 
-  // A fixed, strictly-increasing clock. Real Date.now() has millisecond
-  // resolution, so two joins in the same millisecond produced an identical
-  // updated_at and failed the assertion below on roughly one run in six.
+  const fetchImpl = (async (url, init = {}) => {
+    const method = init.method ?? 'GET'
+    const body = init.body ? JSON.parse(String(init.body)) : null
+
+    if (url.includes('/rpc/claim_media_group')) {
+      // Compare-and-set: the second caller must lose.
+      if (claimed) return new Response('false', { status: 200 })
+      claimed = true
+      headers.set('grp-1', { ...headers.get('grp-1'), processed_at: 'claimed' })
+      return new Response('true', { status: 200 })
+    }
+
+    if (url.includes('/media_group_files')) {
+      if (method === 'GET') {
+        return new Response(JSON.stringify([...files].map((file_id) => ({ file_id }))), { status: 200 })
+      }
+      // The primary key makes a repeat insert a no-op rather than a clobber.
+      files.add(body.file_id)
+      return new Response(null, { status: 201 })
+    }
+
+    if (url.includes('/media_groups')) {
+      if (method === 'GET') {
+        const row = headers.get('grp-1')
+        return new Response(JSON.stringify(row ? [row] : []), { status: 200 })
+      }
+      const existing = headers.get('grp-1')
+      headers.set('grp-1', method === 'POST' ? { ...body, ...existing } : { ...existing, ...body })
+      return new Response(null, { status: method === 'POST' ? 201 : 204 })
+    }
+    return new Response('[]', { status: 200 })
+  })
+
   let tick = 0
   const now = () => new Date(Date.UTC(2026, 7, 12, 10, 0, 0) + ++tick * 1000).toISOString()
-  const store = new PostgrestStore({ supabaseUrl: 'https://project.supabase.co', serviceKey: 'service-key', fetchImpl, now })
+  return new PostgrestStore({ supabaseUrl: 'https://project.supabase.co', serviceKey: 'service-key', fetchImpl, now })
+}
+
+test('joinMediaGroup accumulates photos and keeps the first caption', async () => {
+  const store = albumBackend()
 
   const first = await store.joinMediaGroup('grp-1', -100, 'file-a', 'weekly shop')
   assert.deepEqual(first.fileIds, ['file-a'])
@@ -132,12 +164,44 @@ test('joinMediaGroup creates then appends, and claimMediaGroup marks it processe
   assert.deepEqual(second.fileIds, ['file-a', 'file-b'])
   assert.equal(second.caption, 'weekly shop', 'the first caption to arrive wins')
   assert.notEqual(second.updatedAt, first.updatedAt, 'each join bumps updated_at so a later join is detectable')
+})
 
-  assert.deepEqual(await store.getMediaGroup('grp-1'), second)
+test('two photos joining concurrently both survive', async () => {
+  // BOT-01: the old implementation read the file_ids array, appended, and
+  // wrote it back. Two photos of one album arriving together each wrote an
+  // array built from the same stale read, so one silently vanished. Membership
+  // is now one row per photo, so neither can clobber the other.
+  const store = albumBackend()
 
-  await store.claimMediaGroup('grp-1')
-  const claimed = await store.getMediaGroup('grp-1')
-  assert.ok(claimed?.processedAt, 'claiming sets processed_at so the group is never processed twice')
+  await Promise.all([
+    store.joinMediaGroup('grp-1', -100, 'file-a', 'album'),
+    store.joinMediaGroup('grp-1', -100, 'file-b', null),
+    store.joinMediaGroup('grp-1', -100, 'file-c', null),
+  ])
+
+  const group = await store.getMediaGroup('grp-1')
+  assert.deepEqual(group?.fileIds.slice().sort(), ['file-a', 'file-b', 'file-c'])
+})
+
+test('the same photo delivered twice is stored once', async () => {
+  const store = albumBackend()
+  await store.joinMediaGroup('grp-1', -100, 'file-a', null)
+  await store.joinMediaGroup('grp-1', -100, 'file-a', null)
+
+  const group = await store.getMediaGroup('grp-1')
+  assert.deepEqual(group?.fileIds, ['file-a'])
+})
+
+test('only one caller can claim an album', async () => {
+  // The old check-then-patch let two invocations both pass the check and both
+  // extract the same album, billing the model twice and writing the spends twice.
+  const store = albumBackend()
+  await store.joinMediaGroup('grp-1', -100, 'file-a', null)
+
+  const results = await Promise.all([store.claimMediaGroup('grp-1'), store.claimMediaGroup('grp-1')])
+
+  assert.equal(results.filter(Boolean).length, 1, 'exactly one winner')
+  assert.equal(await store.claimMediaGroup('grp-1'), false, 'and never again afterwards')
 })
 
 test('logEvent posts a flattened row to intake_logs with return=minimal', async () => {

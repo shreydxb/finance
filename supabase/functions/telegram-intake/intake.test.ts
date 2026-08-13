@@ -545,6 +545,25 @@ test('Apply writes the income row and clears the pending proposal', async () => 
   assert.equal(edit?.text, 'Logged: 15 AED · ENBD Credit Card cashback · Shrey · Thu 6 Aug ✓')
 })
 
+test('tapping Apply twice logs the cashback once', async () => {
+  // The old path inserted the income and then deleted the proposal as two
+  // calls, so a retry between them — or an impatient second tap — recorded the
+  // same cashback twice. The delete is now the guard.
+  const h = harness('{"amount":25,"currency":"AED","source":"ENBD cashback","person":"Shrey","date":"2026-08-06","kind":"other","confidence":0.95}')
+  await handleUpdate(textUpdate('got 25 cashback from ENBD'), h.deps)
+
+  const pendingId = Array.from(h.store.pendingIncome.keys())[0]
+  assert.ok(pendingId, 'a proposal was created')
+
+  await handleUpdate(callbackUpdate('cashback_apply', pendingId), h.deps)
+  assert.equal(h.store.income.length, 1, 'logged once')
+
+  const second = await handleUpdate(callbackUpdate('cashback_apply', pendingId), h.deps)
+
+  assert.equal(h.store.income.length, 1, 'still once after a replayed tap')
+  assert.equal(second.status, 'ignored')
+})
+
 test('Cancel discards the proposal without writing anything', async () => {
   const h = harness('{"amount":15,"currency":"AED","source":"ENBD Credit Card cashback","date":"2026-08-06"}')
   await handleUpdate(textUpdate('got 15 aed cashback from the ENBD card'), h.deps)
@@ -589,6 +608,41 @@ test('a plain spend message never gets routed into the cashback flow', async () 
 
   assert.equal(h.store.rows.size, 1)
   assert.equal(h.store.pendingIncome.size, 0)
+})
+
+// ── BOT-01: redelivery must not duplicate money ──────────────────────────────
+//
+// Telegram retries an update when the webhook times out or answers 5xx, so the
+// same message arriving twice is a normal operating condition, not an edge
+// case. Before 027 each retry wrote a second copy of the money.
+
+test('a redelivered transfer message writes nothing the second time', async () => {
+  const h = harness([
+    '{"amount":2000,"currency":"AED","from_account":"Wio Personal","to_account":"Joint Current","date":"2026-08-06"}',
+    '{"amount":2000,"currency":"AED","from_account":"Wio Personal","to_account":"Joint Current","date":"2026-08-06"}',
+  ])
+  const update = textUpdate('moved 2000 from Wio to Joint Current')
+
+  await handleUpdate(update, h.deps)
+  assert.equal(h.store.rows.size, 2, 'the pair lands once')
+
+  // Same update id, same message id — exactly what Telegram resends.
+  const outcome = await handleUpdate(update, h.deps)
+
+  assert.equal(h.store.rows.size, 2, 'still two rows, not four')
+  assert.equal(outcome.status, 'ignored')
+})
+
+test('a redelivered bulk message writes nothing the second time', async () => {
+  const bulk = '[{"amount":40,"currency":"AED","category":"Dining Out","note":"coffee","date":"2026-08-06","confidence":0.95},{"amount":90,"currency":"AED","category":"Transport & Fuel","note":"taxi","date":"2026-08-06","confidence":0.95}]'
+  const h = harness([bulk, bulk])
+  const update = textUpdate('coffee 40 and taxi 90')
+
+  await handleUpdate(update, h.deps)
+  assert.equal(h.store.rows.size, 2, 'both spends land once')
+
+  await handleUpdate(update, h.deps)
+  assert.equal(h.store.rows.size, 2, 'a replay adds nothing')
 })
 
 test('a clean transfer writes two linked rows, never touches accounts.value, and is not a spend', async () => {

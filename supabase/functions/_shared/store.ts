@@ -11,6 +11,8 @@
 
 import type {
   AccountRef,
+  BulkRow,
+  TransferArgs,
   CategoryRef,
   HouseholdContext,
   IncomeInsert,
@@ -85,8 +87,19 @@ export class PostgrestStore implements IntakeStore {
     if (!res.ok) {
       throw new Error(`Supabase ${init.method ?? 'GET'} ${path} failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
     }
+    // `Prefer: return=minimal` writes answer with no body, and PostgREST is not
+    // consistent about whether that is a 204 or a 201 with zero bytes. Parsing
+    // unconditionally turned the latter into "Unexpected end of JSON input" —
+    // a confusing failure a long way from its cause.
     if (res.status === 204) return undefined as T
-    return (await res.json()) as T
+    const text = await res.text()
+    if (text === '') return undefined as T
+    return JSON.parse(text) as T
+  }
+
+  /** Call a Postgres function. Used wherever a write must be all-or-nothing. */
+  private rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+    return this.request<T>(`/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) })
   }
 
   async loadHouseholdContext(): Promise<HouseholdContext> {
@@ -143,6 +156,43 @@ export class PostgrestStore implements IntakeStore {
     return rows[0] ?? null
   }
 
+  /** Both sides of a transfer in one transaction, keyed against redelivery. */
+  async createTransfer(args: TransferArgs): Promise<TransactionRow[]> {
+    return this.rpc<TransactionRow[]>('create_transfer', {
+      p_date: args.date,
+      p_amount: args.amount,
+      p_currency: args.currency,
+      p_from_account_id: args.fromAccountId,
+      p_to_account_id: args.toAccountId,
+      p_from_label: args.fromLabel,
+      p_to_label: args.toLabel,
+      p_owner: args.owner,
+      p_needs_review: args.needsReview,
+      p_chat_id: args.chatId,
+      p_message_id: args.messageId,
+      p_idempotency_base: args.idempotencyBase,
+    })
+  }
+
+  /** Every row of a bulk message, or none. Each row carries its own slot key. */
+  async createBulkTransactions(rows: BulkRow[], chatId: number, idempotencyBase: string): Promise<TransactionRow[]> {
+    return this.rpc<TransactionRow[]>('create_bulk_transactions', {
+      p_rows: rows,
+      p_chat_id: chatId,
+      p_idempotency_base: idempotencyBase,
+    })
+  }
+
+  /**
+   * Log a proposed income and remove the proposal, atomically.
+   *
+   * Returns null when the proposal was already applied — the delete inside the
+   * function is the idempotency guard, so a replayed tap cannot log it twice.
+   */
+  async applyPendingIncome(pendingId: string): Promise<unknown | null> {
+    return this.rpc<unknown | null>('apply_pending_income', { p_pending_id: pendingId })
+  }
+
   async findTransactionsByGroup(groupId: string): Promise<TransactionRow[]> {
     return this.request<TransactionRow[]>(`/transactions?transaction_group_id=eq.${encodeURIComponent(groupId)}`)
   }
@@ -189,46 +239,56 @@ export class PostgrestStore implements IntakeStore {
 
   async joinMediaGroup(mediaGroupId: string, chatId: number, fileId: string, caption: string | null): Promise<MediaGroupState> {
     const nowIso = this.now()
-    const existing = await this.request<MediaGroupRow[]>(
-      `/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`
-    )
-    if (existing.length === 0) {
-      try {
-        const rows = await this.request<MediaGroupRow[]>('/media_groups', {
-          method: 'POST',
-          headers: { prefer: 'return=representation' },
-          body: JSON.stringify({ media_group_id: mediaGroupId, chat_id: chatId, file_ids: [fileId], caption, updated_at: nowIso }),
-        })
-        return fromMediaGroupRow(rows[0])
-      } catch {
-        // Lost a race: a sibling photo's insert landed between our read and
-        // write. Fall through to append instead of losing this photo — the
-        // group already exists now, so the PATCH path below picks it up.
-      }
-    }
-    const current =
-      existing[0] ??
-      (await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`))[0]
-    const fileIds = current.file_ids.includes(fileId) ? current.file_ids : [...current.file_ids, fileId]
-    const rows = await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}`, {
-      method: 'PATCH',
-      headers: { prefer: 'return=representation' },
-      body: JSON.stringify({ file_ids: fileIds, caption: current.caption ?? caption, updated_at: nowIso }),
+
+    // The header row carries the caption and the claim flag. Its insert is
+    // idempotent: a sibling photo that got here first simply wins, and
+    // merge-duplicates makes the loser's write a no-op rather than an error.
+    await this.request<MediaGroupRow[]>('/media_groups', {
+      method: 'POST',
+      headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ media_group_id: mediaGroupId, chat_id: chatId, caption, updated_at: nowIso }),
     })
-    return fromMediaGroupRow(rows[0])
+
+    // Membership is one row per photo (027). This replaced a read-append-write
+    // over a JSON array, where two photos arriving together overwrote each
+    // other's file id and a photo silently vanished from the album. The
+    // primary key makes that impossible; a duplicate delivery collides
+    // harmlessly.
+    await this.request<unknown>('/media_group_files', {
+      method: 'POST',
+      headers: { prefer: 'resolution=ignore-duplicates,return=minimal' },
+      body: JSON.stringify({ media_group_id: mediaGroupId, file_id: fileId, chat_id: chatId }),
+    })
+
+    // Touch the header so staleness checks still see recent activity.
+    await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({ updated_at: nowIso }),
+    })
+
+    return (await this.getMediaGroup(mediaGroupId))!
   }
 
   async getMediaGroup(mediaGroupId: string): Promise<MediaGroupState | null> {
-    const rows = await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`)
-    return rows[0] ? fromMediaGroupRow(rows[0]) : null
+    const [rows, files] = await Promise.all([
+      this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&limit=1`),
+      this.request<{ file_id: string }[]>(
+        `/media_group_files?media_group_id=eq.${encodeURIComponent(mediaGroupId)}&select=file_id&order=created_at.asc`
+      ),
+    ])
+    if (!rows[0]) return null
+    return fromMediaGroupRow({ ...rows[0], file_ids: files.map((f) => f.file_id) })
   }
 
-  async claimMediaGroup(mediaGroupId: string): Promise<void> {
-    await this.request<MediaGroupRow[]>(`/media_groups?media_group_id=eq.${encodeURIComponent(mediaGroupId)}`, {
-      method: 'PATCH',
-      headers: { prefer: 'return=representation' },
-      body: JSON.stringify({ processed_at: this.now() }),
-    })
+  /**
+   * Claim an album for extraction. Returns true to exactly one caller.
+   *
+   * Was a read of processed_at followed by a patch, so two invocations could
+   * both pass the check and both extract the same album (027).
+   */
+  async claimMediaGroup(mediaGroupId: string): Promise<boolean> {
+    return this.rpc<boolean>('claim_media_group', { p_media_group_id: mediaGroupId })
   }
 
   async findPossibleDuplicate(params: {

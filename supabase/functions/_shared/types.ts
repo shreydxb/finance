@@ -155,6 +155,8 @@ export interface TransactionRow {
   transaction_group_id: string | null
   group_kind: 'category_split' | 'transfer' | 'bulk_batch' | null
   transfer_direction: 'out' | 'in' | null
+  /** BOT-01: stable key making a redelivered Telegram update a no-op. */
+  idempotency_key: string | null
 }
 
 /** A prior row that looks like the same spend re-sent — see findPossibleDuplicate. */
@@ -237,6 +239,12 @@ export interface IntakeStore {
   insertIncome(row: IncomeInsert): Promise<void>
   /** The other rows sharing one transaction_group_id, whatever the group's kind. */
   findTransactionsByGroup(groupId: string): Promise<TransactionRow[]>
+  /** BOT-01: both transfer rows in one transaction, idempotent against redelivery. */
+  createTransfer(args: TransferArgs): Promise<TransactionRow[]>
+  /** BOT-01: all bulk rows in one transaction, idempotent per row. */
+  createBulkTransactions(rows: BulkRow[], chatId: number, idempotencyBase: string): Promise<TransactionRow[]>
+  /** BOT-01: income + proposal removal in one transaction. Null when already applied. */
+  applyPendingIncome(pendingId: string): Promise<unknown | null>
 }
 
 /** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */
@@ -304,3 +312,32 @@ export type IntakeOutcome =
   | { status: 'cashback_applied'; pendingId: string }
   | { status: 'cashback_cancelled'; pendingId: string }
   | { status: 'error'; reason: string }
+
+/** Arguments for an atomic transfer write (BOT-01). */
+export interface TransferArgs {
+  date: string
+  amount: number
+  currency: string
+  fromAccountId: string | null
+  toAccountId: string | null
+  fromLabel: string | null
+  toLabel: string | null
+  owner: string | null
+  needsReview: boolean
+  chatId: number
+  messageId: number
+  idempotencyBase: string
+}
+
+/** One line of a bulk message, as passed to create_bulk_transactions. */
+export interface BulkRow {
+  date: string
+  amount: number
+  currency: string
+  account_id: string | null
+  category: string | null
+  owner: string | null
+  note: string | null
+  needs_review: boolean
+  items?: unknown
+}

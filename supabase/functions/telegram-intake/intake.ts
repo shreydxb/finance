@@ -264,36 +264,39 @@ async function handleBulk(
     return writeAndAnnounce(extractions[0], message, household, senderId, deps, t0, 'text', 'extract_bulk')
   }
 
-  const batchId = crypto.randomUUID()
   const resolvedRows = extractions.map((extraction) => ({ extraction, resolved: resolve(extraction, household, senderId) }))
 
-  const rows = await Promise.all(
-    resolvedRows.map(({ extraction, resolved }) =>
-      deps.store.insertTransaction({
-        date: extraction.date,
-        amount: extraction.amount ?? 0,
-        currency: extraction.currency,
-        account_id: resolved.accountId,
-        category: extraction.category,
-        owner: resolved.owner,
-        note: extraction.note,
-        source: 'telegram',
-        needs_review: resolved.needsReview,
-        telegram_chat_id: message.chat.id,
-        // telegram_msg_id deliberately left unset: all N rows share one
-        // inbound message, so setting it here would make a bare reply to
-        // that message match an arbitrary row. Fix #n threads correctly
-        // anyway because tapping Fix sends its own distinct prompt message
-        // per row (see the 'fix' callback branch — unmodified for bulk).
-        // These rows are independent spends that merely arrived in one
-        // message. Declaring the kind stops the UI merging them into a single
-        // "split" row and stops a confirm on one cascading to the others.
-        transaction_group_id: batchId,
-        group_kind: 'bulk_batch',
-        items: extraction.items,
-      })
-    )
+  // One transaction, not N concurrent inserts (BOT-01). Any subset of the old
+  // parallel requests could fail, leaving a partial batch nobody was told
+  // about. The idempotency base makes a redelivered update — Telegram retries
+  // on timeout or 5xx — write nothing rather than a second copy of the batch.
+  //
+  // telegram_msg_id is deliberately left unset on these rows: all N share one
+  // inbound message, so setting it would make a bare reply match an arbitrary
+  // row. Fix #n still threads correctly because it sends its own prompt
+  // message per row.
+  const rows = await deps.store.createBulkTransactions(
+    resolvedRows.map(({ extraction, resolved }) => ({
+      date: extraction.date,
+      amount: extraction.amount ?? 0,
+      currency: extraction.currency,
+      account_id: resolved.accountId,
+      category: extraction.category,
+      owner: resolved.owner,
+      note: extraction.note,
+      needs_review: resolved.needsReview,
+      items: extraction.items,
+    })),
+    message.chat.id,
+    `tg:${message.chat.id}:${message.message_id}:bulk`
   )
+
+  // A replay writes nothing and returns no rows. The batch is already in the
+  // ledger, so there is nothing to announce and nothing to log — announcing
+  // again would tell the household they had spent the money twice.
+  if (rows.length === 0) {
+    return { status: 'ignored', reason: 'bulk batch already recorded for this message' }
+  }
 
   await logInbound(deps, message, household, senderId, 'text', {
     stage: 'extract_bulk',
@@ -437,15 +440,16 @@ async function handleCashbackCallback(
     return { status: 'ignored', reason: 'pending income has no amount' }
   }
 
-  await deps.store.insertIncome({
-    person: pending.person,
-    source: pending.source,
-    kind: pending.kind,
-    amount: pending.amount,
-    currency: pending.currency,
-    date: pending.date,
-  })
-  await deps.store.deletePendingIncome(pendingId)
+  // One transaction, and idempotent by construction (BOT-01): the function
+  // deletes the proposal first and only logs the income if that delete found
+  // something. A replayed tap — or a retry after a timeout — therefore returns
+  // null and logs nothing, where the old insert-then-delete pair could record
+  // the same cashback twice.
+  const applied = await deps.store.applyPendingIncome(pendingId)
+  if (applied === null) {
+    await deps.messenger.answerCallbackQuery(query.id, 'Already logged')
+    return { status: 'ignored', reason: `pending income ${pendingId} was already applied` }
+  }
   await deps.messenger.answerCallbackQuery(query.id, 'Logged')
   if (query.message) {
     await deps.messenger.editMessageText(chatId, query.message.message_id, `Logged: ${describeCashback(pending)} ✓`)
@@ -514,40 +518,31 @@ async function handleTransfer(
   const sameAccount = Boolean(fromAccount && toAccount && fromAccount.id === toAccount.id)
   const needsReview = extraction.amount === null || !fromAccount || !toAccount || sameAccount
   const owner = household.people.get(senderId) || null
-  const transferId = crypto.randomUUID()
+  // Both rows in one transaction (BOT-01). They used to be two sequential
+  // inserts, so a failure between them left half a transfer: money leaving an
+  // account and arriving nowhere. The idempotency base makes a redelivered
+  // update a no-op instead of a second pair.
+  const transferRows = await deps.store.createTransfer({
+    date: extraction.date,
+    amount: extraction.amount ?? 0,
+    currency: extraction.currency,
+    fromAccountId: fromAccount?.id ?? null,
+    toAccountId: toAccount?.id ?? null,
+    fromLabel: fromAccount?.name ?? extraction.fromAccount ?? null,
+    toLabel: toAccount?.name ?? extraction.toAccount ?? null,
+    owner,
+    needsReview,
+    chatId: message.chat.id,
+    messageId: message.message_id,
+    idempotencyBase: `tg:${message.chat.id}:${message.message_id}:transfer`,
+  })
 
-  const outRow = await deps.store.insertTransaction({
-    date: extraction.date,
-    amount: extraction.amount ?? 0,
-    currency: extraction.currency,
-    account_id: fromAccount?.id ?? null,
-    category: 'Transfer',
-    owner,
-    note: `Transfer out → ${toAccount?.name ?? extraction.toAccount ?? 'unknown account'}`,
-    source: 'telegram',
-    needs_review: needsReview,
-    telegram_chat_id: message.chat.id,
-    telegram_msg_id: message.message_id,
-    transaction_group_id: transferId,
-    group_kind: 'transfer',
-    transfer_direction: 'out',
-  })
-  await deps.store.insertTransaction({
-    date: extraction.date,
-    amount: extraction.amount ?? 0,
-    currency: extraction.currency,
-    account_id: toAccount?.id ?? null,
-    category: 'Transfer',
-    owner,
-    note: `Transfer in ← ${fromAccount?.name ?? extraction.fromAccount ?? 'unknown account'}`,
-    source: 'telegram',
-    needs_review: needsReview,
-    telegram_chat_id: message.chat.id,
-    telegram_msg_id: message.message_id,
-    transaction_group_id: transferId,
-    group_kind: 'transfer',
-    transfer_direction: 'in',
-  })
+  // A replay writes nothing and returns no rows; the original pair is already
+  // in the ledger, so there is nothing to announce again.
+  if (transferRows.length === 0) {
+    return { status: 'ignored', reason: 'transfer already recorded for this message' }
+  }
+  const outRow = transferRows.find((r) => r.transfer_direction === 'out') ?? transferRows[0]
 
   await logInbound(deps, message, household, senderId, 'text', {
     stage: 'extract_transfer',
