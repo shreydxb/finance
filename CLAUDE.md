@@ -26,7 +26,7 @@ mode and a global AED/USD/INR currency toggle apply across all of them — both
 device-local (localStorage via `PrefsContext`), not synced between Shrey's and
 Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
 
-## Open items (as of 9 Aug 2026, verified against live DB/deploy)
+## Open items (as of 12 Aug 2026, verified against the live DB and deploy)
 
 - **`refresh-prices` has now succeeded** — HTTP 200 on 11 Aug 2026 (verified
   12 Aug via edge logs), and `refresh-fx` returned 200 on 12 Aug with rates
@@ -48,11 +48,14 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
   was then reported as "malformed JSON", which is what made this look like an
   accuracy problem. The cap is now 2,000 and `finish_reason: 'length'` is
   detected and named explicitly (`extract.ts`). **Not yet deployed.**
-- **The Telegram webhook secret is unset — and as of 10 Aug this is a blocker,
-  not a tolerated gap.** The function skips the header check (it logs a warning),
-  so the household allowlist is the only gate — and that allowlist reads
-  `message.from.id` straight out of the *request body*. Anyone who guesses the
-  URL can forge it. Today that means injecting junk transactions; once the bot
+- **The Telegram webhook secret is unset, and the deployed function still fails
+  open.** The fix is in the repo and **not deployed**: `gate.ts` now returns 503
+  when `TELEGRAM_WEBHOOK_SECRET` is absent, compares in constant time, and no
+  longer lets `x-demo-mode` bypass authentication. Until `telegram-intake` is
+  redeployed, production runs v22 — which skips the header check with only a
+  logged warning, leaving the household allowlist as the sole gate. That
+  allowlist reads `message.from.id` straight out of the *request body*, so
+  anyone who guesses the URL can forge it. Today that means injecting junk transactions; once the bot
   answers questions (bot-expansion Sprint 2), the same forged request with
   `chat.id` pointed elsewhere makes it a read endpoint for the whole household's
   finances. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
