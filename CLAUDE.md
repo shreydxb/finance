@@ -70,8 +70,10 @@ Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
 - **BTC (0.00679402) is untracked.** It sits outside the Wio portfolio view,
   so it needs its own source before it can be entered.
 - **`pg_cron` and `pg_net` are available but not installed** on `our-rokda`
-  (verified 10 Aug via `list_extensions`). Both are needed for scheduled
-  Telegram pushes and install with `create extension`. (Taskiv #68)
+  (re-verified 12 Aug). Needed for scheduled Telegram pushes *and* for the
+  nightly encrypted backup added this round — see
+  `supabase/functions/backup/README.md`. Both install with `create extension`.
+  (Taskiv #68)
 
 Resolved since the last pass — **Taskiv #44 is fixed**: `intake.ts` now resolves
 "today" via `_shared/dates.ts`'s `todayInTz` (Asia/Dubai via `Intl.DateTimeFormat`,
@@ -141,12 +143,25 @@ Project `our-rokda` (`wrxqgfbolryveivgdjia`).
 ## Tests
 
 ```bash
-npm test              # Edge Function tests: node --test, no network, no keys
+npm test              # 261 tests: Edge Functions + src/, node --test, no network, no keys
+npm run lint          # oxlint — 0 errors, 6 warnings
+npm run build         # vite
 npm run demo:telegram # walks the Telegram flow against mocked payloads
 ```
 
-There are no frontend tests yet. `npm run build` is the only check the React
-side gets.
+`.github/workflows/ci.yml` runs `npm ci`, lint, test and build on every push,
+plus an advisory production-dependency audit.
+
+**What the suite does not cover:** browser rendering, Auth/RLS from a real
+client, migrations against a clean database, and the external APIs. Those still
+need a person. The RLS matrix and the intake functions were verified by probing
+production directly (see `QA_QC_AUDIT_AND_REMEDIATION.md`), not by unit tests.
+
+One rule learned three times this round: **pure logic must not live in a module
+that imports the Supabase client**, because Node cannot load it and it silently
+becomes untestable. That is how `toAED`, the transaction grouping and the
+recurring schedule rules all went untested while carrying bugs. Data access in
+one module, rules in another.
 
 ## Telegram bot expansion (designed 10 Aug 2026, not yet built)
 

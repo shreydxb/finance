@@ -1,0 +1,48 @@
+name: CI
+
+# The suite grew from 139 tests to 261 during the August 2026 stabilization
+# round, and until now nothing ran it except a person remembering to. Several
+# of those tests exist because a bug reached production; a gate that only runs
+# by hand is how the next one gets there too.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A newer push to the same branch makes an in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # `ci`, not `install`: fails on a lockfile that disagrees with
+      # package.json rather than quietly resolving something different from
+      # what was tested locally.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Advisory: a vulnerable production dependency should be visible without
+      # blocking a security fix from being merged. Dev dependencies are
+      # excluded because they never reach the browser.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
