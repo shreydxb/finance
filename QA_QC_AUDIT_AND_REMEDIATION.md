@@ -69,8 +69,8 @@ machine, not the project. **139/139 Edge tests passed, `npm run build` succeeded
 | MONEY-04 | P1 | Raw mixed currencies compared/summed | **Confirmed; latent, not live** — ✅ **fixed in repo** |
 | DATA-03 | P1 | Free-text categories; duplicate budgets possible | **Partially disproven** — 0 live violations; preventive only |
 | BOT-01 | P1 | Telegram concurrency/idempotency gaps | **Confirmed (all 5)** — ✅ code done; migration 027 awaiting apply |
-| UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed**, crash latent (0 live rows with `avg_cost=0`) — pending |
-| UI-02 | P1 | Bills include income; calendar ignores `end_date` | Confirmed — pending |
+| UI-01 | P1 | Investment delete no-op; zero-cost crash | **Confirmed** — ✅ code done (028 awaiting apply) |
+| UI-02 | P1 | Bills include income; calendar ignores `end_date` | **Confirmed** — ✅ **fixed in repo** |
 | UI-03 | P1 | Telegram settings UI/backend mismatch | Confirmed — pending |
 | INT-01 | P1 | Realtime published but never subscribed | **Confirmed** — zero `.channel(` calls in `src/` |
 | OPS-01 | P1 | Migration/doc drift | **Confirmed — docs only**; repo and live schema agree |
@@ -426,9 +426,52 @@ package exists to close.
 **Rollback:** drop the four functions and the unique index; the added column
 and `media_group_files` are additive and can stay.
 
-### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4 + WP5 + WP6
+### ✅ WP7 — UI-01 / UI-02: investment and recurring defects
 
-**227/227 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
+**Changed:** `supabase/schema/028_price_provenance.sql` (new),
+`src/screens/Investments.jsx`, `src/screens/Recurring.jsx`,
+`src/lib/recurringSchedule.js` (new) + `recurringSchedule.test.js` (new, 10 tests),
+`src/lib/recurring.js`, `supabase/functions/refresh-prices/index.ts`.
+
+**UI-01 — the crash was real, not theoretical.** With `avg_cost = 0` and a
+quantity set, `hasCost` is true but `gainPct` is null, and the renderer called
+`.toFixed(1)` on it — taking down the whole Investments screen, not just one
+row. Now guarded.
+
+**Delete works.** The form always rendered a Delete button wired to `() => {}`,
+and investment accounts are excluded from the Accounts screen, so there was no
+route to remove a holding at all. It now confirms by name, and translates
+Postgres `23503` into *"still has transactions or goals linked to it"* rather
+than showing a raw constraint error.
+
+**Price freshness is now truthful.** "Last refreshed" read `accounts.updated_at`,
+which moves on any write — renaming a holding made a weeks-old quote look
+current. 028 adds `price_updated_at` and `price_source`, written by
+`refresh-prices`. This matters because that function covers only US tickers:
+the 25 India equities and the metals are never auto-priced, and a stale quote
+quietly misstates net worth.
+
+**UI-02 — the calendar and the due-date list disagreed.** `nextDueDate` had
+always honoured `end_date`; `CalendarView` filtered only on `months`, so a car
+EMI finishing in May 2027 kept appearing every month forever. Both now use one
+`occursInMonth`, which compares against the actual occurrence — an obligation
+due on the 15th and ending on the 20th still has a payment that month.
+
+**Recurring income is no longer a bill.** Salary rows were listed under
+"Bills & EMIs" as upcoming obligations. They moved to their own *Scheduled
+income* section under the Income tab rather than being filtered away, since
+this is the only screen that can edit them.
+
+**A pattern worth naming.** The scheduling rules had to be extracted into
+`recurringSchedule.js` before they could be tested, because `recurring.js`
+imports the Supabase client and cannot load under Node. That is the **third**
+time this shape has hidden a bug — after `toAED` in `settings.js` and the
+grouping logic in `TransactionList.jsx`. Anything worth testing must not live
+in a module that reaches for the network.
+
+### Gate results after WP1 + WP3 + WP7a + WP8 + WP9 + WP10 + WP4 + WP5 + WP6 + WP7
+
+**236/236 tests pass** — 139 pre-existing plus 82 added across the gate, reports, extraction, money, dates, mixed-currency, backup-crypto, dump and transaction-group suites. `npm run build` succeeds; `oxlint` 0 errors, 6 warnings (down from 9).
 `npm run build` succeeds. `oxlint`: 0 errors, 9 warnings (unchanged from baseline).
 
 ---

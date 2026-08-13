@@ -6,6 +6,8 @@ import {
   deleteRecurring,
   nextDueDate,
   daysUntil,
+  occursInMonth,
+  isBill,
   MONTH_NAMES,
 } from '../lib/recurring'
 import { listIncome, createIncome, updateIncome, deleteIncome, INCOME_KINDS } from '../lib/income'
@@ -104,11 +106,18 @@ export default function Recurring({ navPayload, onConsumeNav }) {
     return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
-  const withDue = entries
+  // "Bills & EMIs" means things you pay. Recurring income rows were mixed in
+  // here, so salary appeared as an upcoming bill (UI-02). They keep their own
+  // section below rather than disappearing, since this is the only screen that
+  // can edit them.
+  const bills = entries.filter(isBill)
+  const recurringIncome = entries.filter((e) => !isBill(e))
+
+  const withDue = bills
     .map((e) => ({ entry: e, due: nextDueDate(e) }))
     .filter((x) => x.due)
     .sort((a, b) => a.due - b.due)
-  const withoutDue = entries.filter((e) => !nextDueDate(e))
+  const withoutDue = bills.filter((e) => !nextDueDate(e))
 
   const filteredIncome = income.filter((i) => (!personFilter || i.person === personFilter) && (!kindFilter || i.kind === kindFilter))
 
@@ -148,7 +157,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
 
       {view === 'bills' ? (
         <>
-          {entries.length === 0 && <p className="py-10 text-center text-sm text-ink-500">No recurring bills yet.</p>}
+          {bills.length === 0 && <p className="py-10 text-center text-sm text-ink-500">No recurring bills yet.</p>}
 
           {entries.length > 0 && (
             <div className="mb-4 flex rounded-lg bg-ink-100 p-0.5 text-xs w-fit">
@@ -166,7 +175,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
           )}
 
           {layout === 'calendar' && entries.length > 0 && (
-            <CalendarView entries={entries} cursor={calendarCursor} setCursor={setCalendarCursor} onSelect={setEditingEntry} />
+            <CalendarView entries={bills} cursor={calendarCursor} setCursor={setCalendarCursor} onSelect={setEditingEntry} />
           )}
 
           {layout === 'list' && withDue.length > 0 && (
@@ -241,6 +250,39 @@ export default function Recurring({ navPayload, onConsumeNav }) {
         </>
       ) : (
         <>
+          {recurringIncome.length > 0 && (
+            <div className="mb-6">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                Scheduled income
+              </h3>
+              <p className="mb-2 text-xs text-ink-400">
+                Salaries and allowances that repeat. Listed here rather than under Bills &amp; EMIs — they are money
+                arriving, not an obligation to pay.
+              </p>
+              <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
+                {recurringIncome.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setEditingEntry(entry)}
+                    className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium text-ink-900">{entry.name}</span>
+                      <span className="block truncate text-xs text-ink-400">
+                        {entry.owner}
+                        {entry.day_of_month ? ` · day ${entry.day_of_month}` : ''}
+                        {entry.months?.length > 0 ? ` · ${entry.months.map((m) => MONTH_NAMES[m - 1]).join('/')}` : ' · every month'}
+                      </span>
+                    </span>
+                    <span className="tnum shrink-0 pl-2 font-medium text-pos-600">
+                      {entry.currency} {Number(entry.amount).toLocaleString('en-AE')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="mb-4 flex gap-2">
             <select
               value={personFilter}
@@ -322,8 +364,10 @@ function monthGridDays(year, month) {
 function CalendarView({ entries, cursor, setCursor, onSelect }) {
   const byDay = new Map()
   for (const entry of entries) {
-    if (!entry.day_of_month) continue
-    if (entry.months?.length > 0 && !entry.months.includes(cursor.month)) continue
+    // Was: months-only. An obligation past its end_date kept appearing in every
+    // future month (UI-02). occursInMonth applies the same rules nextDueDate
+    // has always used.
+    if (!occursInMonth(entry, cursor.year, cursor.month)) continue
     const day = Math.min(entry.day_of_month, new Date(cursor.year, cursor.month, 0).getDate())
     if (!byDay.has(day)) byDay.set(day, [])
     byDay.get(day).push(entry)

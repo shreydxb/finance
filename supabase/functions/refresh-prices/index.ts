@@ -103,11 +103,22 @@ Deno.serve(async (request: Request): Promise<Response> => {
     try {
       const price = ticker === 'BTC' ? await fetchCoinGeckoBTC() : await fetchYahooPrice(ticker)
       const value = Number(account.quantity) * price
+      const now = new Date().toISOString()
+      const source = ticker === 'BTC' ? 'coingecko' : 'yahoo'
 
       const patchRes = await fetch(`${restUrl}/accounts?id=eq.${account.id}`, {
         method: 'PATCH',
         headers: pgHeaders,
-        body: JSON.stringify({ last_price: price, value, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          last_price: price,
+          value,
+          updated_at: now,
+          // Distinct from updated_at, which any edit moves. Without this the
+          // screen cannot tell a fresh quote from a holding that was merely
+          // renamed (028).
+          price_updated_at: now,
+          price_source: source,
+        }),
       })
       if (!patchRes.ok) throw new Error(`write failed: HTTP ${patchRes.status}`)
 
