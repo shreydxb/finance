@@ -30,17 +30,32 @@ export async function createTransaction(fields) {
   return data
 }
 
-export async function createSplitTransaction(baseFields, splitLines) {
-  const splitGroupId = crypto.randomUUID()
-  const rows = splitLines.map((line) => ({
-    ...baseFields,
-    category: line.category,
-    amount: line.amount,
-    source: 'manual',
-    needs_review: false,
-    split_group_id: splitGroupId,
-  }))
-  const { data, error } = await supabase.from('transactions').insert(rows).select()
+/**
+ * Create, or atomically replace, a set of category-split lines.
+ *
+ * Goes through a Postgres function rather than a delete followed by an insert
+ * (DATA-02). The old sequence removed the original rows first, so a dropped
+ * connection between the two calls destroyed the transaction outright and left
+ * nothing in its place. Inside the function both steps share one transaction:
+ * either the replacement exists or the original still does.
+ *
+ * @param replaces  { groupId } to replace a whole split, { transactionId } to
+ *                  convert a single row into one, or nothing to create anew.
+ */
+export async function replaceCategorySplit(baseFields, splitLines, replaces = {}) {
+  const { data, error } = await supabase.rpc('replace_category_split', {
+    p_group_id: replaces.groupId ?? null,
+    p_transaction_id: replaces.transactionId ?? null,
+    p_base: {
+      date: baseFields.date,
+      currency: baseFields.currency ?? 'AED',
+      account_id: baseFields.account_id ?? null,
+      owner: baseFields.owner ?? null,
+      note: baseFields.note ?? null,
+      tags: baseFields.tags ?? [],
+    },
+    p_lines: splitLines.map((line) => ({ category: line.category, amount: line.amount })),
+  })
   if (error) throw error
   return data
 }
@@ -90,12 +105,43 @@ export async function updateTransaction(id, patch) {
   return data
 }
 
+/**
+ * Remove a transaction.
+ *
+ * Soft delete, not a real one (DATA-04). `deleted_at` was added in 015 for the
+ * bot's `/undo` and every read here already filters on it, but the UI still
+ * issued a hard DELETE — so a mis-tap in the app was unrecoverable while the
+ * same mistake made from Telegram was not. Now they behave the same way, and
+ * the row survives as an audit trail.
+ */
 export async function deleteTransaction(id) {
-  const { error } = await supabase.from('transactions').delete().eq('id', id)
+  const { error } = await supabase
+    .from('transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null)
   if (error) throw error
 }
 
-export async function deleteSplitGroup(splitGroupId) {
-  const { error } = await supabase.from('transactions').delete().eq('split_group_id', splitGroupId)
+/** Undo a soft delete. */
+export async function restoreTransaction(id) {
+  const { error } = await supabase.from('transactions').update({ deleted_at: null }).eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Delete every row of one group.
+ *
+ * Only ever called for a category split, whose lines are meaningless apart.
+ * Transfers and bulk batches must not be routed here: a bulk batch's rows are
+ * independent spends that merely arrived together, and deleting the batch
+ * because one row was selected destroys the others.
+ */
+export async function deleteTransactionGroup(groupId) {
+  const { error } = await supabase
+    .from('transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('transaction_group_id', groupId)
+    .is('deleted_at', null)
   if (error) throw error
 }

@@ -16,8 +16,18 @@ export async function upsertSetting(key, value) {
   return data
 }
 
-export function toAED(value, currency, fxRates) {
-  const rate = fxRates?.[currency]
-  if (!rate) return value
-  return value * rate
+/**
+ * Save the whole Telegram configuration in one transaction (UI-03).
+ *
+ * Replaces four concurrent upserts, any subset of which could fail and leave
+ * the household believing they had saved a configuration the bot never read.
+ */
+export async function saveTelegramSettings({ person1, person2, threshold, defaultAccountId }) {
+  const { error } = await supabase.rpc('save_telegram_settings', {
+    p_person1: person1,
+    p_person2: person2,
+    p_threshold: threshold,
+    p_default_account_id: defaultAccountId,
+  })
+  if (error) throw error
 }

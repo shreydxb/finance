@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { listGoals, createGoal, updateGoal, deleteGoal } from '../lib/goals'
 import { listAccounts } from '../lib/accounts'
 import { usePrefs } from '../lib/PrefsContext'
+import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
 
 function formatDate(d) {
@@ -29,7 +30,7 @@ function ProgressBar({ pct }) {
  * change, just a dedicated screen.
  */
 export default function Debts() {
-  const { fmt } = usePrefs()
+  const { fmt, fxRates } = usePrefs()
   const [debts, setDebts] = useState([])
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -76,9 +77,12 @@ export default function Debts() {
     return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
   }
 
+  // Linked balances are converted before being summed: adding a USD card
+  // balance to an AED loan balance and labelling the result AED overstates the
+  // debt by whatever the exchange rate is.
   const totalPrincipal = debts.reduce((sum, d) => {
     const account = accountById.get(d.linked_account_id)
-    if (account) return sum + Number(account.value)
+    if (account) return sum + toAED(Number(account.value) || 0, account.currency, fxRates)
     if (d.starting_balance != null) return sum + Number(d.starting_balance)
     return sum
   }, 0)
@@ -130,7 +134,7 @@ export default function Debts() {
 
           <div className="space-y-3">
             {debts.map((d) => (
-              <DebtCard key={d.id} debt={d} account={accountById.get(d.linked_account_id)} onClick={() => setDetailId(d.id)} fmt={fmt} />
+              <DebtCard key={d.id} debt={d} account={accountById.get(d.linked_account_id)} onClick={() => setDetailId(d.id)} fmt={fmt} fxRates={fxRates} />
             ))}
           </div>
         </>
@@ -154,15 +158,18 @@ export default function Debts() {
           onEdit={() => setEditing(detail)}
           onClose={() => setDetailId(null)}
           fmt={fmt}
+          fxRates={fxRates}
         />
       )}
     </div>
   )
 }
 
-function DebtCard({ debt, account, onClick, fmt }) {
+function DebtCard({ debt, account, onClick, fmt, fxRates }) {
   const starting = Number(debt.starting_balance) || 0
-  const current = account ? Number(account.value) : starting
+  // starting_balance is AED; a linked balance must be converted before it is
+  // compared against it or handed to fmt, which assumes AED.
+  const current = account ? toAED(Number(account.value) || 0, account.currency, fxRates) : starting
   const paidOff = Math.max(0, starting - current)
   const pct = starting > 0 ? (paidOff / starting) * 100 : 0
   return (
@@ -185,9 +192,9 @@ function DebtCard({ debt, account, onClick, fmt }) {
   )
 }
 
-function DebtDetail({ debt, account, onEdit, onClose, fmt }) {
+function DebtDetail({ debt, account, onEdit, onClose, fmt, fxRates }) {
   const starting = Number(debt.starting_balance) || 0
-  const current = account ? Number(account.value) : starting
+  const current = account ? toAED(Number(account.value) || 0, account.currency, fxRates) : starting
   const pct = starting > 0 ? ((starting - current) / starting) * 100 : 0
 
   return (

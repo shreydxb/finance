@@ -264,32 +264,39 @@ async function handleBulk(
     return writeAndAnnounce(extractions[0], message, household, senderId, deps, t0, 'text', 'extract_bulk')
   }
 
-  const splitGroupId = crypto.randomUUID()
   const resolvedRows = extractions.map((extraction) => ({ extraction, resolved: resolve(extraction, household, senderId) }))
 
-  const rows = await Promise.all(
-    resolvedRows.map(({ extraction, resolved }) =>
-      deps.store.insertTransaction({
-        date: extraction.date,
-        amount: extraction.amount ?? 0,
-        currency: extraction.currency,
-        account_id: resolved.accountId,
-        category: extraction.category,
-        owner: resolved.owner,
-        note: extraction.note,
-        source: 'telegram',
-        needs_review: resolved.needsReview,
-        telegram_chat_id: message.chat.id,
-        // telegram_msg_id deliberately left unset: all N rows share one
-        // inbound message, so setting it here would make a bare reply to
-        // that message match an arbitrary row. Fix #n threads correctly
-        // anyway because tapping Fix sends its own distinct prompt message
-        // per row (see the 'fix' callback branch — unmodified for bulk).
-        split_group_id: splitGroupId,
-        items: extraction.items,
-      })
-    )
+  // One transaction, not N concurrent inserts (BOT-01). Any subset of the old
+  // parallel requests could fail, leaving a partial batch nobody was told
+  // about. The idempotency base makes a redelivered update — Telegram retries
+  // on timeout or 5xx — write nothing rather than a second copy of the batch.
+  //
+  // telegram_msg_id is deliberately left unset on these rows: all N share one
+  // inbound message, so setting it would make a bare reply match an arbitrary
+  // row. Fix #n still threads correctly because it sends its own prompt
+  // message per row.
+  const rows = await deps.store.createBulkTransactions(
+    resolvedRows.map(({ extraction, resolved }) => ({
+      date: extraction.date,
+      amount: extraction.amount ?? 0,
+      currency: extraction.currency,
+      account_id: resolved.accountId,
+      category: extraction.category,
+      owner: resolved.owner,
+      note: extraction.note,
+      needs_review: resolved.needsReview,
+      items: extraction.items,
+    })),
+    message.chat.id,
+    `tg:${message.chat.id}:${message.message_id}:bulk`
   )
+
+  // A replay writes nothing and returns no rows. The batch is already in the
+  // ledger, so there is nothing to announce and nothing to log — announcing
+  // again would tell the household they had spent the money twice.
+  if (rows.length === 0) {
+    return { status: 'ignored', reason: 'bulk batch already recorded for this message' }
+  }
 
   await logInbound(deps, message, household, senderId, 'text', {
     stage: 'extract_bulk',
@@ -433,15 +440,16 @@ async function handleCashbackCallback(
     return { status: 'ignored', reason: 'pending income has no amount' }
   }
 
-  await deps.store.insertIncome({
-    person: pending.person,
-    source: pending.source,
-    kind: pending.kind,
-    amount: pending.amount,
-    currency: pending.currency,
-    date: pending.date,
-  })
-  await deps.store.deletePendingIncome(pendingId)
+  // One transaction, and idempotent by construction (BOT-01): the function
+  // deletes the proposal first and only logs the income if that delete found
+  // something. A replayed tap — or a retry after a timeout — therefore returns
+  // null and logs nothing, where the old insert-then-delete pair could record
+  // the same cashback twice.
+  const applied = await deps.store.applyPendingIncome(pendingId)
+  if (applied === null) {
+    await deps.messenger.answerCallbackQuery(query.id, 'Already logged')
+    return { status: 'ignored', reason: `pending income ${pendingId} was already applied` }
+  }
   await deps.messenger.answerCallbackQuery(query.id, 'Logged')
   if (query.message) {
     await deps.messenger.editMessageText(chatId, query.message.message_id, `Logged: ${describeCashback(pending)} ✓`)
@@ -472,7 +480,7 @@ function cashbackKeyboard(pendingId: string): InlineKeyboardButton[][] {
 /**
  * A transfer between the household's own accounts — write-then-flag like a
  * spend (rule #3: it's still a `transactions` write), never propose-then-tap.
- * Two rows land immediately, category='Transfer', sharing one split_group_id
+ * Two rows land immediately, category='Transfer', sharing one transaction_group_id with group_kind='transfer' and opposite transfer_direction
  * so `src/lib/reports.js`/Budget exclude both from every spend/budget total.
  * accounts.value is never touched (docs/telegram-bot-round2-design.md §3).
  */
@@ -510,36 +518,31 @@ async function handleTransfer(
   const sameAccount = Boolean(fromAccount && toAccount && fromAccount.id === toAccount.id)
   const needsReview = extraction.amount === null || !fromAccount || !toAccount || sameAccount
   const owner = household.people.get(senderId) || null
-  const splitGroupId = crypto.randomUUID()
+  // Both rows in one transaction (BOT-01). They used to be two sequential
+  // inserts, so a failure between them left half a transfer: money leaving an
+  // account and arriving nowhere. The idempotency base makes a redelivered
+  // update a no-op instead of a second pair.
+  const transferRows = await deps.store.createTransfer({
+    date: extraction.date,
+    amount: extraction.amount ?? 0,
+    currency: extraction.currency,
+    fromAccountId: fromAccount?.id ?? null,
+    toAccountId: toAccount?.id ?? null,
+    fromLabel: fromAccount?.name ?? extraction.fromAccount ?? null,
+    toLabel: toAccount?.name ?? extraction.toAccount ?? null,
+    owner,
+    needsReview,
+    chatId: message.chat.id,
+    messageId: message.message_id,
+    idempotencyBase: `tg:${message.chat.id}:${message.message_id}:transfer`,
+  })
 
-  const outRow = await deps.store.insertTransaction({
-    date: extraction.date,
-    amount: extraction.amount ?? 0,
-    currency: extraction.currency,
-    account_id: fromAccount?.id ?? null,
-    category: 'Transfer',
-    owner,
-    note: `Transfer out → ${toAccount?.name ?? extraction.toAccount ?? 'unknown account'}`,
-    source: 'telegram',
-    needs_review: needsReview,
-    telegram_chat_id: message.chat.id,
-    telegram_msg_id: message.message_id,
-    split_group_id: splitGroupId,
-  })
-  await deps.store.insertTransaction({
-    date: extraction.date,
-    amount: extraction.amount ?? 0,
-    currency: extraction.currency,
-    account_id: toAccount?.id ?? null,
-    category: 'Transfer',
-    owner,
-    note: `Transfer in ← ${fromAccount?.name ?? extraction.fromAccount ?? 'unknown account'}`,
-    source: 'telegram',
-    needs_review: needsReview,
-    telegram_chat_id: message.chat.id,
-    telegram_msg_id: message.message_id,
-    split_group_id: splitGroupId,
-  })
+  // A replay writes nothing and returns no rows; the original pair is already
+  // in the ledger, so there is nothing to announce again.
+  if (transferRows.length === 0) {
+    return { status: 'ignored', reason: 'transfer already recorded for this message' }
+  }
+  const outRow = transferRows.find((r) => r.transfer_direction === 'out') ?? transferRows[0]
 
   await logInbound(deps, message, household, senderId, 'text', {
     stage: 'extract_transfer',
@@ -601,7 +604,7 @@ function missingTransferFields(extraction: TransferExtraction, fromAccount: Acco
 // Deliberately just Confirm, not the spend Confirm/Fix pair — a Fix reply
 // would need its own from/to correction extraction, which isn't built here.
 // Reuses the 'confirm' callback action so handleCallback's existing branch
-// (made split_group_id-aware below) applies to both rows of the pair.
+// (made group-aware below) applies to both rows of the pair.
 function transferConfirmKeyboard(transactionId: string): InlineKeyboardButton[][] {
   return [[{ text: '✅ Confirm', callback_data: `confirm:${transactionId}` }]]
 }
@@ -650,7 +653,7 @@ function describeBulkLine(n: number, extraction: Extraction, resolved: Resolved)
 }
 
 /**
- * Confirm all cascades via split_group_id (confirm_group, below); Fix #n is
+ * Confirm all cascades via transaction_group_id (confirm_group, below); Fix #n is
  * plain per-row `fix:<transactionId>` — the existing single-row Fix flow
  * (its own forceReply prompt, its own telegram_prompt_msg_id) needs no
  * bulk-specific handling at all, since each button already names its own row.
@@ -945,12 +948,12 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
   }
 
   if (parsed.action === 'confirm_group') {
-    // Unlike the single-row 'confirm' below (and its split_group_id cascade
+    // Unlike the single-row 'confirm' below (and its transfer-only cascade
     // for a transfer pair, where both rows always share one amount), a bulk
     // group's rows can have independently zero amounts — so each sibling is
     // guarded individually rather than blessing the whole group at once.
-    const groupId = row.split_group_id
-    const siblings = groupId ? await deps.store.findTransactionsBySplitGroup(groupId) : [row]
+    const groupId = row.transaction_group_id
+    const siblings = groupId ? await deps.store.findTransactionsByGroup(groupId) : [row]
     const clearable = siblings.filter((sibling) => Number(sibling.amount) !== 0)
     const blocked = siblings.filter((sibling) => Number(sibling.amount) === 0)
 
@@ -1007,9 +1010,12 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     }
 
     const updated = await deps.store.updateTransaction(row.id, { needs_review: false, telegram_prompt_msg_id: null })
-    if (updated.split_group_id) {
-      // A transfer's pair: Confirm applies to the pair as a unit, not just the half that carried the button.
-      const siblings = await deps.store.findTransactionsBySplitGroup(updated.split_group_id)
+    // Only a transfer confirms as a unit: its two halves are one movement, so
+    // blessing one must bless the other. A bulk batch must NOT cascade — its
+    // rows are independent spends, and confirming one says nothing about the
+    // rest (they use the confirm_group action instead).
+    if (updated.transaction_group_id && updated.group_kind === 'transfer') {
+      const siblings = await deps.store.findTransactionsByGroup(updated.transaction_group_id)
       await Promise.all(
         siblings.filter((sibling) => sibling.id !== updated.id).map((sibling) => deps.store.updateTransaction(sibling.id, { needs_review: false }))
       )

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   listTransactions,
   createTransaction,
-  createSplitTransaction,
+  replaceCategorySplit,
   updateTransaction,
   deleteTransaction,
-  deleteSplitGroup,
+  deleteTransactionGroup,
   countNeedsReview,
   markReviewed,
   countUnreviewed,
@@ -14,10 +14,13 @@ import {
 import { listRules, createRule, deleteRule } from '../lib/categoryRules'
 import { listAccounts, OWNERS } from '../lib/accounts'
 import { listCategories } from '../lib/categories'
-import { transactionStats, transactionsToCSV } from '../lib/reports'
+import { sortByAmountAED, transactionStats, transactionsToCSV } from '../lib/reports'
 import { usePrefs } from '../lib/PrefsContext'
 import TransactionForm from '../components/TransactionForm'
-import TransactionList, { groupBySplit, entryKey } from '../components/TransactionList'
+import TransactionList from '../components/TransactionList'
+import { groupEntries, entryKey } from '../lib/transactionGroups'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -32,7 +35,7 @@ const EMPTY_FILTERS = {
 }
 
 export default function Transactions({ navPayload, onConsumeNav }) {
-  const { fmt } = usePrefs()
+  const { fmt, fxRates } = usePrefs()
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
   const [categories, setCategories] = useState([])
@@ -80,12 +83,16 @@ export default function Transactions({ navPayload, onConsumeNav }) {
     refresh()
   }, [filters])
 
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.transactions, refresh)
+
   // Deep-link from Home's Recent-transaction row: open that specific
   // transaction's edit modal once its data has arrived, then tell App to
   // forget the payload so revisiting this tab later doesn't reopen it.
   useEffect(() => {
     if (!navPayload?.openTransactionId || transactions.length === 0) return
-    const entry = groupBySplit(transactions).find((e) =>
+    const entry = groupEntries(transactions).find((e) =>
       e.kind === 'single' ? e.transaction.id === navPayload.openTransactionId : e.lines.some((l) => l.id === navPayload.openTransactionId)
     )
     if (entry) openEdit(entry)
@@ -109,7 +116,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
 
   const selectedEntries = useMemo(() => {
     const keys = new Set(selectedIds)
-    return groupBySplit(transactions).filter((e) => keys.has(entryKey(e)))
+    return groupEntries(transactions).filter((e) => keys.has(entryKey(e)))
   }, [transactions, selectedIds])
 
   async function handleCreateRule(pattern, category) {
@@ -156,7 +163,16 @@ export default function Transactions({ navPayload, onConsumeNav }) {
     setBulkBusy(true)
     try {
       await Promise.all(
-        selectedEntries.map((e) => (e.kind === 'single' ? deleteTransaction(e.transaction.id) : deleteSplitGroup(e.splitGroupId)))
+        // Only a category split deletes as a unit — its lines are meaningless
+        // apart. A transfer's two rows are deleted together too, but by id, so
+        // the intent stays explicit. Anything else deletes one row at a time.
+        selectedEntries.map((e) =>
+          e.kind === 'single'
+            ? deleteTransaction(e.transaction.id)
+            : e.kind === 'split'
+              ? deleteTransactionGroup(e.groupId)
+              : Promise.all(e.lines.map((l) => deleteTransaction(l.id)))
+        )
       )
       setSelectedIds(new Set())
       await refresh()
@@ -171,7 +187,10 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   }, [accounts])
 
   const flat = filters.sort === 'amount'
-  const stats = transactionStats(transactions)
+  // Postgres sorted these by raw amount, which does not order mixed currencies
+  // by value. Re-sort by AED for display (MONEY-04).
+  const ordered = flat ? sortByAmountAED(transactions, fxRates) : transactions
+  const stats = transactionStats(transactions, fxRates)
 
   function downloadCSV() {
     const csv = transactionsToCSV(transactions)
@@ -185,11 +204,18 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   }
 
   function openEdit(entry) {
+    if (entry.kind === 'transfer') {
+      // Editing a transfer through the split editor would rewrite both sides
+      // from one row's fields and lose the pairing. Until it has an editor of
+      // its own, open the outgoing row alone (DATA-01).
+      setEditing(entry.out ?? entry.lines[0])
+      return
+    }
     if (entry.kind === 'split') {
       const first = entry.lines[0]
       setEditing({
         id: first.id,
-        split_group_id: entry.splitGroupId,
+        transaction_group_id: entry.groupId,
         splitGroup: entry.lines,
         date: first.date,
         currency: first.currency,
@@ -206,24 +232,28 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   async function handleSave(result) {
     const isEditingExisting = editing && editing !== 'new'
 
-    if (isEditingExisting) {
-      if (editing.splitGroup) {
-        await deleteSplitGroup(editing.split_group_id)
-      } else if (!result.split) {
-        await updateTransaction(editing.id, result.fields)
-        setEditing(null)
-        await refresh()
-        return
-      } else {
-        await deleteTransaction(editing.id)
-      }
-    }
-
+    // Every branch below is now a single call. The old shape deleted the
+    // existing rows and *then* inserted their replacement, so a failure
+    // between the two destroyed the transaction and left nothing behind
+    // (DATA-02). replace_category_split does both inside one database
+    // transaction.
     if (result.split) {
-      await createSplitTransaction(result.baseFields, result.splitLines)
+      await replaceCategorySplit(result.baseFields, result.splitLines, {
+        groupId: isEditingExisting ? (editing.transaction_group_id ?? null) : null,
+        transactionId: isEditingExisting && !editing.splitGroup ? editing.id : null,
+      })
+    } else if (isEditingExisting && editing.splitGroup) {
+      // Split collapsing back to one row: same all-or-nothing guarantee, with
+      // a single line.
+      await replaceCategorySplit(result.fields, [{ category: result.fields.category, amount: result.fields.amount }], {
+        groupId: editing.transaction_group_id,
+      })
+    } else if (isEditingExisting) {
+      await updateTransaction(editing.id, result.fields)
     } else {
       await createTransaction(result.fields)
     }
+
     setEditing(null)
     await refresh()
   }
@@ -257,7 +287,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
 
   async function handleDelete() {
     if (editing.splitGroup) {
-      await deleteSplitGroup(editing.split_group_id)
+      await deleteTransactionGroup(editing.transaction_group_id)
     } else {
       await deleteTransaction(editing.id)
     }
@@ -346,7 +376,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
           <Filters filters={filters} setFilters={setFilters} categories={categories} accounts={accounts} />
 
           <TransactionList
-            transactions={transactions}
+            transactions={ordered}
             accountName={accountName}
             flat={flat}
             onEntryClick={selectMode ? (entry) => toggleSelect(entryKey(entry)) : openEdit}

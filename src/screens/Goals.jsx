@@ -5,15 +5,17 @@ import {
   updateGoal,
   deleteGoal,
   listAllContributions,
-  createContribution,
+  createContributionWithTransfer,
   projectedCompletionDate,
   projectedFDCompletion,
 } from '../lib/goals'
 import { listAccounts } from '../lib/accounts'
-import { createTransaction } from '../lib/transactions'
 import { usePrefs } from '../lib/PrefsContext'
+import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
 import ContributionForm from '../components/ContributionForm'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -39,7 +41,7 @@ function ProgressBar({ pct }) {
  * even for. See Debts.jsx for that half.
  */
 export default function Goals({ navPayload, onConsumeNav }) {
-  const { fmt } = usePrefs()
+  const { fmt, fxRates } = usePrefs()
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -66,6 +68,10 @@ export default function Goals({ navPayload, onConsumeNav }) {
   useEffect(() => {
     refresh()
   }, [])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.goals, refresh)
 
   // Deep-link from Home's Goals row.
   useEffect(() => {
@@ -94,24 +100,20 @@ export default function Goals({ navPayload, onConsumeNav }) {
 
   async function handleAddContribution({ fromAccountId, ...values }) {
     const goal = goals.find((g) => g.id === detailGoalId)
-    await createContribution({ goal_id: detailGoalId, ...values })
-    // Written as an ordinary Transfer transaction too (write-then-flag, same
-    // as any other money movement) so a contribution is visible/auditable in
-    // Transactions and Budget, not just inside the Goals detail view. Never
-    // touches accounts.value — the goal's own linked-account balance (if any)
-    // still comes only from the next statement re-entry.
-    if (fromAccountId) {
-      const fromAccount = accounts.find((a) => a.id === fromAccountId)
-      await createTransaction({
-        date: values.date,
-        amount: values.amount,
-        currency: fromAccount?.currency ?? 'AED',
-        account_id: fromAccountId,
-        category: 'Transfer',
-        owner: fromAccount?.owner ?? null,
-        note: `Transfer out → Goal: ${goal?.name ?? 'goal'}`,
-      })
-    }
+    // One call, one database transaction. The contribution and its Transfer
+    // transaction used to be written separately, so a failure between them
+    // left Goals and Transactions disagreeing about the same event (DATA-02).
+    // The transaction exists so a contribution is auditable in Transactions
+    // and Budget, not only inside this screen; accounts.value is still never
+    // touched, since balances come from statements.
+    await createContributionWithTransfer({
+      goalId: detailGoalId,
+      amount: values.amount,
+      date: values.date,
+      note: values.note,
+      fromAccountId: fromAccountId ?? null,
+      goalName: goal?.name ?? null,
+    })
     setAddingContribution(false)
     await refresh()
   }
@@ -127,9 +129,15 @@ export default function Goals({ navPayload, onConsumeNav }) {
   // A goal linked to an account (typically a Fixed Deposit) tracks that
   // account's real balance directly instead of summing logged contributions —
   // same pattern Debts already uses for a linked liability account.
+  // Goal targets are held in AED, so a linked account's balance is converted
+  // before it is compared against one. Every goal happens to be linked to an
+  // AED account today, but 41 of the household's 46 accounts are not AED — the
+  // first goal linked to one of those would otherwise compare, say, a rupee
+  // balance against a dirham target and report wild progress.
   function savedFor(goal) {
     const linked = accountById.get(goal.linked_account_id)
-    return linked ? Number(linked.value) : savedByGoal.get(goal.id) || 0
+    if (!linked) return savedByGoal.get(goal.id) || 0
+    return toAED(Number(linked.value) || 0, linked.currency, fxRates)
   }
 
   const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null

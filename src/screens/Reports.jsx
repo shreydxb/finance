@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { listTransactions } from '../lib/transactions'
 import { listIncome } from '../lib/income'
 import { listCategories } from '../lib/categories'
-import { getSetting, toAED } from '../lib/settings'
+import { getSetting } from '../lib/settings'
+import { toAED } from '../lib/money'
 import { sumByCategoryAED, sumByGroupAED, sumByMerchantAED, totalAED, transactionStats, monthlyTrend, transactionsToCSV } from '../lib/reports'
 import {
   currentYearMonth,
@@ -22,6 +23,8 @@ import BreakdownBars from '../components/BreakdownBars'
 import SankeyChart from '../components/SankeyChart'
 import LineChart from '../components/LineChart'
 import VerticalBarChart from '../components/VerticalBarChart'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -43,7 +46,8 @@ function groupsFromMap(map) {
 const TREND_MONTHS = 6
 
 export default function Reports() {
-  const { fmt } = usePrefs()
+  // One FX source for compute and display alike — see MONEY-01.
+  const { fmt, fxRates } = usePrefs()
   const [section, setSection] = useState('cashflow') // cashflow | spending | income
   const [mode, setMode] = useState('month')
   const [monthCursor, setMonthCursor] = useState(currentYearMonth())
@@ -61,7 +65,6 @@ export default function Reports() {
   const [transactions, setTransactions] = useState([])
   const [income, setIncome] = useState([])
   const [categories, setCategories] = useState([])
-  const [fxRates, setFxRates] = useState({ AED: 1 })
   const [splitTarget, setSplitTarget] = useState({ shrey: 0.69, tarika: 0.31 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -74,17 +77,15 @@ export default function Reports() {
   async function refresh() {
     setError('')
     try {
-      const [txns, inc, cats, fx, split] = await Promise.all([
+      const [txns, inc, cats, split] = await Promise.all([
         listTransactions({ dateFrom: from, dateTo: to }),
         listIncome({ dateFrom: from, dateTo: to }),
         listCategories(),
-        getSetting('fx_rates'),
         getSetting('income_split'),
       ])
       setTransactions(txns)
       setIncome(inc)
       setCategories(cats)
-      setFxRates(fx || { AED: 1 })
       if (split) setSplitTarget(split)
     } catch {
       setError('Could not load reports. Check your connection and try again.')
@@ -97,6 +98,10 @@ export default function Reports() {
   useEffect(() => {
     refresh()
   }, [from, to])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.reports, refresh)
 
   useEffect(() => {
     if (section !== 'spending' || subView !== 'trends') return
@@ -134,7 +139,7 @@ export default function Reports() {
     [transactions, fxRates, categoryGroupByName, sankeyGrouping]
   )
 
-  const stats = useMemo(() => transactionStats(transactions), [transactions])
+  const stats = useMemo(() => transactionStats(transactions, fxRates), [transactions, fxRates])
   const trendGroups = useMemo(
     () => monthlyTrend(trendTransactions, fxRates, TREND_MONTHS, new Date(`${to}T00:00:00`)).map((b) => ({ key: b.key, label: b.label, value: b.value, color: CHART_PALETTE[0] })),
     [trendTransactions, fxRates, to]

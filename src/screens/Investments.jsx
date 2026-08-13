@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { updateAccount } from '../lib/accounts'
-import { toAED } from '../lib/settings'
+import { deleteAccount, updateAccount } from '../lib/accounts'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { supabase } from '../lib/supabaseClient'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
-import { formatMoney } from '../lib/money'
+import { formatMoney, toAED } from '../lib/money'
 import AccountForm from '../components/AccountForm'
 import BreakdownBars from '../components/BreakdownBars'
 
@@ -38,13 +37,16 @@ export default function Investments() {
   const [editing, setEditing] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshResult, setRefreshResult] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const allHoldings = accounts.filter((a) => a.type === 'investment')
   const owners = Array.from(new Set(allHoldings.map((a) => a.owner))).sort()
   const holdings = ownerFilter === 'combined' ? allHoldings : allHoldings.filter((a) => a.owner === ownerFilter)
   const refreshable = allHoldings.filter((a) => a.currency === 'USD' && a.ticker && a.quantity != null)
+  // price_updated_at, not updated_at: the latter moves on any edit, so
+  // renaming a holding used to look like a fresh quote (UI-01 / 028).
   const lastRefreshedAt = refreshable.reduce(
-    (latest, a) => (a.updated_at && (!latest || a.updated_at > latest) ? a.updated_at : latest),
+    (latest, a) => (a.price_updated_at && (!latest || a.price_updated_at > latest) ? a.price_updated_at : latest),
     null
   )
 
@@ -67,6 +69,35 @@ export default function Investments() {
     await updateAccount(editing.id, values)
     setEditing(null)
     await refresh()
+  }
+
+  /**
+   * Delete a holding.
+   *
+   * The form has always rendered a Delete button; it was wired to a no-op, and
+   * because investment accounts are excluded from the Accounts screen there was
+   * no other route to remove one (UI-01).
+   *
+   * Deleting is blocked by a foreign key if transactions, goals or recurring
+   * entries still reference the account. Postgres reports that as 23503, which
+   * on its own means nothing to a reader — so it is translated into the reason
+   * and the remedy.
+   */
+  async function handleDelete() {
+    const name = editing?.name ?? 'this holding'
+    if (!confirm(`Delete ${name}? This cannot be undone.`)) return
+    setDeleteError('')
+    try {
+      await deleteAccount(editing.id)
+      setEditing(null)
+      await refresh()
+    } catch (error) {
+      setDeleteError(
+        error?.code === '23503'
+          ? `${name} still has transactions or goals linked to it. Remove or reassign those first.`
+          : `Could not delete ${name}. Check your connection and try again.`
+      )
+    }
   }
 
   if (loading) {
@@ -268,10 +299,15 @@ export default function Investments() {
                     <>
                       {r.gain >= 0 ? '+' : '−'}
                       {formatMoney(Math.abs(r.gain), r.account.currency, { decimals: 0 })}
-                      <span className="block text-[11px] opacity-80">
-                        {r.gainPct >= 0 ? '+' : ''}
-                        {r.gainPct.toFixed(1)}%
-                      </span>
+                      {/* gainPct is null when cost basis is zero — a holding
+                          entered with avg_cost 0 has no percentage to show.
+                          Calling .toFixed on it crashed the whole screen. */}
+                      {r.gainPct != null && (
+                        <span className="block text-[11px] opacity-80">
+                          {r.gainPct >= 0 ? '+' : ''}
+                          {r.gainPct.toFixed(1)}%
+                        </span>
+                      )}
                     </>
                   ) : (
                     '—'
@@ -289,7 +325,13 @@ export default function Investments() {
       )}
 
       {editing && (
-        <AccountForm account={editing} onSave={handleSave} onCancel={() => setEditing(null)} onDelete={() => {}} />
+        <AccountForm account={editing} onSave={handleSave} onCancel={() => setEditing(null)} onDelete={handleDelete} />
+      )}
+
+      {deleteError && (
+        <p role="alert" className="mt-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
+          {deleteError}
+        </p>
       )}
     </div>
   )

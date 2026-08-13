@@ -3,6 +3,8 @@
 import { buildHouseholdContext } from '../../_shared/store.ts'
 import type {
   AccountRef,
+  BulkRow,
+  TransferArgs,
   CategoryRef,
   ChatMessage,
   DownloadedFile,
@@ -61,6 +63,8 @@ export class FakeStore implements IntakeStore {
   putSettingCalls: Array<{ key: string; value: unknown }> = []
   failPutSetting = false
   private sequence = 0
+  // Separate from `sequence` so group ids don't shift transaction ids.
+  private groupSequence = 0
 
   constructor(context: HouseholdContext = household()) {
     this.context = context
@@ -89,13 +93,17 @@ export class FakeStore implements IntakeStore {
       items: row.items ?? null,
       deleted_at: row.deleted_at ?? null,
       split_group_id: row.split_group_id ?? null,
+      idempotency_key: row.idempotency_key ?? null,
+      transaction_group_id: row.transaction_group_id ?? null,
+      group_kind: row.group_kind ?? null,
+      transfer_direction: row.transfer_direction ?? null,
     }
     this.rows.set(id, stored)
     return Promise.resolve(stored)
   }
 
-  findTransactionsBySplitGroup(splitGroupId: string): Promise<TransactionRow[]> {
-    return Promise.resolve(Array.from(this.rows.values()).filter((row) => row.split_group_id === splitGroupId))
+  findTransactionsByGroup(groupId: string): Promise<TransactionRow[]> {
+    return Promise.resolve(Array.from(this.rows.values()).filter((row) => row.transaction_group_id === groupId))
   }
 
   updateTransaction(id: string, patch: Partial<TransactionRow>): Promise<TransactionRow> {
@@ -141,6 +149,8 @@ export class FakeStore implements IntakeStore {
   }
 
   mediaGroups = new Map<string, MediaGroupState>()
+  /** Mirrors the unique index on transactions.idempotency_key (027). */
+  idempotencyKeys = new Set<string>()
   private mediaGroupClock = 0
 
   joinMediaGroup(mediaGroupId: string, _chatId: number, fileId: string, caption: string | null): Promise<MediaGroupState> {
@@ -163,10 +173,96 @@ export class FakeStore implements IntakeStore {
     return Promise.resolve(this.mediaGroups.get(mediaGroupId) ?? null)
   }
 
-  claimMediaGroup(mediaGroupId: string): Promise<void> {
+  /**
+   * Compare-and-set, mirroring the real `claim_media_group` (027): exactly one
+   * caller wins. Modelling this faithfully is the point — a fake that always
+   * returned success would hide the double-extraction the real race caused.
+   */
+  claimMediaGroup(mediaGroupId: string): Promise<boolean> {
     const current = this.mediaGroups.get(mediaGroupId)
-    if (current) this.mediaGroups.set(mediaGroupId, { ...current, processedAt: String(++this.mediaGroupClock) })
-    return Promise.resolve()
+    if (!current || current.processedAt) return Promise.resolve(false)
+    this.mediaGroups.set(mediaGroupId, { ...current, processedAt: String(++this.mediaGroupClock) })
+    return Promise.resolve(true)
+  }
+
+  /** Both transfer rows at once, refusing a replay of the same message. */
+  createTransfer(args: TransferArgs): Promise<TransactionRow[]> {
+    const keys = [`${args.idempotencyBase}:out`, `${args.idempotencyBase}:in`]
+    if (keys.some((k) => this.idempotencyKeys.has(k))) return Promise.resolve([])
+    keys.forEach((k) => this.idempotencyKeys.add(k))
+
+    const groupId = `grp-${++this.groupSequence}`
+    const base = {
+      date: args.date,
+      amount: args.amount,
+      currency: args.currency,
+      category: 'Transfer',
+      owner: args.owner,
+      source: 'telegram' as const,
+      needs_review: args.needsReview,
+      telegram_chat_id: args.chatId,
+      telegram_msg_id: args.messageId,
+      transaction_group_id: groupId,
+      group_kind: 'transfer' as const,
+    }
+    return Promise.all([
+      this.insertTransaction({
+        ...base,
+        account_id: args.fromAccountId,
+        note: `Transfer out → ${args.toLabel ?? 'unknown account'}`,
+        transfer_direction: 'out',
+        idempotency_key: keys[0],
+      }),
+      this.insertTransaction({
+        ...base,
+        account_id: args.toAccountId,
+        note: `Transfer in ← ${args.fromLabel ?? 'unknown account'}`,
+        transfer_direction: 'in',
+        idempotency_key: keys[1],
+      }),
+    ])
+  }
+
+  /** All bulk rows at once, refusing a replay of the same message. */
+  createBulkTransactions(rows: BulkRow[], chatId: number, idempotencyBase: string): Promise<TransactionRow[]> {
+    const keys = rows.map((_, i) => `${idempotencyBase}:${i}`)
+    if (keys.some((k) => this.idempotencyKeys.has(k))) return Promise.resolve([])
+    keys.forEach((k) => this.idempotencyKeys.add(k))
+
+    const groupId = `grp-${++this.groupSequence}`
+    return Promise.all(
+      rows.map((row, i) =>
+        this.insertTransaction({
+          ...row,
+          source: 'telegram',
+          telegram_chat_id: chatId,
+          transaction_group_id: groupId,
+          group_kind: 'bulk_batch',
+          idempotency_key: keys[i],
+        } as Partial<TransactionRow>)
+      )
+    )
+  }
+
+  /**
+   * Deletes the proposal and logs the income together. The delete is the
+   * guard, exactly as in `apply_pending_income`: a second call finds nothing
+   * and returns null rather than logging the same cashback twice.
+   */
+  applyPendingIncome(pendingId: string): Promise<unknown | null> {
+    const pending = this.pendingIncome.get(pendingId)
+    if (!pending) return Promise.resolve(null)
+    this.pendingIncome.delete(pendingId)
+    const row = {
+      person: pending.person,
+      source: pending.source,
+      kind: pending.kind,
+      amount: pending.amount as number,
+      currency: pending.currency,
+      date: pending.date,
+    }
+    this.income.push(row)
+    return Promise.resolve(row)
   }
 
   findPossibleDuplicate(params: {

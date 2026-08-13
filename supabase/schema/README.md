@@ -1,25 +1,69 @@
 # Schema
 
-Run in order, in the Supabase SQL Editor (or `psql`), against your project:
+SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
+order. **Every file here is applied to production** as of 12 August 2026,
+verified against the live database rather than assumed.
 
-1. `001_init.sql` — all 11 tables
-2. `002_rls.sql` — RLS enabled, household policy (any authenticated user, full access)
-3. `003_realtime.sql` — realtime on `transactions`, `income`, `accounts`, `goal_contributions`
-4. `004_seed.sql` — categories, Emergency Fund goal, recurring income, settings keys
-5. `005_fx_settings.sql` — default FX rates to AED
-6. `006_transaction_splits.sql` — `split_group_id` for multi-category transactions
-7. `007_account_buckets.sql` — four-account bucket label on `accounts`
-8. `008_recurring_end_date.sql` — end date on recurring entries
-9. `009_recurring_seed_bills.sql` — the real bills/EMIs
-10. `010_goals_pay_down.sql` — pay-down goal support
-11. `011_telegram_intake.sql` — confirm/fix threading columns, intake indexes, intake settings keys
+`001`–`007` were run by hand in the SQL Editor and so do not appear in
+`supabase migration list`; `008` onward do.
 
-All eleven are applied to the `our-rokda` project (`wrxqgfbolryveivgdjia`).
-`001`–`007` were run by hand in the SQL Editor, so they don't appear in
-`supabase migration list`; `008`–`011` do.
+| # | What it does |
+|---|---|
+| `001_init` | The original 11 tables |
+| `002_rls` | RLS enabled, permissive household policy — **superseded by `023`** |
+| `003_realtime` | Publishes `transactions`, `income`, `accounts`, `goal_contributions` |
+| `004_seed` | Categories, Emergency Fund goal, recurring income, settings keys |
+| `005_fx_settings` | Default FX rates to AED |
+| `006_transaction_splits` | `split_group_id` — **deprecated by `025`** |
+| `007_account_buckets` | Four-account bucket label |
+| `008_recurring_end_date` | `end_date` on recurring entries |
+| `009_recurring_seed_bills` | The real bills and EMIs |
+| `010_goals_pay_down` | Pay-down goal support |
+| `011_telegram_intake` | Confirm/fix threading columns, intake indexes, intake settings |
+| `012_seed_paydown_goals` | The three pay-down goals, linked to real liabilities |
+| `013_nw_daily` | Daily net-worth history |
+| `014_category_rules` | Auto-categorisation rules |
+| `015_bot_expansion` | `transactions.deleted_at`, `notifications` |
+| `016_intake_logs` | Full intake observability |
+| `017_media_groups` | Telegram album handling — **`file_ids` superseded by `027`** |
+| `018_transaction_items` | Itemised receipt lines |
+| `019_pending_income` | Cashback/income proposals |
+| `020_transfers` | The `Transfer` category |
+| `021_transaction_reviewed` | `reviewed_at`, independent of AI confidence |
+| `022_fd_goals` | Fixed deposits as goal-fundable accounts |
 
-Every file is additive-only and safe to re-run: `create table if not exists`,
-`add column if not exists`, idempotent policy re-declaration, and
-guarded/`on conflict` seed inserts. Nothing here drops or rewrites data.
+## Stabilization round — 12 August 2026
 
-New schema changes go in a new `NNN_description.sql` file, never edits to these.
+Added by the QA/QC remediation. See `QA_QC_AUDIT_AND_REMEDIATION.md` for the
+findings each one closes, and the verification evidence.
+
+| # | What it does | Closes |
+|---|---|---|
+| `023_household_members` | Membership roster + `is_household_member()`; every permissive policy rewritten | SEC-02 |
+| `024_revoke_anon_household_fn` | Removes `anon`'s EXECUTE on the membership predicate | SEC-02 |
+| `025_transaction_groups` | `transaction_group_id` / `group_kind` / `transfer_direction` | DATA-01 |
+| `026_atomic_writes` | `replace_category_split`, `create_goal_contribution` | DATA-02 |
+| `027_intake_atomicity` | Idempotency key, `media_group_files`, four intake functions | BOT-01 |
+| `028_price_provenance` | `price_updated_at`, `price_source` | UI-01 |
+| `029_pin_function_search_path` | Pins `search_path` on all six new functions | advisor 0011 |
+| `030_telegram_settings_rpc` | `save_telegram_settings` — one transaction, validated | UI-03 |
+
+## Rules
+
+- **Additive only.** Never drop or rewrite. This database holds real money data, and there is no paid backup on the free plan — see `supabase/functions/backup/README.md` for the encrypted nightly backup that fills that gap.
+- New changes go in a new `NNN_description.sql`, never as edits to an applied file.
+- Every file is written to be safe to re-run: `create table if not exists`, `add column if not exists`, `drop policy if exists` before `create policy`, guarded or `on conflict` seeds.
+- **Run the security advisor after any schema change.** It caught three real problems in this round that reading the SQL did not: an `anon` grant that a `revoke ... from public` did not remove, and mutable `search_path` on six new functions.
+- **Probe new functions against the real schema before trusting them.** `save_telegram_settings` looked correct and failed on every one-person setup, because an unconfigured slot arrives as SQL `NULL` and `settings.value` is `NOT NULL`.
+
+## Two policies that look wrong and are not
+
+- **`is_household_member()` is `SECURITY DEFINER`.** It has to be: the policy on `household_members` calls it, so a function subject to RLS would consult the policy that called it and recurse. `search_path` is pinned for the same reason any definer function should pin it.
+- **`authenticated` keeps EXECUTE on it**, which the advisor flags. Revoking it would make every policy on every table fail to evaluate — locking both members out entirely. The function takes no arguments and discloses only whether the caller is themselves a member.
+
+## Not applied, despite appearing in design docs
+
+`pending_actions`, `accounts.statement_day` / `due_day` / `credit_limit`, and
+`v_transactions_aed` are described in `PLAN.md` and the bot-expansion docs but
+do not exist. `pg_cron` and `pg_net` are available and **not installed** — both
+are needed for the nightly backup schedule and future Telegram pushes.

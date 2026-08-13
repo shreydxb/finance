@@ -194,6 +194,69 @@ test('every outgoing header stays inside Latin-1', async () => {
   }
 })
 
+test('a truncated response is reported as truncation, not as malformed JSON', async () => {
+  // Regression from two real receipt failures on 10 Aug 2026 (intake_logs).
+  // The model was cut off at the 500-token cap partway through an itemized
+  // array. What it had produced was correct; the tail was simply missing. The
+  // parser downstream saw unbalanced JSON and reported "malformed JSON", which
+  // read as the model being inaccurate — and that misreading is recorded in
+  // CLAUDE.md as "receipt-photo accuracy is unproven". Name the real cause.
+  const truncated = '[\n  {\n    "date": "2026-08-08",\n    "amount": 188.36,\n    "confidence'
+  const fetchImpl = (() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ choices: [{ message: { content: truncated }, finish_reason: 'length' }] }))
+    )) as unknown as typeof fetch
+
+  await assert.rejects(
+    () =>
+      new OpenRouterClient('test-key', 'google/gemini-2.5-flash-lite', fetchImpl).chat([
+        { role: 'user', content: 'receipt' },
+      ]),
+    (error: Error) => {
+      assert.match(error.message, /truncated/i)
+      assert.doesNotMatch(error.message, /malformed/i)
+      return true
+    }
+  )
+})
+
+test('a complete response with finish_reason=stop is returned unchanged', async () => {
+  const content = '{"amount":84,"confidence":0.9}'
+  const fetchImpl = (() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }))
+    )) as unknown as typeof fetch
+
+  const result = await new OpenRouterClient('test-key', 'google/gemini-2.5-flash-lite', fetchImpl).chat([
+    { role: 'user', content: 'lunch' },
+  ])
+
+  assert.equal(result, content)
+})
+
+test('the output cap is large enough for a multi-item itemized receipt', async () => {
+  // The failures were on arrays, not single spends: an itemized receipt (018)
+  // and a bulk message (round2 §2) both return one object per line item.
+  let body: Record<string, unknown> = {}
+  const fetchImpl = ((_url: string, init: RequestInit) => {
+    body = JSON.parse(init.body as string)
+    return Promise.resolve(
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"amount":1}' }, finish_reason: 'stop' }] }))
+    )
+  }) as unknown as typeof fetch
+
+  await new OpenRouterClient('test-key', 'google/gemini-2.5-flash-lite', fetchImpl).chat([
+    { role: 'user', content: 'receipt' },
+  ])
+
+  // A single item costs roughly 60-80 tokens; the old 500 covered about six
+  // before cutting off mid-object.
+  assert.ok(
+    (body.max_tokens as number) >= 2000,
+    `max_tokens must leave room for a long receipt, got ${body.max_tokens}`
+  )
+})
+
 test('text extraction sends the household context in the prompt', async () => {
   const model = new FakeModel('{"amount":84,"currency":"AED","category":"Dining Out","confidence":0.9}')
   const result = await extractFromText('84 dhs lunch at Noon', ctx, model)

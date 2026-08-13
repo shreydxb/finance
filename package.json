@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test \"supabase/functions/**/*.test.ts\"",
+    "test": "node --test \"supabase/functions/**/*.test.ts\" \"src/**/*.test.js\"",
     "demo:telegram": "node supabase/functions/telegram-intake/demo.ts"
   },
   "dependencies": {

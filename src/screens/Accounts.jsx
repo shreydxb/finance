@@ -8,14 +8,13 @@ import {
   typeLabel,
   typeIcon,
 } from '../lib/accounts'
-import { toAED } from '../lib/settings'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
 import { listCategories } from '../lib/categories'
 import { listDailyNetWorth, recordDailyNetWorth } from '../lib/snapshots'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
-import { formatMoney } from '../lib/money'
+import { formatMoney, toAED } from '../lib/money'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'

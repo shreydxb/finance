@@ -13,6 +13,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
 import { loadConfig } from './config.ts'
+import { authorizeWebhook } from './gate.ts'
 import { OpenRouterClient } from './extract.ts'
 import { handleUpdate } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
@@ -20,8 +21,6 @@ import { PostgrestStore } from '../_shared/store.ts'
 import { TelegramClient } from '../_shared/telegram.ts'
 import { GroqWhisper } from './transcribe.ts'
 import type { DownloadedFile, IntakeStore, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from '../_shared/types.ts'
-
-const SECRET_HEADER = 'x-telegram-bot-api-secret-token'
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method !== 'POST') {
@@ -36,18 +35,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return json({ ok: false, error: 'function is not configured' }, 500)
   }
 
-  const isDemo = config.demoMode && request.headers.get('x-demo-mode') === '1'
-
-  if (!isDemo) {
-    if (config.telegramWebhookSecret) {
-      if (request.headers.get(SECRET_HEADER) !== config.telegramWebhookSecret) {
-        console.warn('rejected webhook: bad secret header')
-        return json({ ok: false, error: 'forbidden' }, 403)
-      }
-    } else {
-      console.warn('TELEGRAM_WEBHOOK_SECRET is unset — anyone who guesses this URL can post updates')
-    }
+  // Fail closed, before the body is read and before any store/Telegram client
+  // exists: a rejected request must cost zero DB and zero API calls.
+  const gate = authorizeWebhook(request.headers, config, request.headers.get('content-length'))
+  if (!gate.ok) {
+    console.warn('rejected webhook', gate.reason)
+    return json({ ok: false, error: gate.error }, gate.status)
   }
+  const isDemo = gate.demo
 
   let update: TelegramUpdate
   try {

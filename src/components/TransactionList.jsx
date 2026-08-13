@@ -1,3 +1,5 @@
+import { entryKey, groupByDate, groupEntries } from '../lib/transactionGroups'
+
 export function formatDateHeading(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`)
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -5,36 +7,6 @@ export function formatDateHeading(dateStr) {
 
 export function formatAmount(amount, currency) {
   return `${currency} ${Number(amount).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`
-}
-
-export function groupByDate(transactions) {
-  const byDate = new Map()
-  for (const t of transactions) {
-    if (!byDate.has(t.date)) byDate.set(t.date, [])
-    byDate.get(t.date).push(t)
-  }
-  return Array.from(byDate.entries()).map(([date, items]) => ({ date, entries: groupBySplit(items) }))
-}
-
-export function groupBySplit(items) {
-  const entries = []
-  const seenSplitGroups = new Set()
-  for (const t of items) {
-    if (t.split_group_id) {
-      if (seenSplitGroups.has(t.split_group_id)) continue
-      seenSplitGroups.add(t.split_group_id)
-      const lines = items.filter((x) => x.split_group_id === t.split_group_id)
-      entries.push({ kind: 'split', splitGroupId: t.split_group_id, lines })
-    } else {
-      entries.push({ kind: 'single', transaction: t })
-    }
-  }
-  return entries
-}
-
-/** Grouped-by-date (or flat) transaction list, shared by Transactions.jsx and the account detail view. */
-export function entryKey(entry) {
-  return entry.kind === 'split' ? entry.splitGroupId : entry.transaction.id
 }
 
 export default function TransactionList({
@@ -51,7 +23,7 @@ export default function TransactionList({
   selectedIds,
   onToggleSelect,
 }) {
-  const groups = flat ? [{ date: null, entries: groupBySplit(transactions) }] : groupByDate(transactions)
+  const groups = flat ? [{ date: null, entries: groupEntries(transactions) }] : groupByDate(transactions)
 
   if (groups.length === 0) {
     return <p className="py-10 text-center text-sm text-ink-500">{emptyMessage ?? 'No transactions match.'}</p>
@@ -206,6 +178,39 @@ function EntryRow({
         )}
         {onToggleReviewed && (
           <ReviewedToggle reviewed={Boolean(t.reviewed_at)} onToggle={() => onToggleReviewed([t.id], !t.reviewed_at)} />
+        )}
+      </div>
+    )
+  }
+
+  if (entry.kind === 'transfer') {
+    // One movement, shown once. The pair is two rows of the same amount, so
+    // summing them — which the old shared "split" renderer did — doubled it.
+    const row = entry.out ?? entry.lines[0]
+    const transferReviewed = entry.lines.every((l) => l.reviewed_at)
+    return (
+      <div className="flex items-center border-b border-ink-100 last:border-b-0">
+        {selectable && <SelectCheckbox selected={selected} onToggle={() => onToggleSelect(entryKey(entry))} />}
+        <button type="button" onClick={onClick} className="block min-w-0 flex-1 px-4 py-3 text-left text-sm hover:bg-ink-50">
+          <span className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <span className="font-medium text-ink-900">Transfer</span>
+              <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-500">
+                not a spend
+              </span>
+            </span>
+            <span className="font-medium text-ink-700">{formatAmount(row.amount, row.currency)}</span>
+          </span>
+          <span className="mt-1 block truncate text-xs text-ink-400">
+            {showDate ? `${formatDateHeading(row.date)} · ` : ''}
+            {accountName(entry.out?.account_id)} → {accountName(entry.into?.account_id)}
+          </span>
+        </button>
+        {onToggleReviewed && (
+          <ReviewedToggle
+            reviewed={transferReviewed}
+            onToggle={() => onToggleReviewed(entry.lines.map((l) => l.id), !transferReviewed)}
+          />
         )}
       </div>
     )

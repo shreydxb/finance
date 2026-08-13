@@ -35,6 +35,31 @@ export async function createContribution(fields) {
   return data
 }
 
+/**
+ * Record a contribution and, when it is funded from an account, the Transfer
+ * transaction representing the money leaving it — as one unit.
+ *
+ * These used to be two independent inserts (DATA-02). A failure between them
+ * left a contribution with no matching transaction, so the Goals screen and
+ * the Transactions list disagreed about the same event, with nothing marking
+ * which was right.
+ *
+ * Never writes accounts.value: balances come from statements, not from a typed
+ * figure (PLAN.md decision 8).
+ */
+export async function createContributionWithTransfer({ goalId, amount, date, note, fromAccountId, goalName }) {
+  const { data, error } = await supabase.rpc('create_goal_contribution', {
+    p_goal_id: goalId,
+    p_amount: amount,
+    p_date: date,
+    p_note: note ?? null,
+    p_from_account_id: fromAccountId ?? null,
+    p_goal_name: goalName ?? null,
+  })
+  if (error) throw error
+  return data
+}
+
 export function projectedCompletionDate(remaining, monthlyPlan, from = new Date()) {
   if (!monthlyPlan || monthlyPlan <= 0 || remaining <= 0) return null
   const months = Math.ceil(remaining / monthlyPlan)

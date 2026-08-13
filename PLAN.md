@@ -57,13 +57,23 @@ nw_daily (id, day, total_aed, assets_aed, liabilities_aed, by_owner json, by_typ
 forecast_events (id, kind: house/child/retirement/custom, target_date, params json) -- Phase 2
 category_rules (id, pattern, category, created_at) -- Edit Rules, auto-categorise on create
 
--- Planned by the bot expansion, not yet applied (see docs/telegram-bot-sprint-plan.md §4b):
-transactions.deleted_at                                  -- soft delete for /undo
-notifications (id, kind, dedupe_key unique, chat_id, telegram_msg_id, payload, sent_at)
+-- Applied since (verified against the live database, 12 Aug 2026):
+transactions.deleted_at                                  -- soft delete for /undo (015)
+notifications (id, kind, dedupe_key unique, chat_id, telegram_msg_id, payload, sent_at)  -- (015)
+transactions.transaction_group_id / group_kind / transfer_direction  -- (025) what a group *is*
+transactions.idempotency_key                             -- (027) webhook redelivery is a no-op
+media_group_files (media_group_id, file_id, chat_id)     -- (027) album membership as rows
+household_members (user_id, display_name, added_at)      -- (023) who may see any of this
+accounts.price_updated_at / price_source                 -- (028) a fetched price vs any edit
+
+-- Still not applied (see docs/telegram-bot-sprint-plan.md §4b):
 pending_actions (id, kind, payload, chat_id, requested_by, expires_at, resolved_at, resolution)
 accounts.statement_day / due_day / credit_limit          -- credit-card cycle
 v_transactions_aed                                       -- FX-normalised view, one source of truth
 ```
+
+The full migration list, with what each one closes, is in
+`supabase/schema/README.md`.
 
 All migrations additive-only, never destructive — Supabase carries real live data
 eventually.

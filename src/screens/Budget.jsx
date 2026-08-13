@@ -4,13 +4,16 @@ import { listCategories } from '../lib/categories'
 import { listTransactions } from '../lib/transactions'
 import { listIncome } from '../lib/income'
 import { listGoals, listAllContributions } from '../lib/goals'
-import { getSetting, toAED } from '../lib/settings'
+import { toAED } from '../lib/money'
 import { currentYearMonth, monthRange, monthLabel, shiftMonth } from '../lib/period'
 import { usePrefs } from '../lib/PrefsContext'
 import BudgetLimitForm from '../components/BudgetLimitForm'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 
 export default function Budget() {
-  const { fmt } = usePrefs()
+  // One FX source for compute and display alike — see MONEY-01.
+  const { fmt, fxRates } = usePrefs()
   const [ym, setYm] = useState(currentYearMonth())
   const [categories, setCategories] = useState([])
   const [budgets, setBudgets] = useState([])
@@ -18,7 +21,6 @@ export default function Budget() {
   const [income, setIncome] = useState([])
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
-  const [fxRates, setFxRates] = useState({ AED: 1 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editingCategory, setEditingCategory] = useState(null)
@@ -27,14 +29,13 @@ export default function Budget() {
     setError('')
     try {
       const { from, to } = monthRange(ym.year, ym.month)
-      const [cats, buds, txns, inc, gs, contribs, fx] = await Promise.all([
+      const [cats, buds, txns, inc, gs, contribs] = await Promise.all([
         listCategories(),
         listBudgets(),
         listTransactions({ dateFrom: from, dateTo: to }),
         listIncome({ dateFrom: from, dateTo: to }),
         listGoals(),
         listAllContributions(),
-        getSetting('fx_rates'),
       ])
       setCategories(cats)
       setBudgets(buds)
@@ -42,7 +43,6 @@ export default function Budget() {
       setIncome(inc)
       setGoals(gs)
       setContributions(contribs.filter((c) => c.date >= from && c.date <= to))
-      setFxRates(fx || { AED: 1 })
     } catch {
       setError('Could not load budget. Check your connection and try again.')
     } finally {
@@ -54,6 +54,10 @@ export default function Budget() {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ym.year, ym.month])
+
+  // Another client — the Telegram bot, or the other person's phone — writing to
+  // these tables now refreshes this screen (INT-01).
+  useRealtimeRefresh(REALTIME_TABLES.budget, refresh)
 
   async function handleSaveBudget(values) {
     await upsertBudget(values)
