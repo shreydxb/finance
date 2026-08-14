@@ -26,6 +26,33 @@ mode and a global AED/USD/INR currency toggle apply across all of them — both
 device-local (localStorage via `PrefsContext`), not synced between Shrey's and
 Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
 
+## Deploy — 14 Aug 2026
+
+Migration `034_transfer_direction_null_safe` applied to `our-rokda` (found by
+the new `npm run test:db` suite — 025's transfer-direction CHECK let a NULL
+direction through via Postgres's NULL-is-satisfied CHECK semantics; verified
+live, both that zero rows were affected and that the bad case is now
+rejected). All four Edge Functions redeployed from
+`claude/money-v4-post-qac-s2rnm9` carrying that fix plus the `_shared/serviceKey.ts`
+consolidation (Taskiv #100): `telegram-intake` v33, `refresh-prices` v10,
+`refresh-fx` v9, `backup` v7. `verify_jwt` unchanged per function
+(`telegram-intake` false, the other three true).
+
+**Not independently verified live**: this sandbox's network policy blocks
+direct HTTPS to `*.supabase.co`, so no post-deploy smoke test could be run
+from here. `resolveServiceKey`'s `SUPABASE_SECRET_KEYS` branch is still
+unverified against the live secret's actual shape (see `serviceKey.ts`'s
+comment) — it falls through harmlessly if the shape doesn't match, so this
+deploy is no worse than before either way. First real confirmation will be
+the next live Telegram message or Refresh Prices/FX tap, visible in edge logs.
+
+**This branch is now ahead of `main` in production.** The deploy above went
+straight from this branch via the Supabase MCP, not through
+`.github/workflows/deploy-functions.yml` (manual `workflow_dispatch`, as this
+project always deploys). If that workflow is run from `main` before this
+branch merges, it will redeploy `main`'s older code over these fixes —
+merge this branch first, or skip that workflow run.
+
 ## Open items (as of 12 Aug 2026, verified against the live DB and deploy)
 
 - **`refresh-prices` has now succeeded** — HTTP 200 on 11 Aug 2026 (verified
