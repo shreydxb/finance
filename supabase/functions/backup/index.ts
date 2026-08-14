@@ -20,11 +20,13 @@
 //
 // Deploy: supabase functions deploy backup
 // Secrets: BACKUP_PASSPHRASE, BACKUP_CHAT_ID, TELEGRAM_BOT_TOKEN
-//          (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by the platform)
+//          (SUPABASE_URL is provided by the platform; the service-role key
+//          comes from _shared/serviceKey.ts's precedence, not directly)
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
 import { encryptBackup } from '../_shared/crypto.ts'
+import { resolveServiceKey } from '../_shared/serviceKey.ts'
 import { backupFilename, backupSummary, buildBackup, type BackupDocument } from './dump.ts'
 
 function json(body: unknown, status = 200): Response {
@@ -50,9 +52,16 @@ function loadConfig(env: Record<string, string | undefined>): Config {
     return value ?? ''
   }
 
+  let serviceKey = ''
+  try {
+    serviceKey = resolveServiceKey(env)
+  } catch {
+    missing.push('SUPABASE_SECRET_KEYS/SERVICE_ROLE_KEY/SUPABASE_SERVICE_ROLE_KEY')
+  }
+
   const config = {
     supabaseUrl: need('SUPABASE_URL'),
-    serviceKey: need('SUPABASE_SERVICE_ROLE_KEY'),
+    serviceKey,
     passphrase: need('BACKUP_PASSPHRASE'),
     botToken: need('TELEGRAM_BOT_TOKEN'),
     chatId: need('BACKUP_CHAT_ID'),

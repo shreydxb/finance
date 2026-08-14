@@ -20,6 +20,8 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
+import { resolveServiceKey } from '../_shared/serviceKey.ts'
+
 interface AccountRow {
   id: string
   ticker: string
@@ -74,8 +76,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!supabaseUrl || !serviceKey) {
+  let serviceKey: string
+  try {
+    serviceKey = resolveServiceKey(Deno.env.toObject())
+  } catch {
+    return json({ ok: false, error: 'function is not configured' }, 500)
+  }
+  if (!supabaseUrl) {
     return json({ ok: false, error: 'function is not configured' }, 500)
   }
 

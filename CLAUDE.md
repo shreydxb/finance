@@ -146,7 +146,7 @@ Project `our-rokda` (`wrxqgfbolryveivgdjia`).
 ## Tests
 
 ```bash
-npm test              # 268 tests: Edge Functions + src/, node --test, no network, no keys
+npm test              # 278 tests: Edge Functions + src/, node --test, no network, no keys
 npm run test:db       # 32 tests: supabase/schema/*.sql applied from empty against real Postgres
 npm run lint          # oxlint — 0 errors, 6 warnings
 npm run build         # vite
