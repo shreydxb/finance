@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getSetting } from './settings'
+import { useAuth } from './AuthContext'
 import { DISPLAY_CURRENCIES, formatMoney, fromAED } from './money'
 
 const PrefsContext = createContext(null)
@@ -24,6 +25,7 @@ function readStored(key, fallback, allowed) {
  * data rather than preference.
  */
 export function PrefsProvider({ children }) {
+  const { session } = useAuth()
   const [currency, setCurrencyState] = useState(() => readStored(STORAGE.currency, 'AED', DISPLAY_CURRENCIES))
   const [theme, setThemeState] = useState(() => readStored(STORAGE.theme, 'system', ['light', 'dark', 'system']))
   const [fxRates, setFxRates] = useState({ AED: 1 })
@@ -49,9 +51,27 @@ export function PrefsProvider({ children }) {
     []
   )
 
+  // Load rates once there is a session, and again whenever the signed-in user
+  // changes.
+  //
+  // This effect used to run unconditionally at mount. PrefsProvider sits above
+  // the auth gate in App.jsx, so that fired before sign-in, when `settings` is
+  // still RLS-protected and the read throws. `refreshFx` is a stable
+  // useCallback, so the effect never re-ran — rates stayed at the AED-only
+  // starting value for the whole session, `toAED` correctly returned NaN for
+  // every INR and USD figure, and the Investments screen rendered "—" for
+  // portfolio value and every holding's converted value. The only way out was
+  // to hit Refresh FX in Settings, which calls refreshFx() again while
+  // authenticated.
+  //
+  // Keyed on the user id rather than the session object because Supabase hands
+  // back a fresh session on every token refresh, which would otherwise refetch
+  // the rates roughly hourly for no reason.
+  const userId = session?.user?.id ?? null
   useEffect(() => {
+    if (!userId) return
     refreshFx()
-  }, [refreshFx])
+  }, [userId, refreshFx])
 
   // 'system' follows the OS and must keep following it while selected, so the
   // media query stays subscribed rather than being read once at mount.
