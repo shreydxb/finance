@@ -113,7 +113,7 @@ export default function Budget() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] lg:items-start">
-        <div className="min-w-0 lg:order-2">
+        <div className="min-w-0">
           <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-surface shadow-card px-4 py-3">
             <button
               type="button"
@@ -212,8 +212,14 @@ export default function Budget() {
 
         {/* Sticky so "left to budget" stays on screen while the category list
             scrolls — it's the one number worth checking mid-scroll, not just
-            at the top of the page. */}
-        <aside className="rounded-2xl border border-ink-200 bg-surface p-6 shadow-card lg:sticky lg:top-24 lg:order-1 lg:h-fit">
+            at the top of the page.
+
+            Do not add `order` classes here. The grid is [1fr_280px], so
+            re-ordering puts the aside in the 1fr column and the category table
+            in the 280px one — and the table's three w-20 numeric columns plus
+            gaps and padding need ~296px, so Planned/Actual/Remaining overflow
+            the right edge and clip. That was the bug fixed in this commit. */}
+        <aside className="rounded-2xl border border-ink-200 bg-surface p-6 shadow-card lg:sticky lg:top-24 lg:h-fit">
           <p className="text-sm text-ink-500">Left to budget</p>
           <p className="mt-1 text-4xl font-semibold text-ink-900">{fmt(leftToBudget)}</p>
           <p className="mt-2 text-xs text-ink-400">
