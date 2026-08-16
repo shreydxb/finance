@@ -28,7 +28,7 @@ project rule
 | "Where are we on our goals — how much reached?" | 🟢 | `goals.starting_balance + sum(goal_contributions)` vs `target_amount`. 6 goals, 1 contribution row so far |
 | "How much did we invest this month?" | 🔴→🟢 | **Not answerable as a flow today.** Investments live in `accounts` as *holdings* (qty/avg_cost), not as monthly contributions. The only flow record would be `transactions` with category `Savings & Investments` — and there are **zero transactions**. Answerable as "portfolio value / cost basis / unrealised gain" right now. The flow version becomes answerable as a *side effect* of the cash-outflow decision in §6.1: once every stock buy logs a transaction, "how much did we invest this month" is just a category-spend query |
 | "Is a payment upcoming?" | 🟢 | `recurring` (24 rows, `day_of_month`, `autopay`, `end_date`) |
-| **"Estimate my credit-card statement value"** | 🟡 *(approved — see §6.2)* | Needs migration `016`: `statement_day`, `due_day`, `credit_limit` on `accounts`. Then cycle spend = sum of card transactions between statement dates. **Accuracy is entirely a function of intake completeness** — see the warning in §6.2 |
+| **"Estimate my credit-card statement value"** | 🟡 *(approved — see §6.2)* | Needs migration `038` (see §4b): `statement_day`, `due_day`, `credit_limit` on `accounts`. Then cycle spend = sum of card transactions between statement dates. **Accuracy is entirely a function of intake completeness** — see the warning in §6.2 |
 
 ### Doing things (write)
 
@@ -49,7 +49,7 @@ project rule
 | "You went over budget" | 🟢 | Same query, different threshold |
 | "Month-end: X is left over, put it in stocks or a goal" | 🟢 | `sum(monthly_limit) - sum(actual)`, then offer goal buttons. The *suggestion* is deterministic; only the wording needs a model, and even that is optional |
 | "Upcoming payment — make sure you have enough" | 🟡 | The "upcoming" half is 🟢 from `recurring`. The "do you have enough" half needs comparing to `accounts.value` for cash accounts — doable, but cash balances are manually maintained, so it's only as fresh as the last time someone updated them |
-| "Credit card statement is due, here's the approx value" | 🟡 | Approved, Sprint 6. Same migration `016` and the same accuracy caveat |
+| "Credit card statement is due, here's the approx value" | 🟡 | Approved, Sprint 6. Same migration `038` and the same accuracy caveat |
 
 **Everything that is 🔴 traces back to one of two root causes:** no statement-cycle
 fields on `accounts`, or **zero transactions in the database**. The second one
@@ -147,15 +147,23 @@ Sprints add migrations in this order. **Check `supabase/schema/` for the highest
 existing number before creating one** — if any of these are already taken, shift
 up and update this table.
 
-| # | File | Sprint | Contents |
-| --- | --- | --- | --- |
-| 015 | `015_bot_expansion.sql` | 1 | `transactions.deleted_at`, `notifications` |
-| 016 | `016_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view |
-| 017 | `017_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) |
-| 018 | `018_push_cron.sql` | 5 | `pg_cron` + `pg_net` + the hourly schedule |
-| 019 | `019_statement_cycle.sql` | 6 | `statement_day`, `due_day`, `credit_limit` |
+**Reconciled 16 Aug 2026.** The original table below claimed 016–019, but all
+four of those slots were taken by other work in the meantime (`016_intake_logs`,
+`017_media_groups`, `018_transaction_items`, `019_pending_income`) and the schema
+has since run to `034`. The numbers here are the corrected ones — the only slot
+from the original plan that shipped as written is `015`.
 
-Last applied before this work: `014_category_rules.sql`.
+| # | File | Sprint | Contents | Status |
+| --- | --- | --- | --- | --- |
+| 015 | `015_bot_expansion.sql` | 1 | `transactions.deleted_at`, `notifications` | ✅ applied |
+| 035 | `035_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view | next |
+| 036 | `036_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) | |
+| 037 | `037_push_cron.sql` | 5 | `pg_cron` + `pg_net` + the hourly schedule | |
+| 038 | `038_statement_cycle.sql` | 6 | `statement_day`, `due_day`, `credit_limit` | |
+
+Last applied: `034_transfer_direction_null_safe.sql`. **Re-check
+`supabase/schema/` for the highest number before creating any of the above** —
+this table has gone stale once already.
 
 ## 5. Sprint plan
 
@@ -183,13 +191,16 @@ settings keys + Settings UI), and one task was added that this list did not have
 | 6 Month-end + statement | 13 | #74–79 |
 
 ### Sprint 1 — Foundations (no new user-facing features)
-*Nothing else can be trusted until these land.*
-1. Restore `TELEGRAM_WEBHOOK_SECRET` + re-run `setWebhook` (Taskiv #22). **Blocker for every read/write feature** — the allowlist trusts a request-body field
-2. Fix the UTC → Asia/Dubai date bug
-3. Store the group chat id in `settings.tg_chat_id`
-4. Extract `_shared/` (telegram.ts, store.ts, types.ts) for reuse by the push function
-5. Migration `015`: `transactions.deleted_at`, `notifications` table
-6. Money view: one SQL view doing FX-normalised spend, used by everything downstream
+*Nothing else can be trusted until these land.* **Status as of 16 Aug 2026: 4 of
+6 done** — the four below shipped alongside other work rather than as a
+deliberate sprint, which is why Taskiv still shows them open.
+1. ✅ Restore `TELEGRAM_WEBHOOK_SECRET` + re-run `setWebhook` (Taskiv #22) — done, `gate.ts` now fails closed with a 503, proven live
+2. ✅ Fix the UTC → Asia/Dubai date bug — done, `intake.ts` resolves today via `_shared/dates.ts`'s `todayInTz`
+3. ✅ Store the group chat id in `settings.tg_chat_id` — done, captured on first allowlisted message
+4. ✅ Extract `_shared/` (telegram.ts, store.ts, types.ts) for reuse by the push function — done
+5. ✅ Migration `015`: `transactions.deleted_at`, `notifications` table — applied
+6. ⬜ **Money view (#48)**: one SQL view doing FX-normalised spend, used by everything downstream
+7. ⬜ **Outbound chat-id allowlist (#49)**: `GuardedMessenger`, defence in depth behind the webhook secret
 
 ### Sprint 2 — The router + the first questions
 7. Deterministic pre-router + regex fast path + classifier fallback (spend-by-default)
@@ -228,7 +239,7 @@ settings keys + Settings UI), and one task was added that this list did not have
 
 ### Sprint 6 — The clever stuff
 33. Month-end leftover sweep (§6.3): "X left over" → [Emergency Fund] [Another goal] [Ignore]
-34. Migration `016`: `statement_day`, `due_day`, `credit_limit` on `accounts`
+34. Migration `038`: `statement_day`, `due_day`, `credit_limit` on `accounts`
 35. CC statement estimate + due reminder (§6.2), worded as a floor, not a forecast
 36. Cash-cover check on upcoming bills
 37. Unusual-spend flag (>2× the 90-day category median) — *off by default*
@@ -266,7 +277,7 @@ for the first time.
 
 ### 6.2 Credit-card statement estimate: build it, with a loud caveat
 
-Migration `016` adds `statement_day`, `due_day`, `credit_limit` to `accounts`.
+Migration `038` adds `statement_day`, `due_day`, `credit_limit` to `accounts`.
 Cycle spend is summed from transactions on that card between statement dates.
 
 **The caveat is not optional, and it should be in the message itself.** The
