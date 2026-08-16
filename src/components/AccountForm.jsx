@@ -12,6 +12,9 @@ const EMPTY = {
   quantity: '',
   avg_cost: '',
   interest_rate: '',
+  credit_limit: '',
+  statement_day: '',
+  due_day: '',
 }
 
 export default function AccountForm({ account, onSave, onCancel, onDelete }) {
@@ -28,6 +31,9 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           quantity: account.quantity != null ? String(account.quantity) : '',
           avg_cost: account.avg_cost != null ? String(account.avg_cost) : '',
           interest_rate: account.interest_rate != null ? String(account.interest_rate) : '',
+          credit_limit: account.credit_limit != null ? String(account.credit_limit) : '',
+          statement_day: account.statement_day != null ? String(account.statement_day) : '',
+          due_day: account.due_day != null ? String(account.due_day) : '',
         }
       : EMPTY
   )
@@ -35,6 +41,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
   const [submitting, setSubmitting] = useState(false)
 
   const typeOptions = form.kind === 'asset' ? ASSET_TYPES : LIABILITY_TYPES
+  const isCard = form.type === 'credit_card'
 
   function setKind(kind) {
     const options = kind === 'asset' ? ASSET_TYPES : LIABILITY_TYPES
@@ -52,6 +59,26 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
       setError('Enter a valid value.')
       return
     }
+    // Checked here as well as in the database (035_statement_cycle) so a typo
+    // reads as a sentence rather than as a raw constraint violation.
+    if (isCard) {
+      if (form.credit_limit !== '' && !(Number(form.credit_limit) > 0)) {
+        setError('Credit limit must be greater than zero, or left blank if you don’t know it.')
+        return
+      }
+      for (const [key, label] of [
+        ['statement_day', 'Statement day'],
+        ['due_day', 'Payment due day'],
+      ]) {
+        const raw = form[key]
+        if (raw === '') continue
+        const n = Number(raw)
+        if (!Number.isInteger(n) || n < 1 || n > 31) {
+          setError(`${label} must be a day of the month between 1 and 31.`)
+          return
+        }
+      }
+    }
     setSubmitting(true)
     try {
       await onSave({
@@ -65,6 +92,9 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
         quantity: form.type === 'investment' && form.quantity !== '' ? Number(form.quantity) : null,
         avg_cost: form.type === 'investment' && form.avg_cost !== '' ? Number(form.avg_cost) : null,
         interest_rate: form.type === 'fixed_deposit' && form.interest_rate !== '' ? Number(form.interest_rate) : null,
+        credit_limit: isCard && form.credit_limit !== '' ? Number(form.credit_limit) : null,
+        statement_day: isCard && form.statement_day !== '' ? Number(form.statement_day) : null,
+        due_day: isCard && form.due_day !== '' ? Number(form.due_day) : null,
       })
     } catch {
       setError('Could not save. Try again.')
@@ -238,6 +268,65 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
                   placeholder="optional"
                 />
               </div>
+            </div>
+          )}
+
+          {isCard && (
+            <div className="rounded-lg border border-ink-200 bg-ink-50/50 p-3">
+              <p className="mb-2 text-sm font-medium text-ink-700">Card details</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label htmlFor="credit_limit" className="mb-1 block text-xs font-medium text-ink-600">
+                    Credit limit
+                  </label>
+                  <input
+                    id="credit_limit"
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={form.credit_limit}
+                    onChange={(e) => setForm((f) => ({ ...f, credit_limit: e.target.value }))}
+                    className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                    placeholder="optional"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="statement_day" className="mb-1 block text-xs font-medium text-ink-600">
+                    Closes on
+                  </label>
+                  <input
+                    id="statement_day"
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="31"
+                    value={form.statement_day}
+                    onChange={(e) => setForm((f) => ({ ...f, statement_day: e.target.value }))}
+                    className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                    placeholder="e.g. 17"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="due_day" className="mb-1 block text-xs font-medium text-ink-600">
+                    Due on
+                  </label>
+                  <input
+                    id="due_day"
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="31"
+                    value={form.due_day}
+                    onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))}
+                    className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                    placeholder="e.g. 5"
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-ink-400">
+                Days of the month, from your card statement or bank app — not a date. Leave blank if you don’t know
+                them; the card still shows, just without a cycle.
+              </p>
             </div>
           )}
 

@@ -51,6 +51,7 @@ findings each one closes, and the verification evidence.
 | `032_soft_delete_in_split_replace` | `replace_category_split` soft-deletes instead of hard-deleting | DATA-04 |
 | `033_plain_idempotency_unique_index` | Idempotency index made non-partial — PostgREST's `on_conflict=` can't express a predicate | BOT-01 follow-up |
 | `034_transfer_direction_null_safe` | Closes a NULL-passes-CHECK gap in the 025 transfer-direction constraint | found by `test:db` (Taskiv #101) |
+| `035_statement_cycle` | `accounts.statement_day` / `due_day` / `credit_limit`, all nullable | Taskiv #75 — Accounts card section |
 
 ## Rules
 
@@ -68,7 +69,12 @@ findings each one closes, and the verification evidence.
 
 ## Not applied, despite appearing in design docs
 
-`pending_actions`, `accounts.statement_day` / `due_day` / `credit_limit`, and
-`v_transactions_aed` are described in `PLAN.md` and the bot-expansion docs but
-do not exist. `pg_cron` and `pg_net` are available and **not installed** — both
-are needed for the nightly backup schedule and future Telegram pushes.
+`pending_actions` and `v_transactions_aed` are described in `PLAN.md` and the
+bot-expansion docs but do not exist. `pg_cron` and `pg_net` are available and
+**not installed** — both are needed for the nightly backup schedule and future
+Telegram pushes.
+
+`accounts.statement_day` / `due_day` / `credit_limit` **were** in this list and
+are now applied as `035_statement_cycle`. The columns exist and are null on all
+46 rows: no card has had its limit or cycle entered yet, and those values must
+come from the bank app rather than being inferred from an EMI date.

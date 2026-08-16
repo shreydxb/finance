@@ -15,6 +15,8 @@ import { listDailyNetWorth, recordDailyNetWorth } from '../lib/snapshots'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import { formatMoney, toAED } from '../lib/money'
+import { cardSummary } from '../lib/cards'
+import { todayLocal } from '../lib/dates'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'
@@ -40,6 +42,11 @@ export default function Accounts({ onNavigate }) {
   const [viewingAccount, setViewingAccount] = useState(null)
   const [history, setHistory] = useState([])
   const [groupBy, setGroupBy] = useState('type')
+  // Transactions for the card-cycle totals below. A window of 62 days covers
+  // any open cycle (the longest is 31 days) with room to spare, so the cards
+  // section never has to re-query per card.
+  const [recentTxns, setRecentTxns] = useState([])
+  const today = todayLocal()
 
   // Net worth still counts investments — they're part of what the household is
   // worth, they just aren't listed on this screen.
@@ -73,7 +80,20 @@ export default function Accounts({ onNavigate }) {
     }
   }, [loading, accounts, fxRates])
 
+  useEffect(() => {
+    let cancelled = false
+    const from = new Date(Date.now() - 62 * 86400000).toISOString().slice(0, 10)
+    listTransactions({ dateFrom: from, dateTo: today })
+      .then((rows) => !cancelled && setRecentTxns(rows))
+      .catch(() => !cancelled && setRecentTxns([]))
+    return () => {
+      cancelled = true
+    }
+  }, [today])
+
   const listed = accounts.filter(INVESTMENTS_EXCLUDED)
+  const cards = listed.filter((a) => a.type === 'credit_card')
+  const bankAccounts = listed.filter((a) => a.type === 'cash' || a.type === 'fixed_deposit')
   const assetGroups = groupByType(listed.filter((a) => !a.is_liability), ASSET_TYPES, fxRates)
   const liabilityGroups = groupByType(listed.filter((a) => a.is_liability), LIABILITY_TYPES, fxRates)
 
@@ -241,6 +261,18 @@ export default function Accounts({ onNavigate }) {
         </aside>
       </div>
 
+      <CardsSection
+        cards={cards}
+        transactions={recentTxns}
+        fxRates={fxRates}
+        fmt={fmt}
+        today={today}
+        onEdit={setEditing}
+        onSelect={setViewingAccount}
+      />
+
+      <BankSection accounts={bankAccounts} fmt={fmt} fxRates={fxRates} onSelect={setViewingAccount} onAdd={() => setEditing('new')} />
+
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <AccountGroupList title="Assets" groups={assetGroups} onSelect={setViewingAccount} fmt={fmt} fxRates={fxRates} />
         <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={setViewingAccount} fmt={fmt} fxRates={fxRates} />
@@ -273,6 +305,193 @@ export default function Accounts({ onNavigate }) {
         />
       )}
     </div>
+  )
+}
+
+function formatDayMonth(iso) {
+  if (!iso) return null
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+function utilisationTone(pct) {
+  if (pct == null) return 'bg-ink-300'
+  if (pct >= 90) return 'bg-neg-500'
+  if (pct >= 70) return 'bg-amber-500'
+  return 'bg-brand-500'
+}
+
+/**
+ * Credit cards: what the limit is, what's owed against it, and what has
+ * actually been logged this statement cycle.
+ *
+ * The cycle figure is labelled "logged this cycle" rather than "spent",
+ * deliberately. It only counts transactions someone captured against this
+ * card, so it is a floor and not a statement estimate — every restaurant bill
+ * nobody photographed is missing from it. An understated card balance is worse
+ * than none, because it would have you set aside too little. See
+ * docs/telegram-bot-sprint-plan.md §6.2.
+ */
+function CardsSection({ cards, transactions, fxRates, fmt, today, onEdit, onSelect }) {
+  if (cards.length === 0) return null
+  return (
+    <section className="mt-6">
+      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-ink-400">Credit cards</h3>
+      <div className="grid gap-4 md:grid-cols-2">
+        {cards.map((card) => {
+          const s = cardSummary(card, transactions, fxRates, today)
+          const pct = s.utilisationPct
+          return (
+            <div key={card.id} className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <button type="button" onClick={() => onSelect(card)} className="min-w-0 text-left hover:opacity-80">
+                  <p className="truncate text-sm font-semibold text-ink-900">💳 {card.name}</p>
+                  <p className="text-xs text-ink-400">
+                    {card.owner} · {card.currency}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEdit(card)}
+                  className="shrink-0 rounded-lg border border-ink-300 px-2 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50"
+                >
+                  Edit
+                </button>
+              </div>
+
+              {s.limit == null ? (
+                <button
+                  type="button"
+                  onClick={() => onEdit(card)}
+                  className="mb-3 w-full rounded-lg border border-dashed border-ink-300 px-3 py-2 text-left text-xs text-ink-500 hover:bg-ink-50"
+                >
+                  <span className="font-medium text-ink-700">No credit limit set.</span> Add it from your bank app to
+                  see how much of the card is used.
+                </button>
+              ) : (
+                <>
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <span className="tnum text-2xl font-semibold text-ink-900">{fmt(s.owed)}</span>
+                    <span className="tnum text-xs text-ink-500">of {fmt(s.limit)}</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+                    <div
+                      className={`h-full rounded-full transition-all ${utilisationTone(pct)}`}
+                      style={{ width: `${pct == null ? 0 : Math.min(100, Math.max(0, pct))}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-baseline justify-between text-xs">
+                    <span className={pct != null && pct >= 90 ? 'font-medium text-neg-600' : 'text-ink-500'}>
+                      {pct == null ? 'Utilisation unavailable' : `${pct.toFixed(0)}% used`}
+                    </span>
+                    <span className="tnum text-ink-500">{fmt(s.available)} available</span>
+                  </div>
+                </>
+              )}
+
+              <dl className="mt-3 space-y-1 border-t border-ink-100 pt-3 text-xs">
+                {s.cycle ? (
+                  <>
+                    <div className="flex justify-between">
+                      <dt className="text-ink-500">Logged this cycle</dt>
+                      <dd className="tnum font-medium text-ink-900">
+                        {fmt(s.cycleSpend)}{' '}
+                        <span className="font-normal text-ink-400">
+                          ({s.cycleCount} {s.cycleCount === 1 ? 'txn' : 'txns'})
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-ink-500">Statement closes</dt>
+                      <dd className="text-ink-700">
+                        {formatDayMonth(s.cycle.end)}
+                        {s.daysToClose != null && (
+                          <span className="text-ink-400">
+                            {' '}
+                            ({s.daysToClose === 0 ? 'today' : `in ${s.daysToClose}d`})
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <dt className="text-ink-500">Statement cycle</dt>
+                    <dd className="text-ink-400">not set</dd>
+                  </div>
+                )}
+                {s.dueDate && (
+                  <div className="flex justify-between">
+                    <dt className="text-ink-500">Payment due</dt>
+                    <dd className="text-ink-700">{formatDayMonth(s.dueDate)}</dd>
+                  </div>
+                )}
+              </dl>
+
+              {s.cycle && (
+                <p className="mt-2 text-[11px] leading-snug text-ink-400">
+                  Counts only what’s been logged in the app — check your bank before you pay.
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+/** Bank and cash accounts, with their balances. */
+function BankSection({ accounts, fmt, fxRates, onSelect, onAdd }) {
+  const total = accounts.reduce((sum, a) => sum + toAED(Number(a.value) || 0, a.currency, fxRates), 0)
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">Bank &amp; cash</h3>
+        {accounts.length > 0 && <span className="tnum text-xs font-medium text-ink-600">{fmt(total)}</span>}
+      </div>
+      <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
+        {accounts.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-sm text-ink-500">No bank accounts yet.</p>
+            <button
+              type="button"
+              onClick={onAdd}
+              className="mt-2 text-xs font-medium text-brand-600 underline hover:text-brand-700"
+            >
+              Add your first one
+            </button>
+          </div>
+        ) : (
+          accounts.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onSelect(a)}
+              className="flex w-full items-center justify-between gap-3 border-b border-ink-100 px-4 py-3 text-left last:border-b-0 hover:bg-ink-50"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-ink-900">
+                  {typeIcon(a.type)} {a.name}
+                </span>
+                <span className="block text-xs text-ink-400">
+                  {a.owner} · {typeLabel(a.type)}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="tnum block text-sm font-semibold text-ink-900">
+                  {fmt(toAED(Number(a.value) || 0, a.currency, fxRates))}
+                </span>
+                {a.currency !== 'AED' && (
+                  <span className="tnum block text-xs text-ink-400">
+                    {formatMoney(Number(a.value) || 0, a.currency)}
+                  </span>
+                )}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    </section>
   )
 }
 

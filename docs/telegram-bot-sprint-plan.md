@@ -156,10 +156,16 @@ from the original plan that shipped as written is `015`.
 | # | File | Sprint | Contents | Status |
 | --- | --- | --- | --- | --- |
 | 015 | `015_bot_expansion.sql` | 1 | `transactions.deleted_at`, `notifications` | ✅ applied |
-| 035 | `035_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view | next |
-| 036 | `036_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) | |
-| 037 | `037_push_cron.sql` | 5 | `pg_cron` + `pg_net` + the hourly schedule | |
-| 038 | `038_statement_cycle.sql` | 6 | `statement_day`, `due_day`, `credit_limit` | |
+| 035 | `035_statement_cycle.sql` | 6 | `statement_day`, `due_day`, `credit_limit` | ✅ applied |
+| 036 | `036_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view | next |
+| 037 | `037_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) | |
+| 038 | `038_push_cron.sql` | 5 | `pg_cron` + `pg_net` + the hourly schedule | |
+
+**Note on the ordering.** The statement-cycle migration jumped ahead of its
+sprint: the Accounts screen needed the card limit fields on 16 Aug, so it took
+`035` as the next free number. That is the rule this table exists to enforce —
+**take the next free number, never a reserved one.** Reserving numbers for
+unbuilt work is exactly what made this ledger stale the first time.
 
 Last applied: `034_transfer_direction_null_safe.sql`. **Re-check
 `supabase/schema/` for the highest number before creating any of the above** —

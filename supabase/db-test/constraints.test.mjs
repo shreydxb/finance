@@ -124,3 +124,87 @@ test('an account type outside the check list is rejected', async () => {
     )
   })
 })
+
+// 035: statement-cycle fields. The columns are nullable and only meaningful for
+// credit cards, so the constraints have to reject nonsense without ever firing
+// on the 40+ rows that legitimately leave them null.
+//
+// Rejections go through expectReject so each one runs inside its own savepoint
+// -- a bare failed statement aborts the surrounding transaction and every
+// later assertion in the test then fails for the wrong reason.
+
+async function seedCard(client) {
+  const { rows } = await client.query(
+    `insert into accounts (name, owner, type, is_liability)
+     values ('Card', 'Shrey', 'credit_card', true) returning id`
+  )
+  return rows[0].id
+}
+
+test('035: statement_day and due_day accept 1-31 and reject anything outside it', async () => {
+  await withTx(async (client) => {
+    await asMember(client)
+    const id = await seedCard(client)
+
+    await client.query(`update accounts set statement_day = 1, due_day = 31 where id = $1`, [id])
+    await client.query(`update accounts set statement_day = 17, due_day = 5 where id = $1`, [id])
+
+    await expectReject(
+      client,
+      () => client.query(`update accounts set statement_day = 0 where id = $1`, [id]),
+      /accounts_statement_day_check/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update accounts set statement_day = 32 where id = $1`, [id]),
+      /accounts_statement_day_check/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update accounts set due_day = 0 where id = $1`, [id]),
+      /accounts_due_day_check/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update accounts set due_day = 32 where id = $1`, [id]),
+      /accounts_due_day_check/
+    )
+  })
+})
+
+test('035: credit_limit must be positive, so "unknown" stays distinct from "zero"', async () => {
+  await withTx(async (client) => {
+    await asMember(client)
+    const id = await seedCard(client)
+
+    await client.query(`update accounts set credit_limit = 20000 where id = $1`, [id])
+    // Null is the "not entered yet" state and must remain allowed.
+    await client.query(`update accounts set credit_limit = null where id = $1`, [id])
+
+    await expectReject(
+      client,
+      () => client.query(`update accounts set credit_limit = 0 where id = $1`, [id]),
+      /accounts_credit_limit_check/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update accounts set credit_limit = -1 where id = $1`, [id]),
+      /accounts_credit_limit_check/
+    )
+  })
+})
+
+test('035: the cycle columns never fire on non-card rows that leave them null', async () => {
+  await withTx(async (client) => {
+    await asMember(client)
+    // The constraints are deliberately not conditional on type. A plain cash
+    // account must insert cleanly with all three columns untouched.
+    const { rows } = await client.query(
+      `insert into accounts (name, owner, type) values ('Bank', 'Shrey', 'cash')
+       returning statement_day, due_day, credit_limit`
+    )
+    assert.equal(rows[0].statement_day, null)
+    assert.equal(rows[0].due_day, null)
+    assert.equal(rows[0].credit_limit, null)
+  })
+})

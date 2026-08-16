@@ -215,10 +215,12 @@ Three design docs, all binding on the implementation:
 - `docs/telegram-bot-sprint-plan.md` — feature-by-feature feasibility against the
   live schema, cost analysis, the four settled decisions (§6), and the migration
   numbering ledger (§4b). **The ledger was reconciled 16 Aug** — all four of its
-  original 016–019 slots had been taken by other work, so the remaining bot
-  migrations are now `035_money_view`, `036_pending_actions`, `037_push_cron`
-  and `038_statement_cycle`. Still re-check `supabase/schema/` for the highest
-  number before creating one; this ledger has gone stale once already.
+  original 016–019 slots had been taken by other work. `035_statement_cycle` is
+  now applied (it jumped its sprint because the Accounts screen needed the card
+  limit fields), leaving `036_money_view`, `037_pending_actions` and
+  `038_push_cron`. Always take the next free number in `supabase/schema/`, never
+  a reserved one — reserving slots for unbuilt work is what made this ledger
+  stale in the first place.
 - `docs/telegram-bot-round2-design.md` — six gaps the household's first real
   usage session surfaced in the *existing* receipt-intake path (duplicates,
   bulk input, transfers, cashback, itemized summaries, multi-photo albums).
