@@ -26,84 +26,76 @@ mode and a global AED/USD/INR currency toggle apply across all of them — both
 device-local (localStorage via `PrefsContext`), not synced between Shrey's and
 Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
 
-## Deploy — 14 Aug 2026
+## Deploy — 14–16 Aug 2026
 
 Migration `034_transfer_direction_null_safe` applied to `our-rokda` (found by
 the new `npm run test:db` suite — 025's transfer-direction CHECK let a NULL
 direction through via Postgres's NULL-is-satisfied CHECK semantics; verified
 live, both that zero rows were affected and that the bad case is now
-rejected). All four Edge Functions redeployed from
-`claude/money-v4-post-qac-s2rnm9` carrying that fix plus the `_shared/serviceKey.ts`
-consolidation (Taskiv #100): `telegram-intake` v33, `refresh-prices` v10,
-`refresh-fx` v9, `backup` v7. `verify_jwt` unchanged per function
-(`telegram-intake` false, the other three true).
+rejected). All four Edge Functions redeployed carrying that fix plus the
+`_shared/serviceKey.ts` consolidation (Taskiv #100): `telegram-intake` v33,
+`refresh-prices` v10, `refresh-fx` v9, `backup` v7. `verify_jwt` unchanged per
+function (`telegram-intake` false, the other three true).
 
-**Not independently verified live**: this sandbox's network policy blocks
-direct HTTPS to `*.supabase.co`, so no post-deploy smoke test could be run
-from here. `resolveServiceKey`'s `SUPABASE_SECRET_KEYS` branch is still
-unverified against the live secret's actual shape (see `serviceKey.ts`'s
-comment) — it falls through harmlessly if the shape doesn't match, so this
-deploy is no worse than before either way. First real confirmation will be
-the next live Telegram message or Refresh Prices/FX tap, visible in edge logs.
+**Verified live end to end, 16 Aug.** A real Telegram message ("9.19 Carrefour
+snacks") round-tripped through the full pipeline: logged with `needs_review`,
+Confirm tap cleared it, row landed correctly (`transactions.id
+0f6fbe5a-46b4-4f66-bac2-b1ee5f719f1a`). One real bug surfaced and was fixed in
+the process: the `SERVICE_ROLE_KEY` custom secret's stored value had gone
+stale — the first test after deploy still failed with the old `PGRST303:
+"JWT issued at future"`. Shrey re-pasted a fresh copy from Project Settings →
+API and the retry succeeded. **`SUPABASE_SECRET_KEYS` is confirmed absent**
+from this project's secrets (only `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY`,
+`OPENROUTER_MODEL`, `TELEGRAM_WEBHOOK_SECRET`, `SERVICE_ROLE_KEY` exist) — so
+`resolveServiceKey`'s `SUPABASE_SECRET_KEYS` branch is still genuinely
+unexercised. Harmless (falls through cleanly when absent, which is what
+happened), but if this project ever actually migrates to JWT Signing Keys,
+recheck `SERVICE_ROLE_CANDIDATE_KEYS` in `serviceKey.ts` against whatever
+`SUPABASE_SECRET_KEYS` turns out to look like then — nothing has verified
+those candidate names against a real value.
 
-**This branch is now ahead of `main` in production.** The deploy above went
-straight from this branch via the Supabase MCP, not through
-`.github/workflows/deploy-functions.yml` (manual `workflow_dispatch`, as this
-project always deploys). If that workflow is run from `main` before this
-branch merges, it will redeploy `main`'s older code over these fixes —
-merge this branch first, or skip that workflow run.
+**`claude/money-v4-post-qac-s2rnm9` merged into `main` 16 Aug** (clean
+fast-forward, `main` was not ahead — no merge commit). Production and `main`
+are back in sync; the "branch ahead of production" drift this deploy created
+is resolved. Taskiv #100 and #101 are both Done.
 
-## Open items (as of 12 Aug 2026, verified against the live DB and deploy)
+## Open items (as of 16 Aug 2026, verified against the live DB and deploy)
 
-- **`refresh-prices` has now succeeded** — HTTP 200 on 11 Aug 2026 (verified
-  12 Aug via edge logs), and `refresh-fx` returned 200 on 12 Aug with rates
-  written to `settings.fx_rates`. The earlier "never completed a successful
-  run" note is obsolete. Two tickers remain unproven against Yahoo
-  specifically: `SKHY` (an ADR) and any future NSE symbol.
-- **13 real transactions in production** (verified 12 Aug against the live DB).
-  All are Telegram-sourced, dated 11 Jul – 10 Aug; 3 carry `amount = 0` and 3
-  have no category, which is the residue of the extraction failures below.
-  None has ever been marked reviewed. A further 50 rows carrying a `[TEST]`
-  note prefix — 79% of the table, and the source of every inflated total the
-  app was showing — were deleted on 12 Aug; see
-  `docs/data-ops/2026-08-12-test-data-cleanup.md`.
-- **Receipt-photo extraction failed 4 times out of 8 in real use, and neither
-  cause was model accuracy.** `intake_logs` records both. Two failures were
-  `Unsupported MIME type: application/octet-stream` — fixed same day in
-  `f829ce9` and deployed. The other two were the model being cut off at the
-  `max_tokens: 500` cap partway through an itemized array; the truncated JSON
-  was then reported as "malformed JSON", which is what made this look like an
-  accuracy problem. The cap is now 2,000 and `finish_reason: 'length'` is
-  detected and named explicitly (`extract.ts`). **Not yet deployed.**
-- **The Telegram webhook secret is unset, and the deployed function still fails
-  open.** The fix is in the repo and **not deployed**: `gate.ts` now returns 503
-  when `TELEGRAM_WEBHOOK_SECRET` is absent, compares in constant time, and no
-  longer lets `x-demo-mode` bypass authentication. Until `telegram-intake` is
-  redeployed, production runs v22 — which skips the header check with only a
-  logged warning, leaving the household allowlist as the sole gate. That
-  allowlist reads `message.from.id` straight out of the *request body*, so
-  anyone who guesses the URL can forge it. Today that means injecting junk transactions; once the bot
-  answers questions (bot-expansion Sprint 2), the same forged request with
-  `chat.id` pointed elsewhere makes it a read endpoint for the whole household's
-  finances. Restoring it means setting `TELEGRAM_WEBHOOK_SECRET` in Supabase
-  *and* re-running `setWebhook` with the identical string, in one sitting — a
-  mismatch is silent apart from 403s in the function log. Needs the bot token
-  and Supabase dashboard/Management-API access no available tool exposes.
-  **Blocks Taskiv #50 onward.** (Taskiv #22)
+Everything below is still genuinely open. Two items that lived in this list for
+weeks — the webhook secret failing open, and `telegram-intake` running stale
+code — are **resolved**: `gate.ts`'s fail-closed 503 and the `serviceKey.ts`
+consolidation are both live and proven end to end (see "Deploy — 14–16 Aug
+2026" above). Don't re-open either without new evidence; the last "still
+broken" claim about them was itself stale by several versions.
+
+- **BTC is not tracked, and Shrey confirmed 16 Aug he no longer holds it** —
+  he sold it. There was never an `accounts` row for it (confirmed live: zero
+  matches for `ticker ilike '%btc%' or name ilike '%btc%'`), so there was
+  nothing to delete. No action needed unless he re-enters crypto later.
+- **Encrypted nightly backups are built and deployed, not enabled** (Taskiv
+  #102). Needs Shrey to set `BACKUP_PASSPHRASE` and `BACKUP_CHAT_ID` in the
+  Supabase dashboard himself — deliberately not something an agent should
+  generate or hold. Once those exist, installing `pg_cron`/`pg_net` and
+  writing the cron schedule needs no secrets and can be done via the Supabase
+  MCP. See `supabase/functions/backup/README.md`.
+- **`pg_cron` and `pg_net` are available but not installed** on `our-rokda`
+  (re-verified 14 Aug via `list_extensions`). Bundled with the #102 backup
+  work above, not a standalone task.
+- **Supabase Auth: leaked-password protection is disabled** (security
+  advisor WARN). Dashboard-only toggle (Authentication → Policies) — no tool
+  in the Supabase MCP reaches Auth config. (Taskiv #23)
+- **Neither Shrey nor Tarika has signed into the app since RLS went live.**
+  The membership policies are proven by SQL-role probes and now by one real
+  bot round-trip, but a real browser sign-in for each of them is the only
+  thing that proves the *app's* auth flow, not just the predicate.
+- **Two tickers remain unproven against Yahoo specifically**: `SKHY` (an ADR)
+  and any future NSE symbol. Watch `refresh-prices`'s `failed` array.
 - **FIRE assumptions in Settings are dead.** `fire_swr`/`fire_return` are set,
   `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
   hasn't given a real monthly-expense figure yet). (Taskiv #21)
-- **Supabase Auth: leaked-password protection is disabled** (security
-  advisor WARN). Cheap toggle, but no tool in this session's Supabase MCP
-  reaches Auth config — needs the dashboard. (Taskiv #23)
-- **BTC (0.00679402) is untracked.** It sits outside the Wio portfolio view,
-  so it needs its own source before it can be entered.
-- **`pg_cron` and `pg_net` are available but not installed** on `our-rokda`
-  (re-verified 12 Aug). Needed for scheduled Telegram pushes *and* for the
-  nightly encrypted backup added this round — see
-  `supabase/functions/backup/README.md`. Both install with `create extension`.
-  (Taskiv #68)
+- **Bot-expansion epics 8–13 (Taskiv #44–79) are unblocked** now that #22
+  (webhook secret) is done, but nothing in that backlog has been started.
 
 Resolved since the last pass — **Taskiv #44 is fixed**: `intake.ts` now resolves
 "today" via `_shared/dates.ts`'s `todayInTz` (Asia/Dubai via `Intl.DateTimeFormat`,
@@ -121,13 +113,10 @@ every inbound attempt (text/photo/voice/correction/callback) and every outbound
 reply writes a row to `intake_logs`: who sent or received it, which pipeline
 stage, the model and token counts when one was called, success/failure, the
 error if any, and latency in `duration_ms`. See "Observability" in
-`supabase/functions/telegram-intake/README.md` for the query patterns. This is
-the tool for the still-unresolved "receipt-photo accuracy is unproven" and
-"webhook secret unset" items below — once real messages start flowing,
-`select * from intake_logs where success = false` is where to look first.
-`telegram-intake` is redeployed as version 13 with this and the Sprint 1
-foundations above; it has still never received a live invocation (no bot
-token/webhook registered in this session — see the webhook-secret item below).
+`supabase/functions/telegram-intake/README.md` for the query patterns. Used
+live 16 Aug to diagnose the stale-`SERVICE_ROLE_KEY` failure (see "Deploy —
+14–16 Aug 2026" above) — `select * from intake_logs where success = false`
+is where to look first whenever intake goes quiet.
 
 **task #6 is done**. Real data is in production:
 41 investment holdings (25 Zerodha India equities, 8 Shrey US/gold, 8 Tarika
