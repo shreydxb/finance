@@ -94,8 +94,15 @@ broken" claim about them was itself stale by several versions.
   `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
   hasn't given a real monthly-expense figure yet). (Taskiv #21)
-- **Bot-expansion epics 8–13 (Taskiv #44–79) are unblocked** now that #22
-  (webhook secret) is done, but nothing in that backlog has been started.
+- **Bot-expansion epics 8–13 (Taskiv #44–79): Sprint 1 is 4 of 6 done**, which
+  Taskiv did not reflect until 16 Aug — #22, #44, #45, #46 and #47 all shipped
+  alongside other work and have now been moved to Done. What remains of the
+  foundations is **#48 (the FX-normalised money view) and #49 (the outbound
+  chat-id allowlist)**; Sprints 2–6 are untouched. #48 is the gate: every money
+  query in Sprints 2, 3, 5 and 6 is supposed to sum through it, so building any
+  of them first means building them twice. Note the spec's `coalesce(rate, 1)`
+  fallback contradicts `src/lib/money.js`'s deliberate NaN-on-unknown-rate
+  behaviour — see the correction on Taskiv #48 before writing the SQL.
 
 Resolved since the last pass — **Taskiv #44 is fixed**: `intake.ts` now resolves
 "today" via `_shared/dates.ts`'s `todayInTz` (Asia/Dubai via `Intl.DateTimeFormat`,
@@ -207,10 +214,11 @@ Three design docs, all binding on the implementation:
   toolbox, propose-then-tap writes, the push function.
 - `docs/telegram-bot-sprint-plan.md` — feature-by-feature feasibility against the
   live schema, cost analysis, the four settled decisions (§6), and the migration
-  numbering ledger (§4b). **That ledger's own `016` slot is already stale** —
-  it planned `016_money_view.sql`, but `016_intake_logs.sql` shipped instead
-  (this round's observability work). Reconcile numbering by hand before
-  applying anything from either doc.
+  numbering ledger (§4b). **The ledger was reconciled 16 Aug** — all four of its
+  original 016–019 slots had been taken by other work, so the remaining bot
+  migrations are now `035_money_view`, `036_pending_actions`, `037_push_cron`
+  and `038_statement_cycle`. Still re-check `supabase/schema/` for the highest
+  number before creating one; this ledger has gone stale once already.
 - `docs/telegram-bot-round2-design.md` — six gaps the household's first real
   usage session surfaced in the *existing* receipt-intake path (duplicates,
   bulk input, transfers, cashback, itemized summaries, multi-photo albums).
