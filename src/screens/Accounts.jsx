@@ -15,7 +15,15 @@ import { listDailyNetWorth, recordDailyNetWorth } from '../lib/snapshots'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import { formatMoney, toAED } from '../lib/money'
-import { cardSummary } from '../lib/cards'
+import {
+  cardSummary,
+  parseLast4,
+  cardDisplayName,
+  previousCycles,
+  forecastCycleTotal,
+  categoryBreakdown,
+  cycleProgress,
+} from '../lib/cards'
 import { todayLocal } from '../lib/dates'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
@@ -42,10 +50,13 @@ export default function Accounts({ onNavigate }) {
   const [viewingAccount, setViewingAccount] = useState(null)
   const [history, setHistory] = useState([])
   const [groupBy, setGroupBy] = useState('type')
-  // Transactions for the card-cycle totals below. A window of 62 days covers
-  // any open cycle (the longest is 31 days) with room to spare, so the cards
-  // section never has to re-query per card.
+  // Transactions for the card-cycle totals and the detail view's spending
+  // history. 220 days covers the open cycle plus roughly six prior ones (the
+  // longest cycle is 31 days), which is what the forecast needs as a
+  // baseline -- so the cards section and its detail view never have to
+  // re-query per card.
   const [recentTxns, setRecentTxns] = useState([])
+  const [viewingCard, setViewingCard] = useState(null)
   const today = todayLocal()
 
   // Net worth still counts investments — they're part of what the household is
@@ -80,15 +91,16 @@ export default function Accounts({ onNavigate }) {
     }
   }, [loading, accounts, fxRates])
 
+  function refreshRecentTxns() {
+    const from = new Date(Date.now() - 220 * 86400000).toISOString().slice(0, 10)
+    return listTransactions({ dateFrom: from, dateTo: today })
+      .then((rows) => setRecentTxns(rows))
+      .catch(() => setRecentTxns([]))
+  }
+
   useEffect(() => {
-    let cancelled = false
-    const from = new Date(Date.now() - 62 * 86400000).toISOString().slice(0, 10)
-    listTransactions({ dateFrom: from, dateTo: today })
-      .then((rows) => !cancelled && setRecentTxns(rows))
-      .catch(() => !cancelled && setRecentTxns([]))
-    return () => {
-      cancelled = true
-    }
+    refreshRecentTxns()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today])
 
   const listed = accounts.filter(INVESTMENTS_EXCLUDED)
@@ -268,7 +280,7 @@ export default function Accounts({ onNavigate }) {
         fmt={fmt}
         today={today}
         onEdit={setEditing}
-        onSelect={setViewingAccount}
+        onSelect={setViewingCard}
       />
 
       <BankSection accounts={bankAccounts} fmt={fmt} fxRates={fxRates} onSelect={setViewingAccount} onAdd={() => setEditing('new')} />
@@ -293,6 +305,19 @@ export default function Accounts({ onNavigate }) {
           account={viewingAccount}
           onClose={() => setViewingAccount(null)}
           onEdit={() => setEditing(viewingAccount)}
+        />
+      )}
+
+      {viewingCard && !editing && (
+        <CardDetail
+          account={viewingCard}
+          transactions={recentTxns}
+          fxRates={fxRates}
+          fmt={fmt}
+          today={today}
+          onClose={() => setViewingCard(null)}
+          onEdit={() => setEditing(viewingCard)}
+          onRefresh={refreshRecentTxns}
         />
       )}
 
@@ -665,6 +690,229 @@ function AccountDetail({ account, onClose, onEdit }) {
             emptyMessage="No transactions logged against this account yet."
           />
         )}
+
+        {addingTxn && (
+          <TransactionForm
+            prefill={{ account_id: account.id, currency: account.currency, owner: account.owner }}
+            accounts={[account]}
+            categories={categories}
+            onSave={handleAddTxn}
+            onCancel={() => setAddingTxn(false)}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The card tracking view: balance and limit, this cycle's spend broken down
+ * by category, a forecast for where the cycle will land, and the trend
+ * across recent cycles.
+ *
+ * Everything here reads from `transactions`/`cardSummary`'s cycle window —
+ * nothing here is itself a source of truth. The forecast is the one number
+ * on this screen that isn't a fact; it is labelled as an estimate everywhere
+ * it appears, per the same rule that keeps "logged this cycle" from being
+ * mistaken for a real statement total (see cards.js).
+ */
+function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdit, onRefresh }) {
+  const [categories, setCategories] = useState([])
+  const [addingTxn, setAddingTxn] = useState(false)
+
+  useEffect(() => {
+    listCategories()
+      .then(setCategories)
+      .catch(() => setCategories([]))
+  }, [])
+
+  const s = cardSummary(account, transactions, fxRates, today)
+  const last4 = parseLast4(account.name)
+  const pct = s.utilisationPct
+
+  const past = s.cycle ? previousCycles(account, transactions, fxRates, today, 6) : []
+  const progress = s.cycle ? cycleProgress(s.cycle, today) : null
+  const forecast = progress ? forecastCycleTotal(s.cycleSpend, progress, past.map((c) => c.spend)) : null
+  const breakdown = categoryBreakdown(account, transactions, fxRates, s.cycle)
+  const colored = colorizeGroups(breakdown.map((b) => ({ key: b.category, label: b.category, value: b.total })))
+  const breakdownById = new Map(colored.map((c) => [c.label, c]))
+
+  const cycleTxns = s.cycle
+    ? transactions
+        .filter((t) => t.account_id === account.id && t.date >= s.cycle.start && t.date <= s.cycle.end)
+        .sort((a, b) => (a.date < b.date ? 1 : -1))
+    : []
+
+  async function handleCategoryChange(id, category) {
+    await updateTransaction(id, { category: category || null })
+    await onRefresh()
+  }
+
+  async function handleAddTxn(result) {
+    if (result.split) return
+    await createTransaction(result.fields)
+    setAddingTxn(false)
+    await onRefresh()
+  }
+
+  const maxPastSpend = Math.max(s.cycleSpend ?? 0, ...past.map((c) => c.spend), 1)
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-pop sm:rounded-2xl">
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-ink-900">💳 {cardDisplayName(account.name)}</h2>
+            <p className="text-xs text-ink-400">
+              {account.owner} · {last4 ? `···· ${last4}` : account.currency}
+              {s.cycle && (
+                <>
+                  {' · '}
+                  {s.daysToClose === 0 ? 'closes today' : `closes in ${s.daysToClose}d`}
+                </>
+              )}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
+            Close
+          </button>
+        </div>
+
+        {s.limit == null ? (
+          <p className="mb-5 text-sm text-ink-500">
+            No credit limit on file. <button type="button" onClick={onEdit} className="text-brand-600 underline">Add one</button>{' '}
+            to see utilisation.
+          </p>
+        ) : (
+          <div className="mb-5">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="tnum text-3xl font-semibold text-ink-900">{fmt(s.owed)}</span>
+              <span className="tnum text-xs text-ink-500">of {fmt(s.limit)} limit</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+              <div
+                className={`h-full rounded-full transition-all ${utilisationTone(pct)}`}
+                style={{ width: `${pct == null ? 0 : Math.min(100, Math.max(0, pct))}%` }}
+              />
+            </div>
+            <div className="mt-1.5 flex items-baseline justify-between text-xs">
+              <span className={pct != null && pct >= 90 ? 'font-medium text-neg-600' : 'text-ink-500'}>
+                {pct == null ? '—' : `${pct.toFixed(0)}% used`}
+              </span>
+              <span className="tnum text-ink-500">{fmt(s.available)} available</span>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-ink-200 p-3">
+            <p className="text-xs text-ink-500">Logged this cycle</p>
+            <p className="tnum text-lg font-semibold text-ink-900">{fmt(s.cycleSpend)}</p>
+            <p className="text-xs text-ink-400">{s.cycleCount} transactions</p>
+          </div>
+          <div className="rounded-xl border border-ink-200 p-3">
+            <p className="text-xs text-ink-500">Forecast bill</p>
+            {forecast ? (
+              <>
+                <p className="tnum text-lg font-semibold text-ink-900">{fmt(forecast.amount)}</p>
+                <p className="text-xs text-ink-400">
+                  estimate · {forecast.method === 'blended' ? `${past.length}-cycle avg` : 'this cycle\'s pace'}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-xs text-ink-400">Not enough data yet</p>
+            )}
+          </div>
+        </div>
+
+        {s.dueDate && (
+          <p className="mb-5 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-600">
+            Payment of at least this cycle's total is due <span className="font-medium">{formatDayMonth(s.dueDate)}</span>
+            {s.daysToDue != null && ` (${s.daysToDue === 0 ? 'today' : `in ${s.daysToDue}d`})`}.
+          </p>
+        )}
+
+        {breakdown.length > 0 && (
+          <div className="mb-5">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Spend by category</h3>
+            <div className="space-y-2">
+              {breakdown.map((b) => {
+                const c = breakdownById.get(b.category)
+                return (
+                  <div key={b.category}>
+                    <div className="mb-0.5 flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 font-medium text-ink-700">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c?.color ?? '#8b95a7' }} />
+                        {b.category}
+                      </span>
+                      <span className="tnum text-ink-500">
+                        {fmt(b.total)} · {b.pct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-100">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${b.pct}%`, backgroundColor: c?.color ?? '#8b95a7' }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {past.length > 0 && (
+          <div className="mb-5">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">Recent cycles</h3>
+            <div className="flex items-end gap-1.5" style={{ height: 64 }}>
+              {[...past].reverse().map((p) => (
+                <div key={p.cycle.end} className="flex flex-1 flex-col items-center gap-1" title={fmt(p.spend)}>
+                  <div
+                    className="w-full rounded-t bg-ink-200"
+                    style={{ height: `${Math.max(4, (p.spend / maxPastSpend) * 48)}px` }}
+                  />
+                  <span className="text-[10px] text-ink-400">{formatDayMonth(p.cycle.end).split(' ')[0]}</span>
+                </div>
+              ))}
+              <div className="flex flex-1 flex-col items-center gap-1" title={fmt(s.cycleSpend)}>
+                <div
+                  className="w-full rounded-t bg-brand-500"
+                  style={{ height: `${Math.max(4, ((s.cycleSpend ?? 0) / maxPastSpend) * 48)}px` }}
+                />
+                <span className="text-[10px] font-medium text-brand-600">now</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
+          >
+            Edit card
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddingTxn(true)}
+            className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+          >
+            + Add transaction
+          </button>
+        </div>
+
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">This cycle's transactions</h3>
+        <TransactionList
+          transactions={cycleTxns}
+          accountName={() => account.name}
+          flat
+          onEntryClick={() => {}}
+          categories={categories}
+          onCategoryChange={handleCategoryChange}
+          emptyMessage="Nothing logged in the open cycle yet."
+        />
 
         {addingTxn && (
           <TransactionForm

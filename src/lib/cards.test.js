@@ -9,6 +9,12 @@ import {
   daysUntil,
   utilisation,
   cardSummary,
+  parseLast4,
+  cardDisplayName,
+  cycleProgress,
+  previousCycles,
+  forecastCycleTotal,
+  categoryBreakdown,
 } from './cards.js'
 
 const FX = { AED: 1, USD: 3.6725, INR: 0.044 }
@@ -161,4 +167,118 @@ test('a USD card converts its limit as well as its balance', () => {
   assert.equal(s.limit, 18362.5)
   assert.equal(s.available, 14690)
   assert.equal(s.utilisationPct, 20)
+})
+
+test('cardSummary excludes Transfer rows from cycle spend and count', () => {
+  // A transfer is money moving to another of the household's own accounts
+  // (paying off another card, for instance) -- the same rule Budget.jsx
+  // already applies. Counting it as "spend" would overstate what the card
+  // was actually used for.
+  const txns = [
+    { account_id: 'card-1', date: '2026-08-01', amount: 100, currency: 'AED', category: 'Dining Out' },
+    { account_id: 'card-1', date: '2026-08-02', amount: 5000, currency: 'AED', category: 'Transfer' },
+  ]
+  const s = cardSummary(CARD, txns, FX, '2026-08-16')
+  assert.equal(s.cycleSpend, 100)
+  assert.equal(s.cycleCount, 1)
+})
+
+test('parseLast4 reads the "...NNNN" convention used by every card account', () => {
+  assert.equal(parseLast4('ENBD Noon CC ...1657'), '1657')
+  assert.equal(parseLast4('0% Cash Advance (FAB Islamic Etihad CC ...0570)'), '0570')
+  assert.equal(parseLast4('Wio Credit Card ...6981'), '6981')
+})
+
+test('parseLast4 falls back to a bare trailing four digits, and gives up otherwise', () => {
+  assert.equal(parseLast4('Card 1234'), '1234')
+  assert.equal(parseLast4('Savings Account'), null)
+})
+
+test('cardDisplayName trims the trailing "...NNNN" and any wrapping parenthesis', () => {
+  assert.equal(cardDisplayName('ENBD Noon CC ...1657'), 'ENBD Noon CC')
+  assert.equal(cardDisplayName('0% Cash Advance (FAB Islamic Etihad CC ...0570)'), '0% Cash Advance (FAB Islamic Etihad CC)')
+  assert.equal(cardDisplayName('Wio Credit Card ...6981'), 'Wio Credit Card')
+  assert.equal(cardDisplayName('Savings Account'), 'Savings Account')
+})
+
+test('cycleProgress reports elapsed and total days for a cycle in progress', () => {
+  const cycle = { start: '2026-08-01', end: '2026-08-31' }
+  const p = cycleProgress(cycle, '2026-08-11')
+  assert.equal(p.totalDays, 31)
+  assert.equal(p.elapsedDays, 11)
+  assert.equal(p.fraction, 11 / 31)
+})
+
+test('cycleProgress never divides by a zero fraction on the cycle\'s opening day', () => {
+  const cycle = { start: '2026-08-01', end: '2026-08-31' }
+  const p = cycleProgress(cycle, '2026-08-01')
+  assert.equal(p.elapsedDays, 1)
+  assert.ok(p.fraction > 0)
+})
+
+test('previousCycles walks backward from the open cycle, most recent first', () => {
+  const account = { id: 'card-1', statement_day: 1 }
+  const txns = [
+    { account_id: 'card-1', date: '2026-07-15', amount: 200, currency: 'AED', category: 'Dining Out' },
+    { account_id: 'card-1', date: '2026-06-15', amount: 300, currency: 'AED', category: 'Groceries' },
+    { account_id: 'card-1', date: '2026-06-20', amount: 5000, currency: 'AED', category: 'Transfer' },
+  ]
+  const cycles = previousCycles(account, txns, FX, '2026-08-16', 3)
+  assert.equal(cycles.length, 3)
+  assert.deepEqual(cycles[0].cycle, { start: '2026-07-02', end: '2026-08-01' })
+  assert.equal(cycles[0].spend, 200)
+  assert.deepEqual(cycles[1].cycle, { start: '2026-06-02', end: '2026-07-01' })
+  // The Transfer row is excluded from the historical baseline too.
+  assert.equal(cycles[1].spend, 300)
+  assert.equal(cycles[2].spend, 0)
+})
+
+test('forecastCycleTotal blends spend-so-far with the historical average', () => {
+  const progress = { fraction: 0.5 }
+  const f = forecastCycleTotal(1000, progress, [2000, 2400])
+  // historical avg 2200, half the cycle remains: 1000 + 2200*0.5 = 2100
+  assert.equal(f.amount, 2100)
+  assert.equal(f.method, 'blended')
+})
+
+test('forecastCycleTotal falls back to a naive linear projection with no history', () => {
+  const progress = { fraction: 0.25 }
+  const f = forecastCycleTotal(500, progress, [])
+  assert.equal(f.amount, 2000)
+  assert.equal(f.method, 'linear')
+})
+
+test('forecastCycleTotal returns null with nothing logged and no history', () => {
+  const progress = { fraction: 0.25 }
+  assert.equal(forecastCycleTotal(0, progress, []), null)
+})
+
+test('forecastCycleTotal converges to the actual total as the cycle ends', () => {
+  const progress = { fraction: 1 }
+  const f = forecastCycleTotal(3000, progress, [2000])
+  assert.equal(f.amount, 3000)
+})
+
+test('categoryBreakdown groups by category, largest first, excluding transfers', () => {
+  const account = { id: 'card-1', statement_day: 1 }
+  const cycle = { start: '2026-08-01', end: '2026-08-31' }
+  const txns = [
+    { account_id: 'card-1', date: '2026-08-05', amount: 100, currency: 'AED', category: 'Dining Out' },
+    { account_id: 'card-1', date: '2026-08-06', amount: 50, currency: 'AED', category: 'Dining Out' },
+    { account_id: 'card-1', date: '2026-08-07', amount: 200, currency: 'AED', category: 'Groceries' },
+    { account_id: 'card-1', date: '2026-08-08', amount: 900, currency: 'AED', category: 'Transfer' },
+    { account_id: 'card-1', date: '2026-08-09', amount: 30, currency: 'AED', category: null },
+  ]
+  const rows = categoryBreakdown(account, txns, FX, cycle)
+  assert.equal(rows.length, 3)
+  assert.deepEqual(rows[0], { category: 'Groceries', total: 200, count: 1, pct: 200 / 380 * 100 })
+  assert.equal(rows[1].category, 'Dining Out')
+  assert.equal(rows[1].total, 150)
+  assert.equal(rows[1].count, 2)
+  assert.equal(rows[2].category, 'Uncategorised')
+  assert.equal(rows[2].total, 30)
+})
+
+test('categoryBreakdown returns nothing for a card with no cycle', () => {
+  assert.deepEqual(categoryBreakdown({ id: 'card-1' }, [], FX, null), [])
 })
