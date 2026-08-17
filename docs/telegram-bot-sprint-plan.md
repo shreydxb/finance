@@ -157,8 +157,8 @@ from the original plan that shipped as written is `015`.
 | --- | --- | --- | --- | --- |
 | 015 | `015_bot_expansion.sql` | 1 | `transactions.deleted_at`, `notifications` | ✅ applied |
 | 035 | `035_statement_cycle.sql` | 6 | `statement_day`, `due_day`, `credit_limit` | ✅ applied |
-| 036 | `036_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view | next |
-| 037 | `037_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) | |
+| 036 | `036_money_view.sql` | 1 | `v_transactions_aed` FX-normalised view | ✅ applied |
+| 037 | `037_pending_actions.sql` | 4 | `pending_actions` (propose-then-tap) | next |
 | 038 | `038_push_cron.sql` | 5 | `pg_cron` + `pg_net` + the hourly schedule | |
 
 **Note on the ordering.** The statement-cycle migration jumped ahead of its

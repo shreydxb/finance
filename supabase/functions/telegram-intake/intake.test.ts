@@ -189,6 +189,43 @@ test('a message from a different chat than the stored one is logged, not followe
   assert.ok(logs.some(([msg]) => msg.includes('second chat')))
 })
 
+// Taskiv #49 — the outbound chat-id allowlist. The household allowlist above
+// gates on `from.id`, a field read straight out of the request body; these
+// three cover the guard that stops a forged `from.id` from also redirecting
+// where the reply goes.
+
+test('#49 forged chat: an allowlisted sender in an unrecognised chat gets the spend logged but no reply sent there', async () => {
+  const h = harness()
+  h.store.settings.set('tg_chat_id', { chat_id: -999 }) // the real household chat, already captured
+
+  // Same shape a forged request would have: a real allowlisted from.id, but
+  // chat.id pointed somewhere the household chat was never captured to.
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps) // textUpdate's chat.id is CHAT_ID, not -999
+
+  assert.equal(h.store.only().amount, 84, 'the spend itself is still written — never silently lost')
+  assert.deepEqual(h.messenger.sent, [], 'no Confirm/Fix prompt (or anything else) reached the unrecognised chat')
+})
+
+test('#49 normal group: a reply to the captured household chat is not blocked', async () => {
+  const h = harness()
+  await handleUpdate(textUpdate('84 aed lunch at Noon'), h.deps)
+
+  assert.ok(h.messenger.sent.some((s) => s.method === 'sendMessage' && s.chatId === CHAT_ID), 'ordinary traffic still gets its reply')
+})
+
+test('#49 /id answers even in a chat nothing has captured yet (setup path)', async () => {
+  const h = harness()
+  // A brand new household: no tg_chat_id captured, sender not yet in the allowlist either.
+  h.store.context = household()
+
+  await handleUpdate(textUpdate('/id', STRANGER_ID), h.deps)
+
+  const reply = h.messenger.last()
+  assert.equal(reply.method, 'sendMessage')
+  assert.equal(reply.chatId, CHAT_ID)
+  assert.match(reply.text ?? '', new RegExp(`${STRANGER_ID}`))
+})
+
 test('a settings-write failure while capturing the chat id still logs the spend', async () => {
   const h = harness()
   h.store.failPutSetting = true

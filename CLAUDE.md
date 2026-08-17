@@ -183,15 +183,33 @@ broken" claim about them was itself stale by several versions.
   `fire_expense` is null, and nothing in `src/` reads any `fire_*` key — no
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
   hasn't given a real monthly-expense figure yet). (Taskiv #21)
-- **Bot-expansion epics 8–13 (Taskiv #44–79): Sprint 1 is 4 of 6 done**, which
-  Taskiv did not reflect until 16 Aug — #22, #44, #45, #46 and #47 all shipped
-  alongside other work and have now been moved to Done. What remains of the
-  foundations is **#48 (the FX-normalised money view) and #49 (the outbound
-  chat-id allowlist)**; Sprints 2–6 are untouched. #48 is the gate: every money
-  query in Sprints 2, 3, 5 and 6 is supposed to sum through it, so building any
-  of them first means building them twice. Note the spec's `coalesce(rate, 1)`
-  fallback contradicts `src/lib/money.js`'s deliberate NaN-on-unknown-rate
-  behaviour — see the correction on Taskiv #48 before writing the SQL.
+- **Bot-expansion Sprint 1 foundations are now all 6 of 6 done** (as of 17 Aug
+  — #48 and #49, the last two, shipped this session). Sprints 2–6 remain
+  untouched, but the gate is now open: every money query in Sprints 2, 3, 5
+  and 6 is supposed to sum through `v_transactions_aed`, so they can now be
+  built without redoing this work.
+  - **#48 — `036_money_view.sql`, applied to `our-rokda`.** `v_transactions_aed`
+    joins `accounts` and bakes in `deleted_at is null`. Per the correction
+    logged on the task (the spec's `coalesce(rate, 1)` skeleton was wrong —
+    would have reintroduced the 1:1-AED-fallback bug `src/lib/money.js`
+    deliberately removed), `amount_aed` is `NULL`, not defaulted, for a
+    currency `settings.fx_rates` has no rate for. Verified live: 432 AED rows
+    and 1 USD row all convert, zero unconverted. One sharp edge worth
+    remembering before Sprint 2/3/5/6 queries get written: Postgres's `sum()`
+    silently skips `NULL` rather than propagating it the way client-side NaN
+    does — a query must separately check `count(*) filter (where amount_aed
+    is null)` or it will report a plausible, silently-too-low total. 7 new
+    `test:db` cases cover this (`money_view.test.mjs`).
+  - **#49 — outbound chat-id allowlist**, in `_shared/guardedMessenger.ts`
+    (`GuardedMessenger`) and wired into `intake.ts`'s `handleMessage`/
+    `handleCallback`. Every reply after the household allowlist check is
+    guarded against a forged `chat.id`; `/id` alone still bypasses it (must
+    work in an unrecognised chat during setup — see the file's own comment
+    for why that's not itself a hole). 9 new tests (6 unit in
+    `guardedMessenger.test.ts`, 3 integration in `intake.test.ts` covering the
+    forged-chat, normal-group and `/id`-in-unknown-chat cases from the task's
+    acceptance criteria). All 312 `npm test` cases and all 41 `test:db` cases
+    pass.
 
 Resolved since the last pass — **Taskiv #44 is fixed**: `intake.ts` now resolves
 "today" via `_shared/dates.ts`'s `todayInTz` (Asia/Dubai via `Intl.DateTimeFormat`,

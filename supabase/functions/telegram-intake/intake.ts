@@ -20,6 +20,7 @@ import type { PromptContext } from './prompt.ts'
 import { extractTransfer, looksLikeTransfer } from './transfer.ts'
 import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
+import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
 import type {
   AccountRef,
   Extraction,
@@ -100,7 +101,19 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
     return { status: 'ignored', reason: `sender ${senderId} is not in the household allowlist` }
   }
 
-  await captureChatId(message, deps)
+  const capturedChatId = await captureChatId(message, deps)
+
+  // Every reply from here on is chat-id-guarded (Taskiv #49) — a forged
+  // `from.id` cannot redirect a Confirm/Fix prompt or any other reply to an
+  // arbitrary chat. Uses the just-resolved capture result, not the raw
+  // `message.chat.id`, so a message from a second, unstored chat (the
+  // scenario captureChatId itself refuses to follow) is not silently
+  // admitted here either. Only `/id` above bypassed the guard, and it only
+  // ever answers into the chat that asked.
+  deps = {
+    ...deps,
+    messenger: new GuardedMessenger(deps.messenger, allowedChatIds(new Set(household.people.keys()), capturedChatId), deps.log),
+  }
 
   if (text === '/start' || text === '/help') {
     await deps.messenger.sendMessage(message.chat.id, HELP_TEXT, { replyToMessageId: message.message_id })
@@ -753,8 +766,14 @@ const TG_CHAT_ID_SETTING = 'tg_chat_id'
  * chat spoke most recently could end up mailing account balances to the wrong
  * place. Failure here is never allowed to cost the household a logged spend,
  * so every step is best-effort.
+ *
+ * Returns the chat id this request should treat as authoritative — the
+ * pre-existing stored one if there is a mismatch, otherwise this message's
+ * chat. The outbound guard (Taskiv #49) uses this return value rather than
+ * `message.chat.id` directly, so a message from a second, unstored chat
+ * doesn't also talk its way into this request's own allowlist.
  */
-async function captureChatId(message: TelegramMessage, deps: IntakeDeps): Promise<void> {
+async function captureChatId(message: TelegramMessage, deps: IntakeDeps): Promise<number> {
   try {
     const existing = (await deps.store.getSetting(TG_CHAT_ID_SETTING)) as { chat_id?: number } | null
     if (existing?.chat_id != null) {
@@ -764,7 +783,7 @@ async function captureChatId(message: TelegramMessage, deps: IntakeDeps): Promis
           seen: message.chat.id,
         })
       }
-      return
+      return existing.chat_id
     }
     await deps.store.putSetting(TG_CHAT_ID_SETTING, {
       chat_id: message.chat.id,
@@ -772,8 +791,10 @@ async function captureChatId(message: TelegramMessage, deps: IntakeDeps): Promis
       title: message.chat.title ?? null,
       captured_at: new Date().toISOString(),
     })
+    return message.chat.id
   } catch (error) {
     deps.log?.('chat id capture failed (non-fatal)', { error: String(error) })
+    return message.chat.id
   }
 }
 
@@ -941,6 +962,15 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     await deps.messenger.answerCallbackQuery(query.id)
     deps.log?.('rejected callback sender', { senderId: query.from.id })
     return { status: 'ignored', reason: `sender ${query.from.id} is not in the household allowlist` }
+  }
+
+  // A callback can only exist on a message the bot already sent (the
+  // inline-keyboard Confirm/Fix tap), which itself only reached this chat if
+  // the outbound guard already allowed it — so, unlike handleMessage, there
+  // is no "not yet captured" case to fall back on here.
+  deps = {
+    ...deps,
+    messenger: new GuardedMessenger(deps.messenger, allowedChatIds(new Set(household.people.keys()), household.chatId), deps.log),
   }
 
   if (parsed.action === 'cashback_apply' || parsed.action === 'cashback_cancel') {

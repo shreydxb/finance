@@ -198,6 +198,8 @@ export interface HouseholdContext {
   people: Map<number, string>
   confidenceThreshold: number
   defaultAccountId: string | null
+  /** The household's captured group chat (settings.tg_chat_id.chat_id), or null before it's ever spoken. */
+  chatId: number | null
 }
 
 /** Everything the intake flow needs from Postgres, so tests can fake it. */

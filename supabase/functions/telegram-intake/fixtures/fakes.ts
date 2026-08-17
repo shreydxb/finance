@@ -71,7 +71,14 @@ export class FakeStore implements IntakeStore {
   }
 
   loadHouseholdContext(): Promise<HouseholdContext> {
-    return Promise.resolve(this.context)
+    // `context` is otherwise a fixed snapshot from construction, but chatId
+    // has to track `settings` live: captureChatId (via getSetting/putSetting,
+    // both backed by `settings`) is what tests use to simulate a captured
+    // household chat, same as the real PostgrestStore reading it back out of
+    // the settings table on the next request.
+    const raw = this.settings.get('tg_chat_id') as { chat_id?: unknown } | undefined
+    const chatId = raw && Number.isInteger(Number(raw.chat_id)) ? Number(raw.chat_id) : this.context.chatId
+    return Promise.resolve({ ...this.context, chatId })
   }
 
   insertTransaction(row: Partial<TransactionRow>): Promise<TransactionRow> {

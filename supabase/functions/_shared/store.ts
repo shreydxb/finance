@@ -456,11 +456,18 @@ export function buildHouseholdContext(input: {
       ? rawDefaultAccount
       : null
 
+  const rawChat = byKey.get(SETTINGS_KEYS.chatId)
+  const rawChatId =
+    rawChat && typeof rawChat === 'object' ? (rawChat as { chat_id?: unknown }).chat_id : undefined
+  const chatIdNumber = Number(rawChatId)
+  const chatId = Number.isInteger(chatIdNumber) ? chatIdNumber : null
+
   return {
     categories: input.categories,
     accounts: input.accounts,
     people,
     confidenceThreshold: threshold,
     defaultAccountId,
+    chatId,
   }
 }
