@@ -22,6 +22,7 @@ import type {
   Transcriber,
   TransactionRow,
 } from '../../_shared/types.ts'
+import type { QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from '../query/types.ts'
 import { SHREY_ID, TARIKA_ID } from './updates.ts'
 
 export const CATEGORIES: CategoryRef[] = [
@@ -353,6 +354,36 @@ export interface SentMessage {
   messageId?: number
   text?: string
   opts?: SendOptions
+}
+
+/**
+ * A minimal QueryStore for tests that only need routing (does this message
+ * write a transaction or not?) rather than real numbers — every query
+ * answers a first-class, correct zero unless seeded. The actual query
+ * arithmetic (FX conversion, category exclusion, etc.) is covered against
+ * its own fake in query/run.test.ts; this one exists so intake.test.ts and
+ * demo.ts can exercise the intent router without a live v_transactions_aed.
+ */
+export class FakeQueryStore implements QueryStore {
+  categorySpend(_category: string, period: ResolvedPeriod): Promise<SpendResult> {
+    return Promise.resolve({ amountAed: 0, count: 0, unconvertedCount: 0, period })
+  }
+
+  totalSpend(period: ResolvedPeriod): Promise<TotalSpendResult> {
+    return Promise.resolve({ amountAed: 0, count: 0, unconvertedCount: 0, excludedSavingsAed: 0, period })
+  }
+
+  merchantSpend(_merchant: string, period: ResolvedPeriod): Promise<SpendResult> {
+    return Promise.resolve({ amountAed: 0, count: 0, unconvertedCount: 0, period })
+  }
+
+  accountSpend(_accountId: string, period: ResolvedPeriod): Promise<SpendResult> {
+    return Promise.resolve({ amountAed: 0, count: 0, unconvertedCount: 0, period })
+  }
+
+  recentTransactions(): Promise<RecentTransaction[]> {
+    return Promise.resolve([])
+  }
 }
 
 export class FakeMessenger implements Messenger {

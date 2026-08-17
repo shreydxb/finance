@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { ACCOUNTS, FakeMessenger, FakeModel, FakeStore, FakeTranscriber, household } from './fixtures/fakes.ts'
+import { ACCOUNTS, FakeMessenger, FakeModel, FakeQueryStore, FakeStore, FakeTranscriber, household } from './fixtures/fakes.ts'
 import { TODAY } from './fixtures/receipts.ts'
 import {
   albumPhotoUpdate,
@@ -43,26 +43,46 @@ interface Harness {
   store: FakeStore
   messenger: FakeMessenger
   model: FakeModel
+  classifierModel: FakeModel
   transcriber: FakeTranscriber
 }
 
+/**
+ * classifierModel defaults to a fixed "spend, high confidence" answer — a
+ * separate FakeModel instance from `model`, so the router's extra call
+ * never consumes an entry meant for extraction. Every pre-#50 test still
+ * routes to spend exactly as before; tests that want question/chatter/action
+ * routing pass their own `classifierResponses` (or overwrite
+ * `h.deps.classifierModel` directly for a THROW:/malformed case).
+ */
+const DEFAULT_CLASSIFIER_RESPONSE = JSON.stringify({ intent: 'spend', confidence: 0.99 })
+
 function harness(
   responses: string | string[] = CLEAN,
-  opts: { transcript?: string; withTranscriber?: boolean; defaultAccountId?: string | null } = {}
+  opts: {
+    transcript?: string
+    withTranscriber?: boolean
+    defaultAccountId?: string | null
+    classifierResponses?: string | string[]
+  } = {}
 ): Harness {
   const store = new FakeStore(household({ defaultAccountId: opts.defaultAccountId ?? null }))
   const messenger = new FakeMessenger()
   const model = new FakeModel(responses)
+  const classifierModel = new FakeModel(opts.classifierResponses ?? DEFAULT_CLASSIFIER_RESPONSE)
   const transcriber = new FakeTranscriber(opts.transcript ?? 'spent 84 dirhams at karak house')
   return {
     store,
     messenger,
     model,
+    classifierModel,
     transcriber,
     deps: {
       store,
+      queryStore: new FakeQueryStore(),
       messenger,
       model,
+      classifierModel,
       transcriber: opts.withTranscriber === false ? null : transcriber,
       defaultCurrency: 'AED',
       now: () => new Date(`${TODAY}T09:00:00Z`),
@@ -1202,4 +1222,92 @@ test('matchAccount maps payment hints to accounts, and abstains when unsure', ()
   assert.equal(matchAccount('card', ACCOUNTS), null, 'generic words are not enough to pick one')
   assert.equal(matchAccount('Apple Pay', ACCOUNTS), null)
   assert.equal(matchAccount(null, ACCOUNTS), null)
+})
+
+// ── Taskiv #50: intent router, end-to-end ─────────────────────────────────
+
+test('a question does not write a transaction', async () => {
+  const h = harness()
+  const outcome = await handleUpdate(textUpdate('how much did we spend on groceries this month'), h.deps)
+
+  assert.equal(h.store.rows.size, 0)
+  assert.equal(outcome.status, 'ignored')
+  assert.ok(h.messenger.last(), 'the household still gets an answer, just not a logged spend')
+})
+
+test('an ordinary spend message still writes a transaction', async () => {
+  const h = harness()
+  await handleUpdate(textUpdate('84 lunch noon'), h.deps)
+
+  assert.equal(h.store.only().amount, 84)
+})
+
+test('a photo captioned "how much is this?" still routes to spend — captions never reach the router', async () => {
+  const h = harness()
+  await handleUpdate(photoUpdate('how much is this?'), h.deps)
+
+  assert.equal(h.store.only().amount, 84)
+  assert.equal(h.classifierModel.calls.length, 0, 'the router is never even consulted for a photo')
+})
+
+test('a classifier returning malformed JSON falls back to spend, not an error', async () => {
+  const h = harness(undefined, { classifierResponses: 'not json at all' })
+  const outcome = await handleUpdate(textUpdate('grabbed something at the shop'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.only().amount, 84)
+})
+
+test('a classifier that throws falls back to spend, not an error', async () => {
+  const h = harness(undefined, { classifierResponses: 'THROW:OpenRouter 500: server error' })
+  const outcome = await handleUpdate(textUpdate('grabbed something at the shop'), h.deps)
+
+  assert.equal(outcome.status, 'logged')
+  assert.equal(h.store.only().amount, 84)
+})
+
+test('"thanks!" produces no reply and no row — chatter is silence, not an "ok"', async () => {
+  const h = harness(undefined, { classifierResponses: JSON.stringify({ intent: 'chatter', confidence: 0.95 }) })
+  const outcome = await handleUpdate(textUpdate('thanks!'), h.deps)
+
+  assert.equal(h.store.rows.size, 0)
+  assert.equal(h.messenger.sent.length, 0)
+  assert.equal(outcome.status, 'ignored')
+})
+
+test('a low-confidence classifier answer falls back to spend rather than trusting a shaky guess', async () => {
+  const h = harness(undefined, { classifierResponses: JSON.stringify({ intent: 'chatter', confidence: 0.3 }) })
+  await handleUpdate(textUpdate('grabbed something at the shop'), h.deps)
+
+  assert.equal(h.store.only().amount, 84)
+})
+
+test('an "action" classification has no handler yet and falls through to spend', async () => {
+  const h = harness(undefined, { classifierResponses: JSON.stringify({ intent: 'action', confidence: 0.9 }) })
+  await handleUpdate(textUpdate('put 200 into the car fund'), h.deps)
+
+  assert.equal(h.store.only().amount, 84)
+})
+
+test('a stranger is rejected before the router (and the classifier) ever runs', async () => {
+  const h = harness()
+  await handleUpdate(textUpdate('how much did we spend on groceries', STRANGER_ID), h.deps)
+
+  assert.equal(h.classifierModel.calls.length, 0)
+  assert.equal(h.messenger.sent.length, 0)
+})
+
+test('a reply-correction is resolved before the router ever runs, even if it reads like a question', async () => {
+  const h = harness(json({ amount: 48, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.5 }))
+  await handleUpdate(textUpdate('lunch'), h.deps)
+  const id = h.store.only().id
+  const promptId = h.store.only().telegram_prompt_msg_id ?? 0
+
+  const corrected = json({ amount: 48, category: 'Dining Out', paid_with: 'ENBD Credit Card 4412', confidence: 0.97 })
+  h.model.responses = [corrected]
+  const classifierCallsBefore = h.classifierModel.calls.length
+  await handleUpdate(replyUpdate('what did I actually pay?', promptId), h.deps)
+
+  assert.equal(h.classifierModel.calls.length, classifierCallsBefore, 'a threaded reply is a correction, never routed as a question')
+  assert.equal(h.store.only().id, id, 'still the same row, updated in place')
 })

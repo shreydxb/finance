@@ -3,7 +3,7 @@
 // model. Every reply states its window, and a zero-result answer is worded
 // as plainly as a real one, not as an error.
 
-import { formatAmount, formatDate } from '../intake.ts'
+import { formatAmount, formatDate } from '../format.ts'
 import type { QueryResult } from './types.ts'
 
 export function formatQueryReply(result: QueryResult): string {

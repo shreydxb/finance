@@ -184,10 +184,42 @@ broken" claim about them was itself stale by several versions.
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
   hasn't given a real monthly-expense figure yet). (Taskiv #21)
 - **Bot-expansion Sprint 1 foundations are now all 6 of 6 done** (as of 17 Aug
-  — #48 and #49, the last two, shipped this session). Of Sprint 2, **#51 and
-  #52 are also done this session**; what's left is **#50 (intent router)** and
-  **#53 (router fixture corpus + `/help` rewrite)** — the query toolbox itself
-  is fully built, just not yet wired into a live chat message.
+  — #48 and #49, the last two, shipped this session). Of Sprint 2, **#51, #52
+  and #50 are also done this session**; only **#53 (router fixture corpus +
+  `/help` rewrite)** is left. The query toolbox is now actually reachable
+  from a live chat message — **#50 wired it in**, see below — though nothing
+  from this session (#49's guard or #50's router) has been deployed yet;
+  `telegram-intake` in production is still whatever `main` last had.
+  - **#50 — `telegram-intake/route.ts` (the intent router) wired into
+    `intake.ts`'s `handleMessage`.** Every plain typed message that survives
+    the existing cashback/transfer/bulk pre-checks is now classified
+    `spend | question | action | chatter` before extraction — `question`
+    answers via the #51/#52 toolbox and never writes a row, `chatter` gets
+    silence (no reply, no row — "a bot that answers 'ok' is a bot people stop
+    using"), `action` has no handler yet (Sprint 2/3's propose-then-tap work)
+    so it deliberately falls through to spend. Every failure mode — regex
+    near-miss, malformed classifier JSON, a thrown model call, confidence
+    below 0.6 — resolves to spend, never silence, per the task's one rule: a
+    misrouted spend is a lost spend. Photo/voice and captions never reach
+    the router at all (unchanged code path), so "a receipt is always a
+    receipt" holds structurally, not just by convention.
+    Two extractions made along the way, both to protect existing behaviour
+    rather than change it: `matchAccount`/`matchAccountTies` moved out of
+    `intake.ts` into `accountMatch.ts`, and `formatAmount`/`formatDate` into
+    `format.ts` — `intake.ts` now imports `query/run.ts` and `query/reply.ts`
+    for the router, and both of those already needed those functions, so
+    leaving them in `intake.ts` would have created a circular import.
+    `IntakeDeps` gained `queryStore` and a **separate** `classifierModel`
+    field — reusing `model` for both extraction and classification would
+    have desynced every existing test's `FakeModel` response queue with an
+    extra call in front of it; in production both fields point at the same
+    real `OpenRouterClient` instance, so this costs nothing live. All 84
+    pre-existing `intake.test.ts` cases pass with **zero assertion changes**
+    (only the shared `harness()` fixture gained the two new deps), plus 9 new
+    end-to-end routing cases and `route.test.ts`'s 19 unit cases (regex fast
+    path + classifier + fallback). `npm run demo:telegram` output is
+    byte-identical to before. Full suite: 407 `npm test`, 41 `test:db`, lint
+    and build clean.
   - **#51 — `telegram-intake/query/{types,period,plan,run}.ts`.** `types.ts`
     is the closed `QueryPlan`/`Period` vocabulary (5 queries: category/total/
     merchant/account spend + recent transactions — Sprint 3 adds budget/net

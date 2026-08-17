@@ -21,6 +21,14 @@ import { extractTransfer, looksLikeTransfer } from './transfer.ts'
 import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
+import { routeMessage } from './route.ts'
+import { planQuery } from './query/plan.ts'
+import { runQuery } from './query/run.ts'
+import { formatQueryReply } from './query/reply.ts'
+import type { QueryPlan, QueryStore } from './query/types.ts'
+import { matchAccount, matchAccountTies } from './accountMatch.ts'
+export { matchAccount, matchAccountTies } from './accountMatch.ts'
+import { formatAmount, formatDate } from './format.ts'
 import type {
   AccountRef,
   Extraction,
@@ -42,8 +50,18 @@ import type {
 
 export interface IntakeDeps {
   store: IntakeStore
+  /** Backs the intent router's question path (Taskiv #50/#51/#52) — reads through v_transactions_aed, never transactions.amount directly. */
+  queryStore: QueryStore
   messenger: Messenger
   model: ModelClient
+  /**
+   * The intent router's classifier (Taskiv #50) calls this instead of
+   * `model`. A separate field, not a reused call to `model`, so a fake
+   * queue seeded for extraction responses in a test is never desynced by an
+   * extra classifier call in front of it — in production both fields can
+   * point at the same real client, which has no such queue to desync.
+   */
+  classifierModel: ModelClient
   /** null when GROQ_API_KEY isn't set: voice notes are then answered with a nudge. */
   transcriber: Transcriber | null
   defaultCurrency: string
@@ -149,6 +167,27 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   }
 
   const messageType = messageTypeOf(message)
+
+  // The intent router (Taskiv #50). Photo and voice never reach here — their
+  // messageType already routes straight past this block, receipt/voice
+  // captions live in `message.caption`, never `text`, so a photo captioned
+  // "how much is this?" can't accidentally trip the router either. Only a
+  // plain typed message that survived the cashback/transfer/bulk pre-checks
+  // above gets classified.
+  if (messageType === 'text' && text) {
+    const intent = await routeMessage(text, deps.classifierModel)
+    if (intent === 'chatter') {
+      // Silence is correct — a bot that answers "ok" is a bot people stop using.
+      return { status: 'ignored', reason: 'chatter' }
+    }
+    if (intent === 'question') {
+      return handleQuestion(text, message, household, ctx, deps)
+    }
+    // 'action' has no handler yet (that's Sprint 2/3's propose-then-tap work,
+    // #60+) — falls through to the spend path deliberately, on the same
+    // "a misrouted spend is a lost spend" bias every other fallback here uses.
+  }
+
   const t0 = Date.now()
 
   let extraction: Extraction
@@ -179,6 +218,57 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   }
 
   return writeAndAnnounce(extraction, message, household, senderId, deps, t0, messageType)
+}
+
+/**
+ * Answers a question routed here by the intent router (Taskiv #50), via the
+ * query toolbox built in #51/#52: plan it against the closed query enum,
+ * run it through v_transactions_aed, template the reply. Never writes a
+ * transaction — a question that can't be planned is an honest refusal, not a
+ * guess. The exact refusal wording is Taskiv #59's job (Sprint 3); this is a
+ * deliberately plain placeholder until then.
+ */
+async function handleQuestion(
+  text: string,
+  message: TelegramMessage,
+  household: HouseholdContext,
+  ctx: PromptContext,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const t0 = Date.now()
+
+  let plan: QueryPlan | null
+  try {
+    plan = await planQuery(text, ctx, deps.model)
+  } catch (error) {
+    deps.log?.('question planning failed', { error: String(error) })
+    plan = null
+  }
+
+  if (!plan) {
+    await deps.messenger.sendMessage(
+      message.chat.id,
+      "I'm not sure how to answer that yet — try asking about spend by category, account, merchant, or your total for a period.",
+      { replyToMessageId: message.message_id }
+    )
+    await logInbound(deps, message, household, senderId, 'text', {
+      stage: 'answer_question',
+      success: false,
+      error: 'planner returned null',
+      durationMs: Date.now() - t0,
+    })
+    return { status: 'ignored', reason: 'question could not be planned' }
+  }
+
+  const result = await runQuery(plan, deps.queryStore, household.accounts, deps.now ?? (() => new Date()))
+  await deps.messenger.sendMessage(message.chat.id, formatQueryReply(result), { replyToMessageId: message.message_id })
+  await logInbound(deps, message, household, senderId, 'text', {
+    stage: 'answer_question',
+    success: true,
+    durationMs: Date.now() - t0,
+  })
+  return { status: 'ignored', reason: `answered question: ${plan.q}` }
 }
 
 /**
@@ -1173,71 +1263,6 @@ function resolveOwner(paidBy: string | null, household: HouseholdContext, sender
   return household.people.get(senderId) || null
 }
 
-const WEAK_ACCOUNT_TOKENS = new Set([
-  'card', 'credit', 'debit', 'bank', 'account', 'the', 'my', 'visa', 'mastercard', 'pay', 'wallet',
-])
-
-/** Maps a free-text payment hint ("VISA ****1234", "ENBD credit card") to an account. */
-export function matchAccount(guess: string | null, accounts: AccountRef[]): AccountRef | null {
-  return bestAccountMatch(guess, accounts).best
-}
-
-/** The accounts a guess tied on, when that tie is why matchAccount abstained. Empty otherwise. */
-export function matchAccountTies(guess: string | null, accounts: AccountRef[]): AccountRef[] {
-  return bestAccountMatch(guess, accounts).tied
-}
-
-function bestAccountMatch(guess: string | null, accounts: AccountRef[]): { best: AccountRef | null; tied: AccountRef[] } {
-  if (!guess) return { best: null, tied: [] }
-  const wanted = simplify(guess)
-  if (wanted === '') return { best: null, tied: [] }
-
-  const wantedTokens = wanted.split(' ').filter(Boolean)
-  const wantedDigits = digitRuns(guess)
-
-  const scored = accounts.map((account) => ({
-    account,
-    score: scoreAccount(account, wanted, wantedTokens, wantedDigits),
-  }))
-  const top = scored.reduce<{ account: AccountRef; score: number } | null>(
-    (best, entry) => (!best || entry.score > best.score ? entry : best),
-    null
-  )
-
-  if (!top || top.score < 12) return { best: null, tied: [] }
-  // A tie means we genuinely can't tell the two apart — better to flag for review
-  // and name the candidates than to guess, e.g. two sub-ledgers on one card number.
-  const tiedWith = scored.filter((entry) => entry.account !== top.account && entry.score === top.score)
-  if (tiedWith.length === 0) return { best: top.account, tied: [] }
-  return { best: null, tied: [top.account, ...tiedWith.map((e) => e.account)] }
-}
-
-function scoreAccount(account: AccountRef, wanted: string, wantedTokens: string[], wantedDigits: string[]): number {
-  const name = simplify(account.name)
-  if (name === wanted) return 100
-  let score = 0
-  // A bare "card" is a substring of half the accounts — it has to carry at least
-  // one distinguishing word before a substring hit means anything.
-  const hasStrongToken = wantedTokens.some((token) => !WEAK_ACCOUNT_TOKENS.has(token))
-  if (hasStrongToken && (name.includes(wanted) || wanted.includes(name))) score += 40
-  for (const token of name.split(' ').filter(Boolean)) {
-    if (!wantedTokens.includes(token)) continue
-    score += WEAK_ACCOUNT_TOKENS.has(token) ? 2 : 12
-  }
-  // "VISA ****1234" against an account named "ENBD Visa 1234".
-  const nameDigits = digitRuns(account.name)
-  if (wantedDigits.some((d) => nameDigits.includes(d))) score += 45
-  return score
-}
-
-function digitRuns(value: string): string[] {
-  return (value.match(/\d{3,}/g) ?? []).map((run) => run.slice(-4))
-}
-
-function simplify(value: string): string {
-  return value.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
 // ── replies ────────────────────────────────────────────────────────────────
 
 async function announce(
@@ -1347,18 +1372,7 @@ function missingFields(extraction: Extraction, resolved: Resolved): string[] {
   return gaps
 }
 
-export function formatAmount(amount: number): string {
-  return amount.toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-}
-
-export function formatDate(iso: string): string {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  })
-}
+export { formatAmount, formatDate } from './format.ts'
 
 /** Rebuilds the extraction shape from a stored row so a fix can be merged into it. */
 export function extractionFromRow(row: TransactionRow, household: HouseholdContext): Extraction {

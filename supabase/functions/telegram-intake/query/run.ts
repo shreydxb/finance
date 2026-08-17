@@ -7,7 +7,7 @@
 // directly. `PostgrestQueryStore` (store.ts) is what enforces that in SQL;
 // this file only orchestrates.
 
-import { matchAccount, matchAccountTies } from '../intake.ts'
+import { matchAccount, matchAccountTies } from '../accountMatch.ts'
 import { resolvePeriod } from './period.ts'
 import type { AccountRef } from '../../_shared/types.ts'
 import type { QueryPlan, QueryResult, QueryStore } from './types.ts'

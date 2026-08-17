@@ -10,7 +10,7 @@
 // To exercise the *deployed* function against a mocked payload instead, see
 // "Demo mode against the deployed function" in README.md.
 
-import { FakeMessenger, FakeModel, FakeStore, FakeTranscriber, household } from './fixtures/fakes.ts'
+import { FakeMessenger, FakeModel, FakeQueryStore, FakeStore, FakeTranscriber, household } from './fixtures/fakes.ts'
 import {
   callbackUpdate,
   photoUpdate,
@@ -39,11 +39,17 @@ const model = new FakeModel([
   reply({ amount: 84, category: 'Dining Out', paid_with: 'Wio Personal', note: 'Karak House', confidence: 0.97 }),
   reply({ amount: null, category: 'Groceries', paid_with: 'Joint Current', note: 'Waitrose · total unreadable', confidence: 0.4 }),
 ])
+// A separate FakeModel from `model` — the intent router (Taskiv #50) calls
+// this one, and it must never eat an entry off the extraction queue above.
+// Every demo message here is spend-shaped, so it always answers the same way.
+const classifierModel = new FakeModel(JSON.stringify({ intent: 'spend', confidence: 0.99 }))
 
 const deps = {
   store,
+  queryStore: new FakeQueryStore(),
   messenger,
   model,
+  classifierModel,
   transcriber: new FakeTranscriber('spent forty eight dirhams on karak'),
   defaultCurrency: 'AED',
   log: (message: string, data?: Record<string, unknown>) => console.log(`      · ${message}`, data ?? ''),

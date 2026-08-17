@@ -18,6 +18,7 @@ import { OpenRouterClient } from './extract.ts'
 import { handleUpdate } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
 import { PostgrestStore } from '../_shared/store.ts'
+import { PostgrestQueryStore } from './query/store.ts'
 import { TelegramClient } from '../_shared/telegram.ts'
 import { GroqWhisper } from './transcribe.ts'
 import type { DownloadedFile, IntakeStore, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from '../_shared/types.ts'
@@ -57,13 +58,24 @@ Deno.serve(async (request: Request): Promise<Response> => {
     fallbackThreshold: config.confidenceThreshold,
     fallbackTelegramIds: config.allowedTelegramIds,
   })
+  const queryStore = new PostgrestQueryStore({
+    supabaseUrl: config.supabaseUrl,
+    serviceKey: config.supabaseServiceKey,
+  })
   const telegram = new TelegramClient(config.telegramBotToken)
   const recorder = isDemo ? new RecordingMessenger(telegram) : null
+  // One real client, used for both extraction and classification — it has no
+  // per-call queue to desync, unlike the fakes in tests, so there's no
+  // reason to pay for a second connection/config just to keep the two calls
+  // apart.
+  const model = new OpenRouterClient(config.openRouterApiKey, config.openRouterModel)
 
   const deps: IntakeDeps = {
     store,
+    queryStore,
     messenger: new LoggingMessenger(recorder ?? telegram, store),
-    model: new OpenRouterClient(config.openRouterApiKey, config.openRouterModel),
+    model,
+    classifierModel: model,
     transcriber: config.groqApiKey ? new GroqWhisper(config.groqApiKey, config.groqWhisperModel) : null,
     defaultCurrency: config.defaultCurrency,
     log: (message, data) => console.log(message, data ?? ''),
