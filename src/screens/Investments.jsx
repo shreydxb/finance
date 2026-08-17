@@ -117,6 +117,8 @@ export default function Investments() {
         account: a,
         valueAED,
         hasCost,
+        cost,
+        costAED: hasCost ? toAED(cost, a.currency, fxRates) : 0,
         gain,
         gainAED: hasCost ? toAED(gain, a.currency, fxRates) : 0,
         gainPct: hasCost && cost > 0 ? (gain / cost) * 100 : null,
@@ -231,7 +233,7 @@ export default function Investments() {
 
               <div className="mt-4 grid grid-cols-2 gap-3 border-t border-ink-100 pt-4">
                 <div>
-                  <p className="text-xs text-ink-500">Cost basis</p>
+                  <p className="text-xs text-ink-500">Invested</p>
                   <p className="tnum mt-0.5 font-semibold text-ink-900">{fmt(totalCost)}</p>
                 </div>
                 <div>
@@ -257,19 +259,21 @@ export default function Investments() {
             />
           </div>
 
-          <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
-            <div className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-ink-100 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400 sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
+          <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-surface shadow-card">
+            <div className="grid min-w-[720px] grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1fr] gap-3 border-b border-ink-100 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
               <span>Holding</span>
-              <span className="hidden text-right sm:block">Qty × Avg</span>
-              <span className="text-right">Value</span>
-              <span className="text-right">Gain / Loss</span>
+              <span className="text-right">Qty × Avg</span>
+              <span className="text-right">LTP</span>
+              <span className="text-right">Invested</span>
+              <span className="text-right">Cur. value</span>
+              <span className="text-right">P&amp;L</span>
             </div>
             {rows.map((r) => (
               <button
                 key={r.account.id}
                 type="button"
                 onClick={() => setEditing(r.account)}
-                className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 transition-colors hover:bg-ink-50 sm:grid-cols-[1.6fr_1fr_1fr_1fr]"
+                className="grid w-full min-w-[720px] grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1fr] items-center gap-3 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 transition-colors hover:bg-ink-50"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-ink-900">
@@ -280,12 +284,20 @@ export default function Investments() {
                     {r.isManual && ' · manual'}
                   </span>
                 </span>
-                <span className="tnum hidden text-right text-xs text-ink-500 sm:block">
+                <span className="tnum text-right text-xs text-ink-500">
                   {r.account.quantity != null
                     ? `${Number(r.account.quantity).toLocaleString('en-AE', { maximumFractionDigits: 4 })} × ${
                         r.account.avg_cost ?? '—'
                       }`
                     : '—'}
+                </span>
+                <span className="tnum text-right text-xs text-ink-500">
+                  {r.account.last_price != null
+                    ? formatMoney(Number(r.account.last_price), r.account.currency, { decimals: 2 })
+                    : '—'}
+                </span>
+                <span className="tnum text-right text-xs text-ink-500">
+                  {r.hasCost ? formatMoney(r.cost, r.account.currency, { decimals: 0 }) : '—'}
                 </span>
                 <span className="text-right">
                   <span className="tnum block font-medium text-ink-900">{fmt(r.valueAED)}</span>
