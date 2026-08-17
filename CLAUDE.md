@@ -185,9 +185,26 @@ broken" claim about them was itself stale by several versions.
   hasn't given a real monthly-expense figure yet). (Taskiv #21)
 - **Bot-expansion Sprint 1 foundations are now all 6 of 6 done** (as of 17 Aug
   — #48 and #49, the last two, shipped this session). Sprints 2–6 remain
-  untouched, but the gate is now open: every money query in Sprints 2, 3, 5
-  and 6 is supposed to sum through `v_transactions_aed`, so they can now be
-  built without redoing this work.
+  untouched except for **Sprint 2's #51 (query toolbox skeleton + period
+  parser), also done this session** — see below. What's left of Sprint 2 is
+  **#50 (intent router)**, **#52 (the first five queries' actual store
+  implementations)** and **#53 (router fixture corpus + `/help` rewrite)**.
+  - **#51 — `telegram-intake/query/{types,period,plan,run}.ts`.** `types.ts`
+    is the closed `QueryPlan`/`Period` vocabulary (5 queries: category/total/
+    merchant/account spend + recent transactions — Sprint 3 adds budget/net
+    worth/goals/bills/portfolio, not built here) plus the `QueryStore`
+    interface #52 implements. `period.ts`'s `resolvePeriod` turns any `Period`
+    into concrete from/to dates and a human label ("1–17 Aug", "Jul", "last 7
+    days") using `todayInTz`, never a raw `toISOString()` slice; weeks start
+    **Monday** — no existing app screen groups by week to match, so this is a
+    new convention, not an inherited one. `plan.ts`'s `planQuery` is the only
+    place a model response is trusted at all, and even there every field is
+    validated against the household's real category/account/people lists in
+    code before use — an unknown category, account, owner, or `q` outside the
+    5-entry enum all return `null` (the honest-refusal path, not an error).
+    `run.ts` is dispatch-only, no real SQL yet — that's #52. 36 new tests (16
+    period, 20 planner), all passing, plus the existing 312 + 41 db-test
+    suites untouched.
   - **#48 — `036_money_view.sql`, applied to `our-rokda`.** `v_transactions_aed`
     joins `accounts` and bakes in `deleted_at is null`. Per the correction
     logged on the task (the spec's `coalesce(rate, 1)` skeleton was wrong —
