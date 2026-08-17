@@ -260,9 +260,10 @@ export default function Investments() {
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-surface shadow-card">
-            <div className="grid min-w-[720px] grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1fr] gap-3 border-b border-ink-100 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+            <div className="grid min-w-[820px] grid-cols-[1.6fr_0.8fr_1fr_1fr_1fr_1fr_1fr] gap-3 border-b border-ink-100 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
               <span>Holding</span>
-              <span className="text-right">Qty × Avg</span>
+              <span className="text-right">Qty</span>
+              <span className="text-right">Avg price</span>
               <span className="text-right">LTP</span>
               <span className="text-right">Invested</span>
               <span className="text-right">Cur. value</span>
@@ -273,7 +274,7 @@ export default function Investments() {
                 key={r.account.id}
                 type="button"
                 onClick={() => setEditing(r.account)}
-                className="grid w-full min-w-[720px] grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1fr] items-center gap-3 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 transition-colors hover:bg-ink-50"
+                className="grid w-full min-w-[820px] grid-cols-[1.6fr_0.8fr_1fr_1fr_1fr_1fr_1fr] items-center gap-3 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 transition-colors hover:bg-ink-50"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-ink-900">
@@ -286,9 +287,12 @@ export default function Investments() {
                 </span>
                 <span className="tnum text-right text-xs text-ink-500">
                   {r.account.quantity != null
-                    ? `${Number(r.account.quantity).toLocaleString('en-AE', { maximumFractionDigits: 4 })} × ${
-                        r.account.avg_cost ?? '—'
-                      }`
+                    ? Number(r.account.quantity).toLocaleString('en-AE', { maximumFractionDigits: 4 })
+                    : '—'}
+                </span>
+                <span className="tnum text-right text-xs text-ink-500">
+                  {r.account.avg_cost != null
+                    ? formatMoney(Number(r.account.avg_cost), r.account.currency, { decimals: 2 })
                     : '—'}
                 </span>
                 <span className="tnum text-right text-xs text-ink-500">
