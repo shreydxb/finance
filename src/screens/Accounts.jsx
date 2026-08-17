@@ -15,15 +15,7 @@ import { listDailyNetWorth, recordDailyNetWorth } from '../lib/snapshots'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import { formatMoney, toAED } from '../lib/money'
-import {
-  cardSummary,
-  parseLast4,
-  cardDisplayName,
-  previousCycles,
-  forecastCycleTotal,
-  categoryBreakdown,
-  cycleProgress,
-} from '../lib/cards'
+import { cardSummary, parseLast4, cardDisplayName, previousCycles, categoryBreakdown } from '../lib/cards'
 import { todayLocal } from '../lib/dates'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
@@ -52,9 +44,9 @@ export default function Accounts({ onNavigate }) {
   const [groupBy, setGroupBy] = useState('type')
   // Transactions for the card-cycle totals and the detail view's spending
   // history. 220 days covers the open cycle plus roughly six prior ones (the
-  // longest cycle is 31 days), which is what the forecast needs as a
-  // baseline -- so the cards section and its detail view never have to
-  // re-query per card.
+  // longest cycle is 31 days), which is what the "recent cycles" trend needs
+  // -- so the cards section and its detail view never have to re-query per
+  // card.
   const [recentTxns, setRecentTxns] = useState([])
   const [viewingCard, setViewingCard] = useState(null)
   const today = todayLocal()
@@ -707,14 +699,12 @@ function AccountDetail({ account, onClose, onEdit }) {
 
 /**
  * The card tracking view: balance and limit, this cycle's spend broken down
- * by category, a forecast for where the cycle will land, and the trend
- * across recent cycles.
+ * by category, and the trend across recent cycles.
  *
  * Everything here reads from `transactions`/`cardSummary`'s cycle window —
- * nothing here is itself a source of truth. The forecast is the one number
- * on this screen that isn't a fact; it is labelled as an estimate everywhere
- * it appears, per the same rule that keeps "logged this cycle" from being
- * mistaken for a real statement total (see cards.js).
+ * nothing here is itself a source of truth, including "logged this cycle"
+ * itself: it is a floor, not a statement total, since it only counts what
+ * was actually captured (see cards.js).
  */
 function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdit, onRefresh }) {
   const [categories, setCategories] = useState([])
@@ -731,8 +721,6 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
   const pct = s.utilisationPct
 
   const past = s.cycle ? previousCycles(account, transactions, fxRates, today, 6) : []
-  const progress = s.cycle ? cycleProgress(s.cycle, today) : null
-  const forecast = progress ? forecastCycleTotal(s.cycleSpend, progress, past.map((c) => c.spend)) : null
   const breakdown = categoryBreakdown(account, transactions, fxRates, s.cycle)
   const colored = colorizeGroups(breakdown.map((b) => ({ key: b.category, label: b.category, value: b.total })))
   const breakdownById = new Map(colored.map((c) => [c.label, c]))
@@ -804,25 +792,10 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
           </div>
         )}
 
-        <div className="mb-5 grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-ink-200 p-3">
-            <p className="text-xs text-ink-500">Logged this cycle</p>
-            <p className="tnum text-lg font-semibold text-ink-900">{fmt(s.cycleSpend)}</p>
-            <p className="text-xs text-ink-400">{s.cycleCount} transactions</p>
-          </div>
-          <div className="rounded-xl border border-ink-200 p-3">
-            <p className="text-xs text-ink-500">Forecast bill</p>
-            {forecast ? (
-              <>
-                <p className="tnum text-lg font-semibold text-ink-900">{fmt(forecast.amount)}</p>
-                <p className="text-xs text-ink-400">
-                  estimate · {forecast.method === 'blended' ? `${past.length}-cycle avg` : 'this cycle\'s pace'}
-                </p>
-              </>
-            ) : (
-              <p className="mt-1 text-xs text-ink-400">Not enough data yet</p>
-            )}
-          </div>
+        <div className="mb-5 rounded-xl border border-ink-200 p-3">
+          <p className="text-xs text-ink-500">Logged this cycle</p>
+          <p className="tnum text-lg font-semibold text-ink-900">{fmt(s.cycleSpend)}</p>
+          <p className="text-xs text-ink-400">{s.cycleCount} transactions</p>
         </div>
 
         {s.dueDate && (

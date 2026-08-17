@@ -11,9 +11,7 @@ import {
   cardSummary,
   parseLast4,
   cardDisplayName,
-  cycleProgress,
   previousCycles,
-  forecastCycleTotal,
   categoryBreakdown,
 } from './cards.js'
 
@@ -201,21 +199,6 @@ test('cardDisplayName trims the trailing "...NNNN" and any wrapping parenthesis'
   assert.equal(cardDisplayName('Savings Account'), 'Savings Account')
 })
 
-test('cycleProgress reports elapsed and total days for a cycle in progress', () => {
-  const cycle = { start: '2026-08-01', end: '2026-08-31' }
-  const p = cycleProgress(cycle, '2026-08-11')
-  assert.equal(p.totalDays, 31)
-  assert.equal(p.elapsedDays, 11)
-  assert.equal(p.fraction, 11 / 31)
-})
-
-test('cycleProgress never divides by a zero fraction on the cycle\'s opening day', () => {
-  const cycle = { start: '2026-08-01', end: '2026-08-31' }
-  const p = cycleProgress(cycle, '2026-08-01')
-  assert.equal(p.elapsedDays, 1)
-  assert.ok(p.fraction > 0)
-})
-
 test('previousCycles walks backward from the open cycle, most recent first', () => {
   const account = { id: 'card-1', statement_day: 1 }
   const txns = [
@@ -231,32 +214,6 @@ test('previousCycles walks backward from the open cycle, most recent first', () 
   // The Transfer row is excluded from the historical baseline too.
   assert.equal(cycles[1].spend, 300)
   assert.equal(cycles[2].spend, 0)
-})
-
-test('forecastCycleTotal blends spend-so-far with the historical average', () => {
-  const progress = { fraction: 0.5 }
-  const f = forecastCycleTotal(1000, progress, [2000, 2400])
-  // historical avg 2200, half the cycle remains: 1000 + 2200*0.5 = 2100
-  assert.equal(f.amount, 2100)
-  assert.equal(f.method, 'blended')
-})
-
-test('forecastCycleTotal falls back to a naive linear projection with no history', () => {
-  const progress = { fraction: 0.25 }
-  const f = forecastCycleTotal(500, progress, [])
-  assert.equal(f.amount, 2000)
-  assert.equal(f.method, 'linear')
-})
-
-test('forecastCycleTotal returns null with nothing logged and no history', () => {
-  const progress = { fraction: 0.25 }
-  assert.equal(forecastCycleTotal(0, progress, []), null)
-})
-
-test('forecastCycleTotal converges to the actual total as the cycle ends', () => {
-  const progress = { fraction: 1 }
-  const f = forecastCycleTotal(3000, progress, [2000])
-  assert.equal(f.amount, 3000)
 })
 
 test('categoryBreakdown groups by category, largest first, excluding transfers', () => {

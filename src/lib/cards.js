@@ -152,25 +152,13 @@ function sumAED(transactions, fxRates) {
 }
 
 /**
- * How far into the open cycle `today` falls, as a `{ elapsedDays, totalDays,
- * fraction }` triple. `fraction` is clamped to (0, 1] so a forecast never
- * divides by zero on the day a cycle opens.
- */
-export function cycleProgress(cycle, today) {
-  const totalDays = daysUntil(cycle.end, cycle.start) + 1
-  const elapsedDays = Math.min(totalDays, daysUntil(today, cycle.start) + 1)
-  return { elapsedDays, totalDays, fraction: Math.max(elapsedDays, 1) / totalDays }
-}
-
-/**
  * Up to `count` statement cycles before the currently open one, most recent
- * first, each with its total spend. This is the forecast's only source of
- * "what does a normal cycle on this card look like" — there is no other
- * history to learn from.
+ * first, each with its total spend — the trend behind "is this month running
+ * normal or high", not a projection of anything.
  *
  * A cycle with zero transactions is still included (as a zero), not skipped:
  * a card that genuinely wasn't used for a month is a real data point, and
- * dropping it would bias the average upward.
+ * dropping it would bias the trend.
  */
 export function previousCycles(account, transactions, fxRates, today, count = 6) {
   const cycles = []
@@ -193,30 +181,6 @@ export function previousCycles(account, transactions, fxRates, today, count = 6)
     cursor = priorCycle
   }
   return cycles
-}
-
-/**
- * A projection for what this cycle's total will land on.
- *
- * Blends what's actually been logged so far with the average of past
- * cycles' totals, weighted down as the cycle progresses: `spend so far +
- * historical average × (fraction of the cycle still remaining)`. Early in a
- * cycle this leans almost entirely on history, since two or three logged
- * transactions say very little; by the cycle's last day it converges on the
- * actual total, since there's nothing left to project.
- *
- * Falls back to a naive linear projection (spend so far ÷ elapsed fraction)
- * when there is no history yet — every card starts here on its first cycle.
- * Returns null when there isn't even that (nothing logged and no history).
- */
-export function forecastCycleTotal(cycleSpend, progress, pastCycleTotals) {
-  const known = pastCycleTotals.filter((n) => Number.isFinite(n))
-  if (known.length > 0) {
-    const historicalAvg = known.reduce((a, b) => a + b, 0) / known.length
-    return { amount: cycleSpend + historicalAvg * (1 - progress.fraction), method: 'blended' }
-  }
-  if (cycleSpend > 0) return { amount: cycleSpend / progress.fraction, method: 'linear' }
-  return null
 }
 
 /**
