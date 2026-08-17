@@ -42,7 +42,9 @@ export default function Investments() {
   const allHoldings = accounts.filter((a) => a.type === 'investment')
   const owners = Array.from(new Set(allHoldings.map((a) => a.owner))).sort()
   const holdings = ownerFilter === 'combined' ? allHoldings : allHoldings.filter((a) => a.owner === ownerFilter)
-  const refreshable = allHoldings.filter((a) => a.currency === 'USD' && a.ticker && a.quantity != null)
+  const refreshable = allHoldings.filter(
+    (a) => (a.currency === 'USD' || a.currency === 'INR') && a.ticker && a.quantity != null
+  )
   // price_updated_at, not updated_at: the latter moves on any edit, so
   // renaming a holding used to look like a fresh quote (UI-01 / 028).
   const lastRefreshedAt = refreshable.reduce(
@@ -110,6 +112,7 @@ export default function Investments() {
       const hasCost = a.quantity != null && a.avg_cost != null
       const cost = hasCost ? Number(a.quantity) * Number(a.avg_cost) : null
       const gain = hasCost ? Number(a.value) - cost : null
+      const isManual = !((a.currency === 'USD' || a.currency === 'INR') && a.ticker && a.quantity != null)
       return {
         account: a,
         valueAED,
@@ -117,6 +120,7 @@ export default function Investments() {
         gain,
         gainAED: hasCost ? toAED(gain, a.currency, fxRates) : 0,
         gainPct: hasCost && cost > 0 ? (gain / cost) * 100 : null,
+        isManual,
       }
     })
     .sort((a, b) => b.valueAED - a.valueAED)
@@ -273,6 +277,7 @@ export default function Investments() {
                   </span>
                   <span className="block truncate text-xs text-ink-400">
                     {r.account.owner} · {r.account.currency}
+                    {r.isManual && ' · manual'}
                   </span>
                 </span>
                 <span className="tnum hidden text-right text-xs text-ink-500 sm:block">
@@ -318,8 +323,9 @@ export default function Investments() {
           </div>
 
           <p className="mt-3 text-xs text-ink-400">
-            Values are what your broker reported when last entered or refreshed — not live quotes. Metals and India
-            equities have no price source wired up, so they only change when you edit them.
+            Values are what your broker reported when last entered or refreshed — not live quotes. Holdings marked
+            “manual” below have no price source wired up (metals, or anything without a ticker), so they only change
+            when you edit them.
           </p>
         </>
       )}

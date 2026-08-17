@@ -2,19 +2,20 @@
 //
 // Manually-triggered (called from the Investments view's "Refresh prices"
 // button, via supabase.functions.invoke). Fetches current prices for
-// USD-denominated investment accounts with a ticker + quantity set, and
-// writes last_price/value/updated_at back. Quantities and avg_cost stay
+// USD- and INR-denominated investment accounts with a ticker + quantity set,
+// and writes last_price/value/updated_at back. Quantities and avg_cost stay
 // manual — this only automates the price half, not brokerage sync.
 //
 // Sources (both keyless, no API key to manage):
-//   - Yahoo Finance's unofficial chart endpoint, for US stock/ETF tickers.
+//   - Yahoo Finance's unofficial chart endpoint, for US stock/ETF tickers and,
+//     via the `.NS` suffix, NSE-listed India equities.
 //   - CoinGecko's public API, for BTC.
 // Both are free-tier/best-effort: no SLA, no auth, can change shape without
 // notice. If either fails for a ticker, that account is just skipped and
 // reported in `failed` — never silently zeroed.
 //
-// India (NSE) tickers and gold/silver spot are NOT covered here (no solid
-// keyless free source for either) — those stay manual for now.
+// Gold/silver spot is NOT covered here (no solid keyless free source) — those
+// stay manual for now.
 //
 // Deploy: supabase functions deploy refresh-prices
 
@@ -94,7 +95,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 
   const listRes = await fetch(
-    `${restUrl}/accounts?select=id,ticker,quantity,currency&type=eq.investment&currency=eq.USD&ticker=not.is.null&quantity=not.is.null`,
+    `${restUrl}/accounts?select=id,ticker,quantity,currency&type=eq.investment&currency=in.(USD,INR)&ticker=not.is.null&quantity=not.is.null`,
     { headers: pgHeaders }
   )
   if (!listRes.ok) {
@@ -107,8 +108,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   for (const account of accounts) {
     const ticker = account.ticker.toUpperCase()
+    // NSE symbols aren't unique on Yahoo without a market suffix — DIXON alone
+    // resolves to nothing or the wrong instrument. India equities are always
+    // INR here (see the money-data rule), so INR + a ticker means NSE.
+    const yahooSymbol = account.currency === 'INR' ? `${ticker}.NS` : ticker
     try {
-      const price = ticker === 'BTC' ? await fetchCoinGeckoBTC() : await fetchYahooPrice(ticker)
+      const price = ticker === 'BTC' ? await fetchCoinGeckoBTC() : await fetchYahooPrice(yahooSymbol)
       const value = Number(account.quantity) * price
       const now = new Date().toISOString()
       const source = ticker === 'BTC' ? 'coingecko' : 'yahoo'
