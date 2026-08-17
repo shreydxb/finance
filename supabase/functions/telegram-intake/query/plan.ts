@@ -56,8 +56,9 @@ The five queries:
 category must be EXACTLY one of these, copied character for character, or null:
 ${ctx.categories.map((c) => `  - ${c}`).join('\n')}
 
-account must be EXACTLY one of these, copied character for character, or null:
+account: the household's real accounts are:
 ${ctx.accounts.length ? ctx.accounts.map((a) => `  - ${a}`).join('\n') : '  (no accounts configured)'}
+Set account to whatever the person called it ("the ENBD card", "Wio") — it will be matched to one of the above automatically, so paraphrasing is fine; it does not need to be copied exactly.
 
 owner, when the question is scoped to one person, is one of: ${ctx.people.join(', ') || 'unknown'}. Leave it null for a household-wide question.
 
@@ -120,12 +121,17 @@ function validatePlan(parsed: Record<string, unknown>, ctx: PromptContext): Quer
     case 'total_spend':
       return { q: 'total_spend', period, ...(owner ? { owner } : {}) }
     case 'merchant_spend': {
-      const merchant = cleanMerchant(parsed.merchant)
+      const merchant = cleanFreeText(parsed.merchant)
       if (!merchant) return null
       return { q: 'merchant_spend', merchant, period }
     }
     case 'account_spend': {
-      const account = validateAccount(parsed.account, ctx.accounts)
+      // Free text, not matched against ctx.accounts here — an account name is
+      // exactly the kind of thing people paraphrase ("the ENBD card"), and
+      // run.ts resolves it with the same matchAccount() scorer a receipt's
+      // paid_with goes through, tie-handling included. See the QueryPlan
+      // comment in types.ts.
+      const account = cleanFreeText(parsed.account)
       if (!account) return null
       return { q: 'account_spend', account, period }
     }
@@ -142,13 +148,8 @@ function validateOwner(raw: unknown, people: string[]): string | null {
   return match ?? null
 }
 
-function validateAccount(raw: unknown, accounts: string[]): string | null {
-  if (typeof raw !== 'string' || !raw.trim()) return null
-  const match = accounts.find((a) => a.toLowerCase() === raw.trim().toLowerCase())
-  return match ?? null
-}
-
-function cleanMerchant(raw: unknown): string | null {
+/** Shared by merchant and account — both are free text at plan time, resolved (or not) downstream. */
+function cleanFreeText(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
   const trimmed = raw.trim().slice(0, 60)
   return trimmed || null

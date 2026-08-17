@@ -43,12 +43,23 @@ test('an out-of-enum q is refused, not passed through', async () => {
   assert.equal(plan, null)
 })
 
-test('a SQL string injected into a validated field never survives — it just fails to match and the whole plan is refused', async () => {
+test('a SQL string injected into a strictly-validated field never survives — it just fails to match and the whole plan is refused', async () => {
+  const model = new FakeModel(
+    json({ q: 'category_spend', category: "Bitcoin Wallet'; drop table transactions; --", period: { kind: 'this_month' } })
+  )
+  const plan = await planQuery('drop everything', CTX, model)
+  assert.equal(plan, null, 'a category that does not match a real one is refused outright')
+})
+
+test('a SQL string in the free-text account field passes plan.ts (matchAccount, in run.ts, is what rejects it)', async () => {
   const model = new FakeModel(
     json({ q: 'account_spend', account: "Joint Current'; drop table transactions; --", period: { kind: 'this_month' } })
   )
   const plan = await planQuery('drop everything', CTX, model)
-  assert.equal(plan, null, 'an account name that does not exactly match a real account is refused outright')
+  // account_spend's account is free text at plan time by design (see types.ts)
+  // — it is never used to build SQL here or in run.ts, only ever passed as a
+  // parameterised filter value or matched in-memory by matchAccount.
+  assert.equal(plan?.q === 'account_spend' ? plan.account : null, "Joint Current'; drop table transactions; --")
 })
 
 test('total_spend needs no category/account/merchant and defaults owner to household-wide', async () => {
@@ -81,10 +92,16 @@ test('an empty merchant string refuses the plan', async () => {
   assert.equal(plan, null)
 })
 
-test('account_spend matches an account exactly (case-insensitive), never invents one', async () => {
-  const model = new FakeModel(json({ q: 'account_spend', account: 'enbd credit card 4412', period: { kind: 'this_month' } }))
+test('account_spend keeps the model\'s free-text guess as-is — resolution is run.ts\'s job (matchAccount)', async () => {
+  const model = new FakeModel(json({ q: 'account_spend', account: 'the ENBD card', period: { kind: 'this_month' } }))
   const plan = await planQuery('spend on the ENBD card', CTX, model)
-  assert.equal(plan?.q === 'account_spend' ? plan.account : null, 'ENBD Credit Card 4412')
+  assert.equal(plan?.q === 'account_spend' ? plan.account : null, 'the ENBD card')
+})
+
+test('an empty account string refuses the plan', async () => {
+  const model = new FakeModel(json({ q: 'account_spend', account: '  ', period: { kind: 'this_month' } }))
+  const plan = await planQuery('spend on nothing', CTX, model)
+  assert.equal(plan, null)
 })
 
 test('recent_transactions defaults limit to 10 when the model omits it', async () => {

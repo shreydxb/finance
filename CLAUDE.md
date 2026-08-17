@@ -184,11 +184,10 @@ broken" claim about them was itself stale by several versions.
   screen calculates or shows a FIRE number. Deliberately not built (Shrey
   hasn't given a real monthly-expense figure yet). (Taskiv #21)
 - **Bot-expansion Sprint 1 foundations are now all 6 of 6 done** (as of 17 Aug
-  — #48 and #49, the last two, shipped this session). Sprints 2–6 remain
-  untouched except for **Sprint 2's #51 (query toolbox skeleton + period
-  parser), also done this session** — see below. What's left of Sprint 2 is
-  **#50 (intent router)**, **#52 (the first five queries' actual store
-  implementations)** and **#53 (router fixture corpus + `/help` rewrite)**.
+  — #48 and #49, the last two, shipped this session). Of Sprint 2, **#51 and
+  #52 are also done this session**; what's left is **#50 (intent router)** and
+  **#53 (router fixture corpus + `/help` rewrite)** — the query toolbox itself
+  is fully built, just not yet wired into a live chat message.
   - **#51 — `telegram-intake/query/{types,period,plan,run}.ts`.** `types.ts`
     is the closed `QueryPlan`/`Period` vocabulary (5 queries: category/total/
     merchant/account spend + recent transactions — Sprint 3 adds budget/net
@@ -202,9 +201,23 @@ broken" claim about them was itself stale by several versions.
     validated against the household's real category/account/people lists in
     code before use — an unknown category, account, owner, or `q` outside the
     5-entry enum all return `null` (the honest-refusal path, not an error).
-    `run.ts` is dispatch-only, no real SQL yet — that's #52. 36 new tests (16
-    period, 20 planner), all passing, plus the existing 312 + 41 db-test
-    suites untouched.
+  - **#52 — `query/store.ts` (real `PostgrestQueryStore` against
+    `v_transactions_aed`), `query/reply.ts` (templated replies), `run.ts`
+    filled in.** One correction made mid-build: the original #51 draft had
+    `account_spend`'s account name exact-matched against the household's list
+    *inside the planner*, but #52's own spec calls for resolving it with the
+    same `matchAccount()` scorer a receipt's `paid_with` already goes
+    through — so `plan.ts` was revised to treat `account` as free text (like
+    `merchant`), and `run.ts` now does the real resolution, including the tie
+    case (`matchAccountTies` → "Which account did you mean — X or Y?" instead
+    of guessing). `total_spend` excludes `Savings & Investments` from the sum
+    and reports the excluded amount in a footer, only when non-zero. All
+    filtering goes through `URLSearchParams` against `v_transactions_aed` —
+    no string-built SQL. `formatAmount`/`formatDate` exported from
+    `intake.ts` for reuse rather than re-implemented. 64 new tests total
+    across #51+#52 (16 period, 22 planner, 13 executor, 15 reply templates),
+    all passing, plus the existing 312 + 41 db-test suites untouched. Not yet
+    reachable from a live chat message — that's #50's job.
   - **#48 — `036_money_view.sql`, applied to `our-rokda`.** `v_transactions_aed`
     joins `accounts` and bakes in `deleted_at is null`. Per the correction
     logged on the task (the spec's `coalesce(rate, 1)` skeleton was wrong —

@@ -1,18 +1,23 @@
-// Executor skeleton (Taskiv #51). A plain switch over `plan.q` dispatching to
-// hand-written, parameterised `QueryStore` methods (types.ts) — no
-// string-built SQL anywhere, ever. The individual queries are Taskiv #52
-// ("first five queries"); this file only owns the dispatch shape and the
-// clock/period wiring so #52 has a fixed, tested seam to implement against.
+// Executor (Taskiv #51 skeleton, filled in by #52). A plain switch over
+// `plan.q` dispatching to hand-written, parameterised `QueryStore` methods
+// (types.ts) — no string-built SQL anywhere, ever.
 //
 // Every money aggregate reads `v_transactions_aed.amount_aed` — the Sprint 1
 // FX-normalised view (036_money_view.sql) — never `transactions.amount`
-// directly. Whatever implements QueryStore against PostgrestStore must
-// enforce that in its SQL, not just in a comment here.
+// directly. `PostgrestQueryStore` (store.ts) is what enforces that in SQL;
+// this file only orchestrates.
 
+import { matchAccount, matchAccountTies } from '../intake.ts'
 import { resolvePeriod } from './period.ts'
+import type { AccountRef } from '../../_shared/types.ts'
 import type { QueryPlan, QueryResult, QueryStore } from './types.ts'
 
-export async function runQuery(plan: QueryPlan, store: QueryStore, now: () => Date = () => new Date()): Promise<QueryResult> {
+export async function runQuery(
+  plan: QueryPlan,
+  store: QueryStore,
+  accounts: AccountRef[],
+  now: () => Date = () => new Date()
+): Promise<QueryResult> {
   switch (plan.q) {
     case 'category_spend': {
       const period = resolvePeriod(plan.period, now())
@@ -30,13 +35,22 @@ export async function runQuery(plan: QueryPlan, store: QueryStore, now: () => Da
       return { q: 'merchant_spend', merchant: plan.merchant, ...result }
     }
     case 'account_spend': {
+      // Same scorer a receipt's paid_with resolves through — a question and a
+      // receipt name "the ENBD card" identically. A tie or no match becomes a
+      // clarifying question, never a guess or a silent zero.
+      const matched = matchAccount(plan.account, accounts)
+      if (!matched) {
+        const tied = matchAccountTies(plan.account, accounts)
+        const candidates = tied.length > 0 ? tied.map((a) => a.name) : accounts.map((a) => a.name)
+        return { q: 'account_spend', status: 'needs_clarification', candidates }
+      }
       const period = resolvePeriod(plan.period, now())
-      const result = await store.accountSpend(plan.account, period)
-      return { q: 'account_spend', account: plan.account, ...result }
+      const result = await store.accountSpend(matched.id, period)
+      return { q: 'account_spend', status: 'ok', account: matched.name, ...result }
     }
     case 'recent_transactions': {
       const rows = await store.recentTransactions(plan.limit, plan.owner)
-      return { q: 'recent_transactions', rows }
+      return { q: 'recent_transactions', rows, ...(plan.owner ? { owner: plan.owner } : {}) }
     }
   }
 }

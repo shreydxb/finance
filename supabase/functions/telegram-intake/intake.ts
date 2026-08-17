@@ -1347,11 +1347,11 @@ function missingFields(extraction: Extraction, resolved: Resolved): string[] {
   return gaps
 }
 
-function formatAmount(amount: number): string {
+export function formatAmount(amount: number): string {
   return amount.toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
-function formatDate(iso: string): string {
+export function formatDate(iso: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',

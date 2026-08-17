@@ -1,4 +1,4 @@
-// The query toolbox's closed vocabulary (Taskiv #51).
+// The query toolbox's closed vocabulary (Taskiv #51, extended by #52).
 //
 // The model never writes SQL and never does arithmetic — see plan.ts. It
 // picks exactly one of these shapes, with parameters, from a prompt that
@@ -25,6 +25,14 @@ export type Period =
  * The closed set of questions the bot can answer. Sprint 3 adds:
  * budget_status, net_worth, goal_progress, upcoming_bills, portfolio_summary,
  * needs_review_count — not built here.
+ *
+ * `account` on `account_spend` is deliberately a free-text guess ("ENBD
+ * card"), not a name pre-matched against the household's account list —
+ * unlike `category` (a closed enum) an account name is exactly the kind of
+ * thing people paraphrase, and `intake.ts` already has a scorer built for
+ * that (`matchAccount`). Run.ts resolves it the same way a receipt's
+ * `paid_with` is resolved, including the tie case, rather than duplicating a
+ * second, stricter matcher in the planner.
  */
 export type QueryPlan =
   | { q: 'category_spend'; category: string; period: Period; owner?: string }
@@ -46,11 +54,15 @@ export interface ResolvedPeriod {
  */
 export interface RecentTransaction {
   date: string
+  /** The amount as stored, in its own currency — always present, even when amountAed is null. */
+  amount: number
   amountAed: number | null
   currency: string
   category: string | null
   note: string | null
   owner: string | null
+  /** Surfaced with a ⚠️ in the reply — the answer doubles as a review nudge. */
+  needsReview: boolean
 }
 
 /**
@@ -59,35 +71,53 @@ export interface RecentTransaction {
  * directly — the whole point of that view is one source of truth for every
  * bot money query.
  *
- * `amountAed: null` means "some of the underlying rows had no known FX rate"
- * — see the sharp-edge comment on 036_money_view.sql: Postgres's `sum()`
- * silently skips a NULL `amount_aed` rather than propagating it, so a
- * QueryStore implementation must check for an unconverted row itself
- * (`unconvertedCount`) and this type surfaces that instead of hiding it.
+ * `amountAed` is the sum over only the rows that had a known FX rate — 0 for
+ * a genuine "nothing logged", same as Postgres's own `sum()` behaviour (see
+ * the sharp-edge comment on 036_money_view.sql: it silently skips NULL
+ * inputs). `unconvertedCount` is what surfaces the rows `sum()` hid, so a
+ * caller can never mistake "some rows couldn't be converted" for "there was
+ * no spend".
  */
 export interface SpendResult {
-  amountAed: number | null
+  amountAed: number
+  count: number
   unconvertedCount: number
   period: ResolvedPeriod
 }
 
+/** total_spend additionally reports what it excluded, so the reply can say so. */
+export interface TotalSpendResult extends SpendResult {
+  /** Sum of `Savings & Investments` rows over the same window — moving money into an investment isn't spend. */
+  excludedSavingsAed: number
+}
+
+/**
+ * account_spend's three possible outcomes from resolving a free-text guess
+ * against the household's real accounts via `matchAccount`/`matchAccountTies`:
+ * a clean match, a tie (matchAccount abstained because two accounts scored
+ * equally), or no match at all. Both non-`ok` cases become a clarifying
+ * question in the reply rather than a guess or a silent zero.
+ */
+export type AccountSpendOutcome =
+  | ({ status: 'ok'; account: string } & SpendResult)
+  | { status: 'needs_clarification'; candidates: string[] }
+
 export type QueryResult =
   | ({ q: 'category_spend'; category: string; owner?: string } & SpendResult)
-  | ({ q: 'total_spend'; owner?: string } & SpendResult)
+  | ({ q: 'total_spend'; owner?: string } & TotalSpendResult)
   | ({ q: 'merchant_spend'; merchant: string } & SpendResult)
-  | ({ q: 'account_spend'; account: string } & SpendResult)
-  | { q: 'recent_transactions'; rows: RecentTransaction[] }
+  | ({ q: 'account_spend' } & AccountSpendOutcome)
+  | { q: 'recent_transactions'; rows: RecentTransaction[]; owner?: string }
 
 /**
  * Parameterised, hand-written query methods — no string-built SQL anywhere.
- * One method per QueryPlan variant. Implementations land in Taskiv #52
- * ("first five queries"); this task builds only the dispatch shape run.ts
- * switches over.
+ * `accountId` (not a name or guess) because resolution already happened in
+ * run.ts by the time this is called.
  */
 export interface QueryStore {
   categorySpend(category: string, period: ResolvedPeriod, owner?: string): Promise<SpendResult>
-  totalSpend(period: ResolvedPeriod, owner?: string): Promise<SpendResult>
+  totalSpend(period: ResolvedPeriod, owner?: string): Promise<TotalSpendResult>
   merchantSpend(merchant: string, period: ResolvedPeriod): Promise<SpendResult>
-  accountSpend(account: string, period: ResolvedPeriod): Promise<SpendResult>
+  accountSpend(accountId: string, period: ResolvedPeriod): Promise<SpendResult>
   recentTransactions(limit: number, owner?: string): Promise<RecentTransaction[]>
 }
