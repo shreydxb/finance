@@ -59,6 +59,95 @@ fast-forward, `main` was not ahead — no merge commit). Production and `main`
 are back in sync; the "branch ahead of production" drift this deploy created
 is resolved. Taskiv #100 and #101 are both Done.
 
+## Deploy — 17 Aug 2026
+
+Three real bugs found and fixed, then a large real-data pass, all deployed to
+production (`main` at `e9cdba4`, fast-forward, no drift).
+
+**Bugs fixed:**
+- **Budget screen layout was broken** (`8e5d5f5`, `f52321b`): stray `order`
+  classes put the category table into the sidebar's 280px column instead of
+  the flexible one, clipping Planned/Actual/Remaining off the right edge and
+  collapsing the category-name column to zero width. Removed the `order`
+  classes and widened Budget to `max-w-6xl` to match every other data-dense
+  screen (it was the only one at `5xl`).
+- **`PrefsContext` loaded FX rates before the auth gate** (`4da8392`): it sits
+  above `<Gate />` in `App.jsx`, so its one-time effect ran pre-login, the
+  RLS-protected `settings` read threw, and the rates stayed at the AED-only
+  starting value for the rest of the session — every non-AED figure on
+  Investments, Reports and Transactions rendered as `—` for good, only fixable
+  by manually hitting Refresh FX in Settings. Now gated on the signed-in
+  user's id.
+- **`cardSummary`'s cycle spend counted `Transfer` rows** (bundled into the
+  card-detail work below): a card used to pay off another of the household's
+  own bills inflated its own "spend" number. Fixed with a regression test.
+
+**Real bank/card data entered — all reconciled to the penny against source
+statements or the live banking apps, per the money-data rule.** Five accounts
+went from placeholder/nonexistent to real:
+
+| Account | Balance (17 Aug) | Source |
+|---|---|---|
+| FAB Current …9002 | 1,708.40 | Shrey, live app figure |
+| Wio Current …0318 | 4,135.21 | Shrey, live app figure |
+| FAB Etihad CC …0570 | 651.52 | 5 statements (Apr–Aug) + live app activity |
+| ENBD Noon CC …1657 | 5,487.56 | 5 statements (Mar–Jul) + live app activity |
+| Wio Credit Card …6981 | 2,590.20 | 5 statements (Mar–Aug) + live app activity |
+
+Plus two loan accounts split out of card balances so they're visible as their
+own liabilities rather than blended into a card's headline number:
+`QC 12M @ 0% Instalment (FAB Etihad CC ...0570)` (15,619.97) and confirmation
+that the two pre-existing `ENBD Noon CC ...1657` EMI loan rows (Car
+Down-Payment 8,333.24, Mobile 1,208.52) were already correct — cross-checked
+against the statements' own installment tables to the cent, which also
+resolved what looked like a duplicate line item in the ENBD statements: there
+really are **two** identical AED 10,000/24-month Arabian Automobiles
+instalment plans running concurrently, not a PDF rendering artifact.
+
+**Migration `035_statement_cycle.sql`** applied (statement_day/due_day/
+credit_limit on `accounts`) — see the reconciled ledger note in
+`docs/telegram-bot-sprint-plan.md` §4b.
+
+**The "Example" AED 10,000 placeholder cash account is gone.** It wasn't
+empty when checked — two real AED 9.99 Telegram-bot transactions (10 Aug, no
+merchant name, still uncategorised) had drifted onto it, reassigned to Wio
+Current before deleting. Worth a look: nobody knows yet what that 9.99 charge
+actually was.
+
+**New: a card tracking view** (`0fc1b86`, `25bf9ec`, `e9cdba4`). Click a card
+on Accounts for balance/limit/utilisation, spend-by-category for the open
+cycle, a 6-cycle trend bar chart, and inline category editing on flagged
+transactions. No forecast/projection number — that was built once, then
+explicitly removed same-day: "forecast" turned out to mean the plain running
+total (already shown as "Logged this cycle"), not a blended/historical
+projection. Don't re-add projection logic without being asked again.
+
+**~35 transactions still carry `needs_review = true`** across the three
+cards — ambiguous merchants (`Paymob**Al WATHBA`, `Dubai Digital Authority`,
+`Millennium Place Barsha`, `Al Kabayel Trading`, the two AED 9.99 rows) that
+need a human eye, not a guess. Query: `select * from transactions where
+needs_review = true and deleted_at is null`.
+
+**Two bank-level transfers ended up flagged with the destination unclear**
+even after entry: FAB's `UADDS Cr Trf -2,193.00` (3 Aug) and `To Shreyash
+Chawhan -45.32` (11 Aug) — recorded as `Transfer` category, but where the
+money actually went isn't known. Ask Shrey.
+
+## New open items — 17 Aug 2026
+
+- **~35 flagged transactions need review** (see above) — the household's own
+  task, not an agent's; categorising `Paymob**Al WATHBA` (AED 3,160.50) or
+  deciding what "Urban" (AED 238) actually was needs Shrey or Tarika's memory.
+- **Two bank transfers with an unclear destination**: FAB's `UADDS Cr Trf`
+  (AED 2,193, 3 Aug) and `To Shreyash Chawhan` (AED 45.32, 11 Aug). Neither
+  matches a tracked account.
+- **Still no real sign-in.** The URL was handed to Shrey this session; whether
+  he's actually logged in yet is unconfirmed. Don't assume it happened without
+  him saying so.
+- **FAB debit card …3585 has no account of its own** — deliberate, it draws
+  from FAB Current …9002, which now exists. Revisit only if Shrey wants it
+  tracked separately.
+
 ## Open items (as of 16 Aug 2026, verified against the live DB and deploy)
 
 Everything below is still genuinely open. Two items that lived in this list for
