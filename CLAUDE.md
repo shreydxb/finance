@@ -26,6 +26,39 @@ mode and a global AED/USD/INR currency toggle apply across all of them — both
 device-local (localStorage via `PrefsContext`), not synced between Shrey's and
 Tarika's devices on purpose. See `PLAN.md` for the full per-screen breakdown.
 
+## Deploy — 18 Aug 2026
+
+`telegram-intake` redeployed to production: **v35**, `verify_jwt: false`
+(unchanged). Carries everything built since the last live deploy — Taskiv
+#48 (`v_transactions_aed` FX view, migration already live), #49 (outbound
+chat-id allowlist via `GuardedMessenger`), #50 (the intent router —
+`spend | question | action | chatter` classification on every plain typed
+message), and #51/#52 (the query toolbox: `category_spend`, `total_spend`,
+`merchant_spend`, `account_spend`, `recent_transactions`, answered live from
+`v_transactions_aed`). Sprint 2 is now 4 of 5 shipped; only **#53** (router
+fixture corpus + `/help` rewrite) is still open. Bot-expansion Sprint 1 was
+already fully live from the 14–16 Aug deploy below.
+
+Deploying this one cost real time to work out, worth recording so it isn't
+relearned: `mcp__Supabase__deploy_edge_function` is **not additive** — every
+call must carry the function's *complete* file set (entrypoint + every
+relative import, transitively), or the bundler fails atomically and nothing
+changes in production. The actual trap, though, was file naming. Inside the
+`files` array, a name like `intake.ts` or `query/store.ts` lands under the
+bundler's `source/` root exactly where the repo's own relative imports
+(`./intake.ts`, `./query/store.ts`) expect it. But `_shared/*.ts` is a
+**sibling** of `telegram-intake/`, one level up — matching the real
+`../_shared/serviceKey.ts` import in `config.ts` — so those six files must be
+named `../_shared/types.ts`, `../_shared/store.ts`, etc. in the `files`
+array, *not* `_shared/types.ts`. The wrong prefix nests `_shared/` a level
+too deep, and every call using it fails with `Module not found
+".../_shared/serviceKey.ts"` regardless of whether every other file is
+present and correct — which is exactly the failure mode this session hit
+repeatedly before finding the real cause. No code changed as a result of any
+of this; it was purely a deploy-payload construction issue, and every failed
+attempt was rejected before touching production, so the previously-deployed
+version stayed live and unaffected throughout.
+
 ## Deploy — 14–16 Aug 2026
 
 Migration `034_transfer_direction_null_safe` applied to `our-rokda` (found by
