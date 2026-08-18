@@ -4,7 +4,7 @@ import test from 'node:test'
 import { resolvePeriod } from './period.ts'
 import { runQuery } from './run.ts'
 import type { AccountRef } from '../../_shared/types.ts'
-import type { QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 const FX_RATES: Record<string, number> = { AED: 1, USD: 3.6725, INR: 0.044 }
 const SAVINGS_CATEGORY = 'Savings & Investments'
@@ -96,6 +96,12 @@ class FakeQueryStore implements QueryStore {
         needsReview: r.needsReview ?? false,
       }))
     )
+  }
+
+  budgetRows: CategoryBudgetRow[] = []
+
+  budgetStatus(): Promise<CategoryBudgetRow[]> {
+    return Promise.resolve(this.budgetRows)
   }
 }
 
@@ -269,6 +275,32 @@ test('recent_transactions returns newest first, flags needs_review, and is a cle
 
   const empty = await runQuery({ q: 'recent_transactions', limit: 10 }, new FakeQueryStore([]), ACCOUNTS, NOW)
   assert.deepEqual(empty.q === 'recent_transactions' ? empty.rows : null, [])
+})
+
+test('budget_status: full grid dispatches to store.budgetStatus and stamps isCurrentMonth', async () => {
+  const store = new FakeQueryStore([])
+  store.budgetRows = [
+    { category: 'Groceries', limitAed: 1800, spentAed: 1510 },
+    { category: 'Clothing', limitAed: null, spentAed: 340 },
+  ]
+  const plan: QueryPlan = { q: 'budget_status', period: { kind: 'this_month' } }
+
+  const result = await runQuery(plan, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q, 'budget_status')
+  assert.deepEqual(result.q === 'budget_status' ? result.rows : null, store.budgetRows)
+  assert.equal(result.q === 'budget_status' ? result.isCurrentMonth : null, true)
+  assert.equal(result.q === 'budget_status' ? result.category : 'unset', undefined)
+})
+
+test('budget_status: a category-scoped plan carries the category through and is not "this month" for last_month', async () => {
+  const store = new FakeQueryStore([])
+  const plan: QueryPlan = { q: 'budget_status', category: 'Groceries', period: { kind: 'last_month' } }
+
+  const result = await runQuery(plan, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'budget_status' ? result.category : null, 'Groceries')
+  assert.equal(result.q === 'budget_status' ? result.isCurrentMonth : null, false)
 })
 
 test('recent_transactions respects an owner filter', async () => {

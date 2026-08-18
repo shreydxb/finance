@@ -99,3 +99,12 @@ test('recent_transactions: an owner-scoped query names the owner in the header',
   const result: QueryResult = { q: 'recent_transactions', owner: 'Tarika', rows: [] }
   assert.equal(formatQueryReply(result), 'Nothing logged (Tarika) yet.')
 })
+
+test('budget_status: dispatches to query/budget.ts (full grid and single category alike — see budget.test.ts for the formatting itself)', () => {
+  const rows = [{ category: 'Groceries', limitAed: 1800, spentAed: 1510 }]
+  const grid: QueryResult = { q: 'budget_status', rows, period: PERIOD_1_10_AUG, isCurrentMonth: true }
+  assert.match(formatQueryReply(grid), /Budget — 1–10 Aug/)
+
+  const single: QueryResult = { q: 'budget_status', category: 'Groceries', rows, period: PERIOD_1_10_AUG, isCurrentMonth: true }
+  assert.match(formatQueryReply(single), /Groceries — 1–10 Aug/)
+})

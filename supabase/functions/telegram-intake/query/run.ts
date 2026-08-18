@@ -52,5 +52,16 @@ export async function runQuery(
       const rows = await store.recentTransactions(plan.limit, plan.owner)
       return { q: 'recent_transactions', rows, ...(plan.owner ? { owner: plan.owner } : {}) }
     }
+    case 'budget_status': {
+      const period = resolvePeriod(plan.period, now())
+      const rows = await store.budgetStatus(period)
+      return {
+        q: 'budget_status',
+        ...(plan.category ? { category: plan.category } : {}),
+        period,
+        rows,
+        isCurrentMonth: plan.period.kind === 'this_month',
+      }
+    }
   }
 }

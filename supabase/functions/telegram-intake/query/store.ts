@@ -7,11 +7,14 @@
 // Plain fetch, same as `_shared/store.ts`, so this runs under Deno and under
 // `node --test` without a URL-import shim.
 
-import type { QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 type FetchLike = typeof fetch
 
 const SAVINGS_CATEGORY = 'Savings & Investments'
+// Transfer is a bookkeeping category, not something to budget against — the
+// same exclusion src/screens/Budget.jsx applies before building its rows.
+const NON_BUDGETABLE_GROUP = 'Transfer'
 
 interface ViewRow {
   amount: string
@@ -22,6 +25,16 @@ interface ViewRow {
   owner: string | null
   date: string
   needs_review: boolean
+}
+
+interface CategoryRow {
+  name: string
+  group: string
+}
+
+interface BudgetRow {
+  monthly_limit: string
+  categories: { name: string } | null
 }
 
 export class PostgrestQueryStore implements QueryStore {
@@ -115,6 +128,43 @@ export class PostgrestQueryStore implements QueryStore {
       owner: r.owner,
       needsReview: r.needs_review,
     }))
+  }
+
+  async budgetStatus(period: ResolvedPeriod): Promise<CategoryBudgetRow[]> {
+    const [categories, budgets, txRows] = await Promise.all([
+      this.fetchJson<CategoryRow[]>('categories', { select: 'name,group' }),
+      this.fetchJson<BudgetRow[]>('budgets', { select: 'monthly_limit,categories(name)' }),
+      this.select(this.periodParams(period)),
+    ])
+
+    const limitByCategory = new Map<string, number>()
+    for (const b of budgets) {
+      if (b.categories) limitByCategory.set(b.categories.name, Number(b.monthly_limit))
+    }
+
+    const spentByCategory = new Map<string, number>()
+    for (const row of txRows) {
+      if (row.amount_aed === null || !row.category) continue
+      spentByCategory.set(row.category, (spentByCategory.get(row.category) ?? 0) + Number(row.amount_aed))
+    }
+
+    return categories
+      .filter((c) => c.group !== NON_BUDGETABLE_GROUP)
+      .map((c) => ({
+        category: c.name,
+        limitAed: limitByCategory.get(c.name) ?? null,
+        spentAed: spentByCategory.get(c.name) ?? 0,
+      }))
+  }
+
+  private async fetchJson<T>(table: string, params: Record<string, string>): Promise<T> {
+    const res = await this.fetchImpl(`${this.baseUrl}/${table}?${new URLSearchParams(params).toString()}`, {
+      headers: { apikey: this.serviceKey, authorization: `Bearer ${this.serviceKey}` },
+    })
+    if (!res.ok) {
+      throw new Error(`Supabase GET ${table} failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
+    }
+    return (await res.json()) as T
   }
 }
 

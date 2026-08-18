@@ -22,7 +22,7 @@ import type {
   Transcriber,
   TransactionRow,
 } from '../../_shared/types.ts'
-import type { QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from '../query/types.ts'
+import type { CategoryBudgetRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from '../query/types.ts'
 import { SHREY_ID, TARIKA_ID } from './updates.ts'
 
 export const CATEGORIES: CategoryRef[] = [
@@ -382,6 +382,10 @@ export class FakeQueryStore implements QueryStore {
   }
 
   recentTransactions(): Promise<RecentTransaction[]> {
+    return Promise.resolve([])
+  }
+
+  budgetStatus(): Promise<CategoryBudgetRow[]> {
     return Promise.resolve([])
   }
 }

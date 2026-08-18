@@ -114,6 +114,34 @@ category — plus the advice-detection regex and the success path) without a
 Telegram harness. 420 `npm test` (was 410), lint and build clean,
 `npm run demo:telegram` unaffected.
 
+**Taskiv #54 (budget vs actual query) is done in code, not yet deployed.**
+Sprint 3's first query: `{ q: 'budget_status'; category?: string; period: Period }`
+added to the closed enum (`query/types.ts`, `query/plan.ts`), backed by a new
+`query/budget.ts` module and a real `PostgrestQueryStore.budgetStatus`
+(`query/store.ts`) that joins `budgets`→`categories` for the limit and
+`v_transactions_aed` for the spend, same FX-normalised source every other
+query reads. The one rule the task called out as easy to get wrong: a
+category with no `budgets` row is not a category with a zero limit —
+`query/budget.ts`'s `classify`/`partitionAndClassify` treat a `null` **or**
+`0` `monthly_limit` identically as unbudgeted, so it can never render as
+"0/0" or "over budget", and a real zero-limit row (`Gifts` in the tests)
+proved the same path handles both without a special case. Full grid groups
+by status (Over/Close ≥80%/On track, not by the Fixed/Non-monthly/Flexible
+budget group — status is what the question asks), sorted by percentage
+descending within each group, capped at 15 rows with a "+N more" tail, with
+unbudgeted categories listed separately and never mixed into the three
+status buckets. Single-category replies add a daily-pace line
+("21 days left, ~13.81/day to stay inside") only when `isCurrentMonth` is
+true and money remains — `isCurrentMonth` is stamped by `run.ts` from
+`plan.period.kind === 'this_month'` rather than re-derived from raw dates in
+the formatter, so a `last_month` or `explicit` query can never accidentally
+show a misleading pace line. 20 new tests in `query/budget.test.ts` (the
+task's five named cases plus classification/truncation/zero-division
+edge cases), 3 in `plan.test.ts`, 2 in `run.test.ts`, 1 in `reply.test.ts`.
+440 `npm test` (was 420), lint and build clean, `npm run demo:telegram`
+unaffected (the question path was already routed through `answerQuestion`
+before this task; `intake.ts` needed no changes).
+
 ## Deploy — 14–16 Aug 2026
 
 Migration `034_transfer_direction_null_safe` applied to `our-rokda` (found by

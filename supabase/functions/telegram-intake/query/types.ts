@@ -23,8 +23,8 @@ export type Period =
 
 /**
  * The closed set of questions the bot can answer. Sprint 3 adds:
- * budget_status, net_worth, goal_progress, upcoming_bills, portfolio_summary,
- * needs_review_count — not built here.
+ * budget_status (this one), net_worth, goal_progress, upcoming_bills,
+ * portfolio_summary, needs_review_count — the rest not built here.
  *
  * `account` on `account_spend` is deliberately a free-text guess ("ENBD
  * card"), not a name pre-matched against the household's account list —
@@ -33,6 +33,13 @@ export type Period =
  * that (`matchAccount`). Run.ts resolves it the same way a receipt's
  * `paid_with` is resolved, including the tie case, rather than duplicating a
  * second, stricter matcher in the planner.
+ *
+ * `budget_status.category` is omitted for the full grid — the same
+ * `matchCategory` validation `category_spend` goes through when it is
+ * present, so an unmatched category is `unknown_category`, never a made-up
+ * one. `period` defaults to `this_month` like every other query (budgets are
+ * monthly by definition — see the task), but is not hard-coded so "how did
+ * we do on groceries last month" still plans cleanly.
  */
 export type QueryPlan =
   | { q: 'category_spend'; category: string; period: Period; owner?: string }
@@ -40,6 +47,7 @@ export type QueryPlan =
   | { q: 'merchant_spend'; merchant: string; period: Period }
   | { q: 'account_spend'; account: string; period: Period }
   | { q: 'recent_transactions'; limit: number; owner?: string }
+  | { q: 'budget_status'; category?: string; period: Period }
 
 /** A resolved period, ready to hand to a parameterised query. */
 export interface ResolvedPeriod {
@@ -102,12 +110,34 @@ export type AccountSpendOutcome =
   | ({ status: 'ok'; account: string } & SpendResult)
   | { status: 'needs_clarification'; candidates: string[] }
 
+/**
+ * One category's budget standing for a period — `limitAed` is `null` when
+ * the household has no `budgets` row for it at all, which is NOT the same as
+ * a limit of zero (see the Taskiv #54 task: rendering an unbudgeted category
+ * as "0 / 0" or "over budget" is the exact bug this type exists to prevent).
+ * A stored `monthly_limit` of 0 is treated identically to `null` by
+ * `query/budget.ts` — a limit that can never be met is not a limit either.
+ */
+export interface CategoryBudgetRow {
+  category: string
+  limitAed: number | null
+  spentAed: number
+}
+
+export interface BudgetStatusResult {
+  period: ResolvedPeriod
+  rows: CategoryBudgetRow[]
+  /** Only `this_month` gets the "N days left, pace" line — see query/budget.ts. */
+  isCurrentMonth: boolean
+}
+
 export type QueryResult =
   | ({ q: 'category_spend'; category: string; owner?: string } & SpendResult)
   | ({ q: 'total_spend'; owner?: string } & TotalSpendResult)
   | ({ q: 'merchant_spend'; merchant: string } & SpendResult)
   | ({ q: 'account_spend' } & AccountSpendOutcome)
   | { q: 'recent_transactions'; rows: RecentTransaction[]; owner?: string }
+  | ({ q: 'budget_status'; category?: string } & BudgetStatusResult)
 
 /**
  * Parameterised, hand-written query methods — no string-built SQL anywhere.
@@ -120,4 +150,6 @@ export interface QueryStore {
   merchantSpend(merchant: string, period: ResolvedPeriod): Promise<SpendResult>
   accountSpend(accountId: string, period: ResolvedPeriod): Promise<SpendResult>
   recentTransactions(limit: number, owner?: string): Promise<RecentTransaction[]>
+  /** Every real (non-Transfer) category, its budget limit if any, and its spend for `period`. */
+  budgetStatus(period: ResolvedPeriod): Promise<CategoryBudgetRow[]>
 }

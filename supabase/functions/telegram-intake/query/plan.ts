@@ -14,7 +14,7 @@ import type { PromptContext } from '../prompt.ts'
 import type { ModelClient } from '../../_shared/types.ts'
 import type { Period, QueryPlan } from './types.ts'
 
-const KNOWN_QUERIES = ['category_spend', 'total_spend', 'merchant_spend', 'account_spend', 'recent_transactions'] as const
+const KNOWN_QUERIES = ['category_spend', 'total_spend', 'merchant_spend', 'account_spend', 'recent_transactions', 'budget_status'] as const
 type KnownQuery = (typeof KNOWN_QUERIES)[number]
 
 const KNOWN_PERIOD_KINDS = ['this_month', 'last_month', 'this_week', 'last_week', 'ytd', 'last_n_days', 'explicit'] as const
@@ -24,7 +24,7 @@ const MAX_LIMIT = 20
 
 const OUTPUT_CONTRACT = `Return ONLY a JSON object, no prose, no markdown fences, with exactly these keys:
 {
-  "q": "category_spend" | "total_spend" | "merchant_spend" | "account_spend" | "recent_transactions",
+  "q": "category_spend" | "total_spend" | "merchant_spend" | "account_spend" | "recent_transactions" | "budget_status",
   "category": string | null,
   "merchant": string | null,
   "account": string | null,
@@ -52,6 +52,7 @@ The five queries:
 - merchant_spend: spend at one named merchant/place ("how much at Carrefour this week"). Set merchant to whatever name the person used — it does not need to match a known account or category.
 - account_spend: spend on one card/account ("how much on the ENBD card this month"). Set account.
 - recent_transactions: a plain list of the latest spends ("what did I spend on today", "show my last 5"). Set limit (default 10 if the person didn't say a number).
+- budget_status: how spend compares to the household's budget — either one category ("are we over on groceries", "how's dining out this month") or the whole grid ("how's the budget looking", "are we over anywhere"). Set category for a single category, leave it null for the full grid.
 
 category must be EXACTLY one of these, copied character for character, or null:
 ${ctx.categories.map((c) => `  - ${c}`).join('\n')}
@@ -167,6 +168,16 @@ function validatePlanDetailed(parsed: Record<string, unknown>, ctx: PromptContex
     case 'recent_transactions': {
       const limit = clampLimit(parsed.limit)
       return { kind: 'ok', plan: { q: 'recent_transactions', limit, ...(owner ? { owner } : {}) } }
+    }
+    case 'budget_status': {
+      // null/missing/blank category is the full-grid request, not a refusal —
+      // only a named-but-unmatched category is 'unknown_category'.
+      if (typeof parsed.category !== 'string' || !parsed.category.trim()) {
+        return { kind: 'ok', plan: { q: 'budget_status', period } }
+      }
+      const category = matchCategory(parsed.category, ctx.categories)
+      if (!category) return { kind: 'unknown_category', attempted: parsed.category.trim() }
+      return { kind: 'ok', plan: { q: 'budget_status', category, period } }
     }
   }
 }

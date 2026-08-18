@@ -146,6 +146,24 @@ test('explicit period with a malformed date refuses the plan (structural check, 
   assert.equal(plan, null)
 })
 
+test('budget_status with no category is the full-grid plan', async () => {
+  const model = new FakeModel(json({ q: 'budget_status', category: null, period: { kind: 'this_month' } }))
+  const plan = await planQuery('how is the budget looking', CTX, model)
+  assert.deepEqual(plan, { q: 'budget_status', period: { kind: 'this_month' } })
+})
+
+test('budget_status with a real category matches it the same way category_spend does', async () => {
+  const model = new FakeModel(json({ q: 'budget_status', category: 'groceries ', period: { kind: 'this_month' } }))
+  const plan = await planQuery('are we over on groceries', CTX, model)
+  assert.deepEqual(plan, { q: 'budget_status', category: 'Groceries', period: { kind: 'this_month' } })
+})
+
+test('budget_status with an unknown category refuses the plan, never inventing one', async () => {
+  const model = new FakeModel(json({ q: 'budget_status', category: 'Pet Supplies', period: { kind: 'this_month' } }))
+  const plan = await planQuery('are we over on pets', CTX, model)
+  assert.equal(plan, null)
+})
+
 test('a non-JSON model response is an honest refusal, not a crash', async () => {
   const model = new FakeModel('Sure! Let me help with that.')
   const plan = await planQuery('anything', CTX, model)

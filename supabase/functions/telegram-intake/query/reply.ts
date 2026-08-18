@@ -4,6 +4,7 @@
 // as plainly as a real one, not as an error.
 
 import { formatAmount, formatDate } from '../format.ts'
+import { formatBudgetStatusReply } from './budget.ts'
 import type { QueryResult } from './types.ts'
 
 export function formatQueryReply(result: QueryResult): string {
@@ -32,6 +33,8 @@ export function formatQueryReply(result: QueryResult): string {
       return formatAccountSpendReply(result)
     case 'recent_transactions':
       return formatRecentTransactions(result)
+    case 'budget_status':
+      return formatBudgetStatusReply(result.category, result.rows, result.period, result.isCurrentMonth)
   }
 }
 
