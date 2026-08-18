@@ -83,6 +83,32 @@ of this; it was purely a deploy-payload construction issue, and every failed
 attempt was rejected before touching production, so the previously-deployed
 version stayed live and unaffected throughout.
 
+**Taskiv #59 (honest-refusal path) is done in code, not yet deployed.**
+`planQuery` (query/plan.ts) gained a `planQueryDetailed` sibling that returns
+*why* a question couldn't be planned — `call_failed` (the model threw or
+returned unparseable JSON), `unknown_category` (a real category name was
+named but didn't match), or `unsupported` (everything else the closed query
+enum doesn't reach) — instead of collapsing all three into one `null`.
+`planQuery` itself is now a thin wrapper over `planQueryDetailed` so every
+existing `plan.test.ts` assertion (`assert.equal(plan, null)`) still holds
+unchanged. New `query/refusal.ts` owns the actual reply text: an
+advice-shaped question ("should we...", "can we afford...") is refused
+before the model is ever called — a deliberate product boundary, not a
+missing feature; a planner failure gets "try rephrasing", distinct from the
+generic "I can't answer that one yet" for an out-of-enum question; an
+unknown category lists the household's real ones; and a `runQuery`/store
+failure reuses `errorHint` (now split out of `intake.ts` into its own
+`errorHint.ts` — the same circular-import problem `accountMatch.ts`/
+`format.ts` solved for Taskiv #50, since `intake.ts` imports
+`query/refusal.ts` and `query/refusal.ts` needs `errorHint`). `answerQuestion`
+in `refusal.ts` is the single entry point — `intake.ts`'s `handleQuestion` is
+now a thin wrapper around it, which is also why the whole thing is testable
+in `query/refusal.test.ts` (10 new tests: the five cases the task named —
+null/unsupported plan, planner throw, store throw, advice question, unknown
+category — plus the advice-detection regex and the success path) without a
+Telegram harness. 420 `npm test` (was 410), lint and build clean,
+`npm run demo:telegram` unaffected.
+
 ## Deploy — 14–16 Aug 2026
 
 Migration `034_transfer_direction_null_safe` applied to `our-rokda` (found by

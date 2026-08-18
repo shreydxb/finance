@@ -74,12 +74,29 @@ function buildUserPrompt(question: string): string {
 }
 
 /**
- * Picks exactly one entry from the closed query enum, or `null` when the
- * question doesn't map cleanly onto it — an unrecognised model response, an
- * unknown category/account/owner, an out-of-enum `q`, or a malformed period
- * all take this same honest-refusal path rather than guessing.
+ * The detailed outcome of planning a question — richer than a plain
+ * `QueryPlan | null` so a caller (query/refusal.ts, Taskiv #59) can give a
+ * specific reply instead of one generic "I don't understand" for every
+ * failure. The distinction that matters: 'call_failed' means the model
+ * didn't give us anything usable at all (network error, timeout, malformed
+ * JSON) — worth a "try rephrasing"; 'unknown_category' means the model
+ * understood the question but named a category that doesn't exist — worth
+ * listing the real ones; 'unsupported' covers everything else the closed
+ * query enum doesn't reach (an out-of-enum `q`, an unmatched owner, a
+ * malformed period, an empty merchant/account).
  */
-export async function planQuery(question: string, ctx: PromptContext, model: ModelClient): Promise<QueryPlan | null> {
+export type PlanOutcome =
+  | { kind: 'ok'; plan: QueryPlan }
+  | { kind: 'call_failed' }
+  | { kind: 'unknown_category'; attempted: string }
+  | { kind: 'unsupported' }
+
+/**
+ * Picks exactly one entry from the closed query enum, or a typed refusal
+ * reason when the question doesn't map cleanly onto it. See `planQuery`
+ * below for the simpler `QueryPlan | null` shape most callers actually need.
+ */
+export async function planQueryDetailed(question: string, ctx: PromptContext, model: ModelClient): Promise<PlanOutcome> {
   let raw: string
   try {
     raw = await model.chat([
@@ -87,43 +104,55 @@ export async function planQuery(question: string, ctx: PromptContext, model: Mod
       { role: 'user', content: buildUserPrompt(question) },
     ])
   } catch {
-    return null
+    return { kind: 'call_failed' }
   }
 
   let parsed: Record<string, unknown>
   try {
     parsed = parseJsonObject(raw)
   } catch (error) {
-    if (error instanceof ExtractionError) return null
+    if (error instanceof ExtractionError) return { kind: 'call_failed' }
     throw error
   }
 
-  return validatePlan(parsed, ctx)
+  return validatePlanDetailed(parsed, ctx)
 }
 
-function validatePlan(parsed: Record<string, unknown>, ctx: PromptContext): QueryPlan | null {
+/**
+ * Thin wrapper over `planQueryDetailed` for callers that only need to know
+ * whether planning succeeded, not why it didn't — `null` is not a failure
+ * state, it is the honest-refusal path (see query/refusal.ts for the actual
+ * refusal wording).
+ */
+export async function planQuery(question: string, ctx: PromptContext, model: ModelClient): Promise<QueryPlan | null> {
+  const outcome = await planQueryDetailed(question, ctx, model)
+  return outcome.kind === 'ok' ? outcome.plan : null
+}
+
+function validatePlanDetailed(parsed: Record<string, unknown>, ctx: PromptContext): PlanOutcome {
   const q = parsed.q
-  if (typeof q !== 'string' || !(KNOWN_QUERIES as readonly string[]).includes(q)) return null
+  if (typeof q !== 'string' || !(KNOWN_QUERIES as readonly string[]).includes(q)) return { kind: 'unsupported' }
   const query = q as KnownQuery
 
   const owner = validateOwner(parsed.owner, ctx.people)
-  if (parsed.owner != null && owner === null) return null // an owner was named but didn't match anyone real
+  if (parsed.owner != null && owner === null) return { kind: 'unsupported' } // an owner was named but didn't match anyone real
 
   const period = validatePeriodShape(parsed.period)
-  if (period === null) return null
+  if (period === null) return { kind: 'unsupported' }
 
   switch (query) {
     case 'category_spend': {
-      const category = typeof parsed.category === 'string' ? matchCategory(parsed.category, ctx.categories) : null
-      if (!category) return null
-      return { q: 'category_spend', category, period, ...(owner ? { owner } : {}) }
+      if (typeof parsed.category !== 'string' || !parsed.category.trim()) return { kind: 'unsupported' }
+      const category = matchCategory(parsed.category, ctx.categories)
+      if (!category) return { kind: 'unknown_category', attempted: parsed.category.trim() }
+      return { kind: 'ok', plan: { q: 'category_spend', category, period, ...(owner ? { owner } : {}) } }
     }
     case 'total_spend':
-      return { q: 'total_spend', period, ...(owner ? { owner } : {}) }
+      return { kind: 'ok', plan: { q: 'total_spend', period, ...(owner ? { owner } : {}) } }
     case 'merchant_spend': {
       const merchant = cleanFreeText(parsed.merchant)
-      if (!merchant) return null
-      return { q: 'merchant_spend', merchant, period }
+      if (!merchant) return { kind: 'unsupported' }
+      return { kind: 'ok', plan: { q: 'merchant_spend', merchant, period } }
     }
     case 'account_spend': {
       // Free text, not matched against ctx.accounts here — an account name is
@@ -132,12 +161,12 @@ function validatePlan(parsed: Record<string, unknown>, ctx: PromptContext): Quer
       // paid_with goes through, tie-handling included. See the QueryPlan
       // comment in types.ts.
       const account = cleanFreeText(parsed.account)
-      if (!account) return null
-      return { q: 'account_spend', account, period }
+      if (!account) return { kind: 'unsupported' }
+      return { kind: 'ok', plan: { q: 'account_spend', account, period } }
     }
     case 'recent_transactions': {
       const limit = clampLimit(parsed.limit)
-      return { q: 'recent_transactions', limit, ...(owner ? { owner } : {}) }
+      return { kind: 'ok', plan: { q: 'recent_transactions', limit, ...(owner ? { owner } : {}) } }
     }
   }
 }

@@ -22,13 +22,12 @@ import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
 import { routeMessage } from './route.ts'
-import { planQuery } from './query/plan.ts'
-import { runQuery } from './query/run.ts'
-import { formatQueryReply } from './query/reply.ts'
-import type { QueryPlan, QueryStore } from './query/types.ts'
+import type { QueryStore } from './query/types.ts'
 import { matchAccount, matchAccountTies } from './accountMatch.ts'
 export { matchAccount, matchAccountTies } from './accountMatch.ts'
 import { formatAmount, formatDate } from './format.ts'
+import { errorHint } from './errorHint.ts'
+import { answerQuestion } from './query/refusal.ts'
 import type {
   AccountRef,
   Extraction,
@@ -254,37 +253,19 @@ async function handleQuestion(
   const senderId = message.from?.id ?? 0
   const t0 = Date.now()
 
-  let plan: QueryPlan | null
-  try {
-    plan = await planQuery(text, ctx, deps.model)
-  } catch (error) {
-    deps.log?.('question planning failed', { error: String(error) })
-    plan = null
-  }
-
-  if (!plan) {
-    await deps.messenger.sendMessage(
-      message.chat.id,
-      "I'm not sure how to answer that yet — try asking about spend by category, account, merchant, or your total for a period.",
-      { replyToMessageId: message.message_id }
-    )
-    await logInbound(deps, message, household, senderId, 'text', {
-      stage: 'answer_question',
-      success: false,
-      error: 'planner returned null',
-      durationMs: Date.now() - t0,
-    })
-    return { status: 'ignored', reason: 'question could not be planned' }
-  }
-
-  const result = await runQuery(plan, deps.queryStore, household.accounts, deps.now ?? (() => new Date()))
-  await deps.messenger.sendMessage(message.chat.id, formatQueryReply(result), { replyToMessageId: message.message_id })
+  const answer = await answerQuestion(text, ctx, deps.model, deps.queryStore, household.accounts, deps.now ?? (() => new Date()))
+  await deps.messenger.sendMessage(message.chat.id, answer.text, { replyToMessageId: message.message_id })
   await logInbound(deps, message, household, senderId, 'text', {
     stage: 'answer_question',
-    success: true,
+    success: answer.success,
+    error: answer.refusalReason,
     durationMs: Date.now() - t0,
   })
-  return { status: 'ignored', reason: `answered question: ${plan.q}` }
+  // Every refusal is worth a console line too — this is the backlog signal
+  // for which queries to add next (Taskiv #59), separate from the per-row
+  // intake_logs entry above.
+  if (!answer.success) deps.log?.('question refused', { text, reason: answer.refusalReason })
+  return { status: 'ignored', reason: answer.success ? 'answered question' : `question refused: ${answer.refusalReason}` }
 }
 
 /**
@@ -906,18 +887,7 @@ async function captureChatId(message: TelegramMessage, deps: IntakeDeps): Promis
 
 class UnsupportedMessage extends Error {}
 
-/**
- * A short, readable version of a failure for the Telegram reply. Upstream
- * errors carry the useful part ("OpenRouter 402: insufficient credits"), so
- * they're worth showing — this is a private household group, and the
- * alternative is the couple silently losing spends to an unexplained failure.
- */
-export function errorHint(error: unknown): string | null {
-  const raw = error instanceof Error ? error.message : String(error)
-  const cleaned = raw.replace(/\s+/g, ' ').trim()
-  if (!cleaned) return null
-  return cleaned.length > 200 ? `${cleaned.slice(0, 200)}…` : cleaned
-}
+export { errorHint } from './errorHint.ts'
 
 async function extractFromMessage(
   message: TelegramMessage,
