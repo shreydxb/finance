@@ -51,9 +51,17 @@ classifier outage). `HELP_TEXT` in `intake.ts` is rewritten as an honest
 input and the #50–#52 query toolbox are now listed; `/undo`, `/review` and
 any "action" capability are deliberately left out until they ship, with a
 comment in the file saying so. 410 `npm test` (was 407), lint and build
-clean, `npm run demo:telegram` unaffected. Sprint 2 is now fully shipped in
-code — this redeploy hasn't happened yet, so production `telegram-intake`
-(v35, above) still runs the placeholder `/help`.
+clean, `npm run demo:telegram` unaffected.
+
+**#53 is now deployed too — `telegram-intake` v36, `verify_jwt: false`
+(unchanged).** This deploy went through cleanly on the first attempt: the
+`../_shared/` naming fix above was applied from the start of the payload
+instead of being rediscovered. Sprint 2 of the bot expansion (#48–#53) is
+now fully shipped and live. `main` was also fast-forwarded and pushed to
+GitHub the same session (9 commits) — Netlify's build queued and will fail
+on the exhausted free-tier minutes (resets 20 Aug), but the commit is on
+`main` and will deploy automatically the next time Netlify builds it; no
+further push needed once credits reset.
 
 Deploying this one cost real time to work out, worth recording so it isn't
 relearned: `mcp__Supabase__deploy_edge_function` is **not additive** — every
