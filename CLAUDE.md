@@ -39,6 +39,22 @@ message), and #51/#52 (the query toolbox: `category_spend`, `total_spend`,
 fixture corpus + `/help` rewrite) is still open. Bot-expansion Sprint 1 was
 already fully live from the 14–16 Aug deploy below.
 
+**#53 is done in code, not yet deployed** — `fixtures/routing.ts` (a 30-case
+corpus covering spend/question/action/chatter plus the adversarial cases:
+"how much was that Carrefour trip, 240?" resolves via the classifier, a bare
+"240"/"groceries"/"84" resolve via the router's classifier-failure fallback,
+never a live model call) and `routing.test.ts` (3 tests: the regex fast path
+alone never misroutes a spend case as a question, every corpus case reaches
+its expected intent, and every spend case survives a simulated total
+classifier outage). `HELP_TEXT` in `intake.ts` is rewritten as an honest
+📸/💸/❓/⚙️ catalogue of what's actually live — cashback, transfers, bulk
+input and the #50–#52 query toolbox are now listed; `/undo`, `/review` and
+any "action" capability are deliberately left out until they ship, with a
+comment in the file saying so. 410 `npm test` (was 407), lint and build
+clean, `npm run demo:telegram` unaffected. Sprint 2 is now fully shipped in
+code — this redeploy hasn't happened yet, so production `telegram-intake`
+(v35, above) still runs the placeholder `/help`.
+
 Deploying this one cost real time to work out, worth recording so it isn't
 relearned: `mcp__Supabase__deploy_edge_function` is **not additive** — every
 call must carry the function's *complete* file set (entrypoint + every

@@ -77,17 +77,33 @@ export interface IntakeDeps {
  */
 const ALBUM_DEBOUNCE_MS = 1200
 
+// Taskiv #53: keep this an honest catalogue of what's actually deployed, not
+// an aspirational one — a /help promising features that don't exist yet is
+// worse than a short one. Add a line here in the SAME sprint each feature
+// ships (Sprint 3 adds /undo and /review; Sprint 4 adds "action" — money
+// moves, balance updates, standing rules), never before.
 const HELP_TEXT = [
-  'Send me a spend and I log it to Our Money:',
-  '• a photo of the receipt',
-  '• a voice note ("spent 84 dirhams at Carrefour")',
-  '• or just type it',
+  '📸 Log a spend',
+  '  • a photo of the receipt',
+  '  • a voice note ("spent 84 dirhams at Carrefour")',
+  '  • or just type it ("84 lunch noon")',
+  '  • several spends in one message works too ("45 groceries, 12 coffee")',
+  '',
+  '💸 Cashback or a transfer',
+  '  • "15 aed cashback from the ENBD card" — proposes an income entry, nothing logs until you tap Apply',
+  '  • "transferred 500 from Wio to ENBD" — logs both sides, never counted as spend',
+  '',
+  '❓ Ask me',
+  '  • how much did we spend on groceries this month',
+  '  • what did Tarika spend last week',
+  '  • how much is left on the ENBD card',
+  '  • what did we spend today',
+  '',
+  '⚙️ Commands',
+  '  /help — this message',
   '',
   "If I'm not sure, I'll show you what I got with Confirm / Fix buttons.",
   'Anything unconfirmed shows up as “Needs review” in the app.',
-  '',
-  'Got cashback instead? Type it ("15 aed cashback from the ENBD card") and I\'ll',
-  'propose an income entry — nothing is logged until you tap Apply.',
 ].join('\n')
 
 export async function handleUpdate(update: TelegramUpdate, deps: IntakeDeps): Promise<IntakeOutcome> {
