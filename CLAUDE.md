@@ -83,7 +83,12 @@ of this; it was purely a deploy-payload construction issue, and every failed
 attempt was rejected before touching production, so the previously-deployed
 version stayed live and unaffected throughout.
 
-**Taskiv #59 (honest-refusal path) is done in code, not yet deployed.**
+**Taskiv #59 (honest-refusal path) is done in code and deployed —
+`telegram-intake` v37, `verify_jwt: false` (unchanged), on top of v36.
+Deployed cleanly on the first attempt using the `../_shared/` naming fix from
+the start, no retries needed. Not pushed to `main` — only the #53 work was
+explicitly authorized for `main`; this stays on
+`claude/money-v4-open-items-mdw27c` until asked.**
 `planQuery` (query/plan.ts) gained a `planQueryDetailed` sibling that returns
 *why* a question couldn't be planned — `call_failed` (the model threw or
 returned unparseable JSON), `unknown_category` (a real category name was
