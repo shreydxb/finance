@@ -76,6 +76,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
     messenger: new LoggingMessenger(recorder ?? telegram, store),
     model,
     classifierModel: model,
+    // Taskiv #60: no kind has a registered handler yet — #63-67 add them as
+    // each action ships. Empty here is correct, not a placeholder to "fix later".
+    pendingActionHandlers: {},
     transcriber: config.groqApiKey ? new GroqWhisper(config.groqApiKey, config.groqWhisperModel) : null,
     defaultCurrency: config.defaultCurrency,
     log: (message, data) => console.log(message, data ?? ''),

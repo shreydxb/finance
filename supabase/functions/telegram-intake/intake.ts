@@ -22,6 +22,8 @@ import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
 import { routeMessage } from './route.ts'
+import { handlePendingActionCallback } from './actions/pending.ts'
+import type { PendingActionHandlers } from './actions/pending.ts'
 import type { QueryStore } from './query/types.ts'
 import { matchAccount, matchAccountTies } from './accountMatch.ts'
 export { matchAccount, matchAccountTies } from './accountMatch.ts'
@@ -61,6 +63,8 @@ export interface IntakeDeps {
    * point at the same real client, which has no such queue to desync.
    */
   classifierModel: ModelClient
+  /** Taskiv #60: registered handlers for propose-then-tap actions, keyed by kind. Empty until #63-67 register into it. */
+  pendingActionHandlers: PendingActionHandlers
   /** null when GROQ_API_KEY isn't set: voice notes are then answered with a nudge. */
   transcriber: Transcriber | null
   defaultCurrency: string
@@ -565,6 +569,70 @@ async function handleCashbackCallback(
   return { status: 'cashback_applied', pendingId }
 }
 
+/**
+ * Routes an apply:/cancel: tap to the generic propose-then-tap plumbing
+ * (Taskiv #60). No `kind` has a registered handler yet (#63-67 add them) —
+ * `deps.pendingActionHandlers` starts empty, so `applied` is unreachable in
+ * production today. Reuses the same household allowlist `handleCallback`
+ * already loaded, and the same edit-the-original-message pattern
+ * `handleCashbackCallback` uses, rather than composing a new summary this
+ * module has no way to describe (it never learns what a given `kind` means).
+ */
+async function handlePendingCallback(
+  action: 'apply' | 'cancel',
+  pendingId: string,
+  chatId: number,
+  query: TelegramCallbackQuery,
+  household: HouseholdContext,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const outcome = await handlePendingActionCallback(
+    action,
+    pendingId,
+    query.from.id,
+    new Set(household.people.keys()),
+    deps.store,
+    deps.pendingActionHandlers
+  )
+  const baseText = query.message?.text ?? ''
+  switch (outcome.status) {
+    case 'not_found':
+      await deps.messenger.answerCallbackQuery(query.id, 'That proposal is gone.')
+      break
+    case 'already_resolved':
+      await deps.messenger.answerCallbackQuery(query.id, 'Already handled.')
+      break
+    case 'forbidden':
+      // Silent, same as the rejected-sender path elsewhere: a stranger shouldn't learn the bot noticed them.
+      await deps.messenger.answerCallbackQuery(query.id)
+      break
+    case 'expired':
+      await deps.messenger.answerCallbackQuery(query.id, 'That one expired')
+      if (query.message) {
+        await deps.messenger.editMessageText(chatId, query.message.message_id, `${baseText}\n\nExpired — nothing was applied.`)
+      }
+      break
+    case 'cancelled':
+      await deps.messenger.answerCallbackQuery(query.id, 'Cancelled')
+      if (query.message) {
+        await deps.messenger.editMessageText(chatId, query.message.message_id, `${baseText}\n\nCancelled.`)
+      }
+      break
+    case 'applied':
+      await deps.messenger.answerCallbackQuery(query.id, 'Applied')
+      if (query.message) {
+        await deps.messenger.editMessageText(chatId, query.message.message_id, `${baseText} ✓`)
+      }
+      break
+  }
+  await logCallback(deps, query, chatId, `pending_${action}`, {
+    success: outcome.status === 'applied' || outcome.status === 'cancelled',
+    error: outcome.status === 'applied' || outcome.status === 'cancelled' ? undefined : outcome.status,
+    transactionId: pendingId,
+  })
+  return { status: 'ignored', reason: `pending action ${action}: ${outcome.status}` }
+}
+
 function describeCashback(pending: PendingIncome): string {
   const parts = [
     pending.amount === null ? `amount unreadable (${pending.currency})` : `${formatAmount(pending.amount)} ${pending.currency}`,
@@ -1051,6 +1119,10 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
 
   if (parsed.action === 'cashback_apply' || parsed.action === 'cashback_cancel') {
     return handleCashbackCallback(parsed.action, parsed.transactionId, chatId, query, deps)
+  }
+
+  if (parsed.action === 'apply' || parsed.action === 'cancel') {
+    return handlePendingCallback(parsed.action, parsed.transactionId, chatId, query, household, deps)
   }
 
   const row = await deps.store.getTransaction(parsed.transactionId)

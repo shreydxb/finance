@@ -50,6 +50,7 @@ const deps = {
   messenger,
   model,
   classifierModel,
+  pendingActionHandlers: {},
   transcriber: new FakeTranscriber('spent forty eight dirhams on karak'),
   defaultCurrency: 'AED',
   log: (message: string, data?: Record<string, unknown>) => console.log(`      · ${message}`, data ?? ''),

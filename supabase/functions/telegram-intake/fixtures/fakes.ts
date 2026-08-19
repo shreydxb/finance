@@ -15,6 +15,7 @@ import type {
   MediaGroupState,
   Messenger,
   ModelClient,
+  PendingAction,
   PendingIncome,
   PossibleDuplicate,
   SendOptions,
@@ -330,6 +331,45 @@ export class FakeStore implements IntakeStore {
   insertIncome(row: IncomeInsert): Promise<void> {
     this.income.push(row)
     return Promise.resolve()
+  }
+
+  pendingActions = new Map<string, PendingAction>()
+  private pendingActionSequence = 0
+
+  createPendingAction(kind: string, payload: unknown, chatId: number, requestedBy: number): Promise<PendingAction> {
+    const id = `pending-action-${++this.pendingActionSequence}`
+    const row: PendingAction = {
+      id,
+      kind,
+      payload,
+      chatId,
+      promptMsgId: null,
+      requestedBy,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      resolvedAt: null,
+      resolution: null,
+    }
+    this.pendingActions.set(id, row)
+    return Promise.resolve(row)
+  }
+
+  getPendingAction(id: string): Promise<PendingAction | null> {
+    return Promise.resolve(this.pendingActions.get(id) ?? null)
+  }
+
+  setPendingActionPromptMsgId(id: string, promptMsgId: number): Promise<void> {
+    const row = this.pendingActions.get(id)
+    if (row) this.pendingActions.set(id, { ...row, promptMsgId })
+    return Promise.resolve()
+  }
+
+  resolvePendingAction(id: string, resolution: 'applied' | 'cancelled' | 'expired'): Promise<PendingAction | null> {
+    const row = this.pendingActions.get(id)
+    if (!row || row.resolvedAt) return Promise.resolve(null)
+    const resolved: PendingAction = { ...row, resolvedAt: new Date().toISOString(), resolution }
+    this.pendingActions.set(id, resolved)
+    return Promise.resolve(resolved)
   }
 
   only(): TransactionRow {

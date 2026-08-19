@@ -83,6 +83,7 @@ function harness(
       messenger,
       model,
       classifierModel,
+      pendingActionHandlers: {},
       transcriber: opts.withTranscriber === false ? null : transcriber,
       defaultCurrency: 'AED',
       now: () => new Date(`${TODAY}T09:00:00Z`),

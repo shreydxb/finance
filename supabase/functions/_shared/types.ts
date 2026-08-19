@@ -181,6 +181,26 @@ export interface PendingIncome {
   date: string
 }
 
+/**
+ * A generic propose-then-tap write (Taskiv #60) — anything that isn't a
+ * transaction. Unlike PendingIncome, this is never deleted on resolution:
+ * `resolvedAt`/`resolution` are kept so a redelivered Telegram callback (and
+ * a human debugging "what happened to that proposal") can tell an applied
+ * action from a cancelled or expired one.
+ */
+export interface PendingAction {
+  id: string
+  kind: string
+  payload: unknown
+  chatId: number
+  promptMsgId: number | null
+  requestedBy: number
+  createdAt: string
+  expiresAt: string
+  resolvedAt: string | null
+  resolution: 'applied' | 'cancelled' | 'expired' | null
+}
+
 export interface IncomeInsert {
   person: string
   source: string | null
@@ -249,6 +269,17 @@ export interface IntakeStore {
   createBulkTransactions(rows: BulkRow[], chatId: number, idempotencyBase: string): Promise<TransactionRow[]>
   /** BOT-01: income + proposal removal in one transaction. Null when already applied. */
   applyPendingIncome(pendingId: string): Promise<unknown | null>
+  /** Taskiv #60: propose a generic (non-transaction) write. Nothing outside `pending_actions` is touched until it resolves. */
+  createPendingAction(kind: string, payload: unknown, chatId: number, requestedBy: number): Promise<PendingAction>
+  getPendingAction(id: string): Promise<PendingAction | null>
+  setPendingActionPromptMsgId(id: string, promptMsgId: number): Promise<void>
+  /**
+   * Atomically marks the action resolved iff it was not already — the
+   * idempotency guard against a redelivered Telegram callback double-tapping
+   * Apply. Returns null (not the row) when it was already resolved or
+   * doesn't exist, so a caller never mistakes a lost race for success.
+   */
+  resolvePendingAction(id: string, resolution: 'applied' | 'cancelled' | 'expired'): Promise<PendingAction | null>
 }
 
 /** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */

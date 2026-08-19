@@ -19,6 +19,7 @@ import type {
   IntakeLogEntry,
   IntakeStore,
   MediaGroupState,
+  PendingAction,
   PendingIncome,
   PossibleDuplicate,
   TransactionRow,
@@ -373,6 +374,43 @@ export class PostgrestStore implements IntakeStore {
       body: JSON.stringify(row),
     })
   }
+
+  async createPendingAction(kind: string, payload: unknown, chatId: number, requestedBy: number): Promise<PendingAction> {
+    const rows = await this.request<PendingActionRow[]>('/pending_actions', {
+      method: 'POST',
+      headers: { prefer: 'return=representation' },
+      body: JSON.stringify({ kind, payload, chat_id: chatId, requested_by: requestedBy }),
+    })
+    return fromPendingActionRow(rows[0])
+  }
+
+  async getPendingAction(id: string): Promise<PendingAction | null> {
+    const rows = await this.request<PendingActionRow[]>(`/pending_actions?id=eq.${encodeURIComponent(id)}&limit=1`)
+    return rows[0] ? fromPendingActionRow(rows[0]) : null
+  }
+
+  async setPendingActionPromptMsgId(id: string, promptMsgId: number): Promise<void> {
+    await this.request<void>(`/pending_actions?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({ prompt_msg_id: promptMsgId }),
+    })
+  }
+
+  /**
+   * `resolved_at=is.null` in the filter is the idempotency guard: Postgres
+   * applies the UPDATE to at most the one row that is still unresolved, so a
+   * second, redelivered tap finds nothing to update and this returns null —
+   * without needing a separate lock or a round-trip read-then-write.
+   */
+  async resolvePendingAction(id: string, resolution: 'applied' | 'cancelled' | 'expired'): Promise<PendingAction | null> {
+    const rows = await this.request<PendingActionRow[]>(`/pending_actions?id=eq.${encodeURIComponent(id)}&resolved_at=is.null`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=representation' },
+      body: JSON.stringify({ resolved_at: this.now(), resolution }),
+    })
+    return rows[0] ? fromPendingActionRow(rows[0]) : null
+  }
 }
 
 interface PendingIncomeRow {
@@ -394,6 +432,34 @@ function fromPendingIncomeRow(row: PendingIncomeRow): PendingIncome {
     amount: row.amount === null ? null : Number(row.amount),
     currency: row.currency,
     date: row.date,
+  }
+}
+
+interface PendingActionRow {
+  id: string
+  kind: string
+  payload: unknown
+  chat_id: number
+  prompt_msg_id: number | null
+  requested_by: number
+  created_at: string
+  expires_at: string
+  resolved_at: string | null
+  resolution: 'applied' | 'cancelled' | 'expired' | null
+}
+
+function fromPendingActionRow(row: PendingActionRow): PendingAction {
+  return {
+    id: row.id,
+    kind: row.kind,
+    payload: row.payload,
+    chatId: row.chat_id,
+    promptMsgId: row.prompt_msg_id,
+    requestedBy: row.requested_by,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    resolvedAt: row.resolved_at,
+    resolution: row.resolution,
   }
 }
 
