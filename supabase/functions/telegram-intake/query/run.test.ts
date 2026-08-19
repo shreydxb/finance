@@ -4,7 +4,7 @@ import test from 'node:test'
 import { resolvePeriod } from './period.ts'
 import { runQuery } from './run.ts'
 import type { AccountRef } from '../../_shared/types.ts'
-import type { CategoryBudgetRow, GoalRecord, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, GoalRecord, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 const FX_RATES: Record<string, number> = { AED: 1, USD: 3.6725, INR: 0.044 }
 const SAVINGS_CATEGORY = 'Savings & Investments'
@@ -131,6 +131,12 @@ class FakeQueryStore implements QueryStore {
 
   fxRates(): Promise<Record<string, number>> {
     return Promise.resolve(this.fxRatesValue)
+  }
+
+  recurring: RecurringEntry[] = []
+
+  recurringEntries(): Promise<RecurringEntry[]> {
+    return Promise.resolve(this.recurring)
   }
 }
 
@@ -474,4 +480,29 @@ test('goal_progress: an unmatched goal name asks a clarifying question naming th
     'Car Loan',
     'Emergency Fund',
   ])
+})
+
+test('upcoming_bills: dispatches to store.recurringEntries/fxRates and defaults days to 14', async () => {
+  const store = new FakeQueryStore([])
+  store.recurring = [
+    // NOW is 2026-08-17; day 25 falls 8 days out, inside the default 14-day window.
+    { id: 'r1', name: 'Car Loan EMI', kind: 'emi', amount: 2194, currency: 'AED', owner: 'Shrey', dayOfMonth: 25, months: [], autopay: false, endDate: '2030-07-03' },
+  ]
+
+  const result = await runQuery({ q: 'upcoming_bills' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'upcoming_bills' ? result.days : null, 14)
+  if (result.q === 'upcoming_bills') {
+    assert.equal(result.bills.length, 1)
+    assert.equal(result.bills[0].date, '2026-08-25')
+  }
+})
+
+test('upcoming_bills: an out-of-range days value is clamped, never trusted as-is', async () => {
+  const store = new FakeQueryStore([])
+  store.recurring = []
+
+  const result = await runQuery({ q: 'upcoming_bills', days: 500 }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'upcoming_bills' ? result.days : null, 90)
 })

@@ -22,7 +22,7 @@ import type {
   Transcriber,
   TransactionRow,
 } from '../../_shared/types.ts'
-import type { CategoryBudgetRow, GoalRecord, NetWorthRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from '../query/types.ts'
+import type { CategoryBudgetRow, GoalRecord, NetWorthRow, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from '../query/types.ts'
 import { SHREY_ID, TARIKA_ID } from './updates.ts'
 
 export const CATEGORIES: CategoryRef[] = [
@@ -407,6 +407,10 @@ export class FakeQueryStore implements QueryStore {
 
   fxRates(): Promise<Record<string, number>> {
     return Promise.resolve({ AED: 1 })
+  }
+
+  recurringEntries(): Promise<RecurringEntry[]> {
+    return Promise.resolve([])
   }
 }
 

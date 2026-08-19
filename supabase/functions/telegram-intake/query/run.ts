@@ -9,6 +9,7 @@
 
 import { matchAccount, matchAccountTies } from '../accountMatch.ts'
 import { todayInTz } from '../../_shared/dates.ts'
+import { clampDays, computeUpcomingBills } from './bills.ts'
 import { matchGoal, matchGoalTies } from './goals.ts'
 import { resolvePeriod } from './period.ts'
 import type { AccountRef } from '../../_shared/types.ts'
@@ -117,6 +118,12 @@ export async function runQuery(
         selected = [matched]
       }
       return { q: 'goal_progress', status: 'ok', goals: selected, fxRates, todayIso: todayInTz(now()) }
+    }
+    case 'upcoming_bills': {
+      const [entries, fxRates] = await Promise.all([store.recurringEntries(), store.fxRates()])
+      const days = clampDays(plan.days)
+      const result = computeUpcomingBills(entries, days, fxRates, todayInTz(now()))
+      return { q: 'upcoming_bills', ...result }
     }
   }
 }

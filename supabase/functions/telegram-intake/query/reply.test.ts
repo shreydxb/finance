@@ -129,3 +129,17 @@ test('goal_progress: dispatches to query/goals.ts (see goals.test.ts for the for
   }
   assert.match(formatQueryReply(result), /Which goal did you mean/)
 })
+
+test('upcoming_bills: dispatches to query/bills.ts (see bills.test.ts for the formatting itself)', () => {
+  const result: QueryResult = {
+    q: 'upcoming_bills',
+    days: 14,
+    bills: [],
+    income: [],
+    totalDueAed: 0,
+    totalDueUnconvertedCount: 0,
+    notOnAutopayAed: 0,
+    notOnAutopayUnconvertedCount: 0,
+  }
+  assert.match(formatQueryReply(result), /Nothing due\./)
+})

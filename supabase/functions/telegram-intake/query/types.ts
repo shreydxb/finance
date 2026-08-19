@@ -50,6 +50,7 @@ export type QueryPlan =
   | { q: 'budget_status'; category?: string; period: Period }
   | { q: 'net_worth'; owner?: string; compare?: Period }
   | { q: 'goal_progress'; goal?: string }
+  | { q: 'upcoming_bills'; days?: number }
 
 /** A resolved period, ready to hand to a parameterised query. */
 export interface ResolvedPeriod {
@@ -219,6 +220,46 @@ export type GoalProgressResult =
   | { status: 'ok'; goals: GoalRecord[]; fxRates: Record<string, number>; todayIso: string }
   | { status: 'needs_clarification'; candidates: string[] }
 
+/** income/expense/emi — mirrors src/lib/recurringSchedule.js's RECURRING_KINDS. */
+export type RecurringKind = 'income' | 'expense' | 'emi'
+
+export interface RecurringEntry {
+  id: string
+  name: string
+  kind: RecurringKind
+  amount: number
+  currency: string
+  owner: string | null
+  dayOfMonth: number | null
+  months: number[]
+  autopay: boolean
+  endDate: string | null
+}
+
+/** One projected occurrence of a `RecurringEntry` inside the requested window. */
+export interface BillOccurrence {
+  date: string
+  name: string
+  amount: number
+  currency: string
+  /** AED-converted amount, or null when the currency has no FX rate right now. */
+  amountAed: number | null
+  autopay: boolean
+  kind: RecurringKind
+}
+
+export interface UpcomingBillsResult {
+  days: number
+  /** expense/emi occurrences only, sorted by date — income never mixes into this list or its totals. */
+  bills: BillOccurrence[]
+  /** income occurrences, sorted by date — listed separately, "Coming in", never summed into what's owed. */
+  income: BillOccurrence[]
+  totalDueAed: number
+  totalDueUnconvertedCount: number
+  notOnAutopayAed: number
+  notOnAutopayUnconvertedCount: number
+}
+
 export type QueryResult =
   | ({ q: 'category_spend'; category: string; owner?: string } & SpendResult)
   | ({ q: 'total_spend'; owner?: string } & TotalSpendResult)
@@ -228,6 +269,7 @@ export type QueryResult =
   | ({ q: 'budget_status'; category?: string } & BudgetStatusResult)
   | ({ q: 'net_worth'; owner?: string } & NetWorthResult)
   | ({ q: 'goal_progress' } & GoalProgressResult)
+  | ({ q: 'upcoming_bills' } & UpcomingBillsResult)
 
 /**
  * Parameterised, hand-written query methods — no string-built SQL anywhere.
@@ -252,4 +294,6 @@ export interface QueryStore {
   goalsWithContributions(): Promise<GoalRecord[]>
   /** `settings.fx_rates` — "1 unit of X is worth N AED", AED always 1. */
   fxRates(): Promise<Record<string, number>>
+  /** The whole `recurring` table — 24 rows live, small enough to fetch whole and project client-side. */
+  recurringEntries(): Promise<RecurringEntry[]>
 }

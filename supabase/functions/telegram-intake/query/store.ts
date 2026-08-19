@@ -7,7 +7,7 @@
 // Plain fetch, same as `_shared/store.ts`, so this runs under Deno and under
 // `node --test` without a URL-import shim.
 
-import type { CategoryBudgetRow, GoalContribution, GoalRecord, NetWorthRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, GoalContribution, GoalRecord, NetWorthRow, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -83,6 +83,19 @@ interface GoalContributionRow {
 
 interface SettingRow {
   value: unknown
+}
+
+interface RecurringRow {
+  id: string
+  name: string
+  kind: 'income' | 'expense' | 'emi'
+  amount: string
+  currency: string
+  owner: string | null
+  day_of_month: number | null
+  months: number[] | null
+  autopay: boolean
+  end_date: string | null
 }
 
 export class PostgrestQueryStore implements QueryStore {
@@ -273,6 +286,24 @@ export class PostgrestQueryStore implements QueryStore {
     const rows = await this.fetchJson<SettingRow[]>('settings', { select: 'value', key: 'eq.fx_rates' })
     const value = rows[0]?.value
     return value && typeof value === 'object' ? (value as Record<string, number>) : { AED: 1 }
+  }
+
+  async recurringEntries(): Promise<RecurringEntry[]> {
+    const rows = await this.fetchJson<RecurringRow[]>('recurring', {
+      select: 'id,name,kind,amount,currency,owner,day_of_month,months,autopay,end_date',
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      kind: r.kind,
+      amount: Number(r.amount),
+      currency: r.currency,
+      owner: r.owner,
+      dayOfMonth: r.day_of_month,
+      months: r.months ?? [],
+      autopay: r.autopay,
+      endDate: r.end_date,
+    }))
   }
 
   private async fetchJson<T>(table: string, params: Record<string, string>): Promise<T> {

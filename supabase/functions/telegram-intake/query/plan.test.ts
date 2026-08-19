@@ -200,6 +200,18 @@ test('goal_progress with a goal name is carried through as free text, not matche
   assert.deepEqual(plan, { q: 'goal_progress', goal: 'the emergency fund' })
 })
 
+test('upcoming_bills with no days is the default-window plan', async () => {
+  const model = new FakeModel(json({ q: 'upcoming_bills', days: null }))
+  const plan = await planQuery('what bills are coming up', CTX, model)
+  assert.deepEqual(plan, { q: 'upcoming_bills' })
+})
+
+test('upcoming_bills with a days value carries it through untouched — clamping is bills.ts\'s job, not plan.ts\'s', async () => {
+  const model = new FakeModel(json({ q: 'upcoming_bills', days: 30 }))
+  const plan = await planQuery('what do we owe this month', CTX, model)
+  assert.deepEqual(plan, { q: 'upcoming_bills', days: 30 })
+})
+
 test('a non-JSON model response is an honest refusal, not a crash', async () => {
   const model = new FakeModel('Sure! Let me help with that.')
   const plan = await planQuery('anything', CTX, model)

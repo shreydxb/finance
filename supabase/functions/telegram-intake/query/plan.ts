@@ -14,7 +14,7 @@ import type { PromptContext } from '../prompt.ts'
 import type { ModelClient } from '../../_shared/types.ts'
 import type { Period, QueryPlan } from './types.ts'
 
-const KNOWN_QUERIES = ['category_spend', 'total_spend', 'merchant_spend', 'account_spend', 'recent_transactions', 'budget_status', 'net_worth', 'goal_progress'] as const
+const KNOWN_QUERIES = ['category_spend', 'total_spend', 'merchant_spend', 'account_spend', 'recent_transactions', 'budget_status', 'net_worth', 'goal_progress', 'upcoming_bills'] as const
 type KnownQuery = (typeof KNOWN_QUERIES)[number]
 
 const KNOWN_PERIOD_KINDS = ['this_month', 'last_month', 'this_week', 'last_week', 'ytd', 'last_n_days', 'explicit'] as const
@@ -24,13 +24,14 @@ const MAX_LIMIT = 20
 
 const OUTPUT_CONTRACT = `Return ONLY a JSON object, no prose, no markdown fences, with exactly these keys:
 {
-  "q": "category_spend" | "total_spend" | "merchant_spend" | "account_spend" | "recent_transactions" | "budget_status" | "net_worth" | "goal_progress",
+  "q": "category_spend" | "total_spend" | "merchant_spend" | "account_spend" | "recent_transactions" | "budget_status" | "net_worth" | "goal_progress" | "upcoming_bills",
   "category": string | null,
   "merchant": string | null,
   "account": string | null,
   "goal": string | null,
   "owner": string | null,
   "limit": number | null,
+  "days": number | null,
   "period": {
     "kind": "this_month" | "last_month" | "this_week" | "last_week" | "ytd" | "last_n_days" | "explicit",
     "n": number | null,
@@ -62,6 +63,7 @@ The queries:
 - budget_status: how spend compares to the household's budget — either one category ("are we over on groceries", "how's dining out this month") or the whole grid ("how's the budget looking", "are we over anywhere"). Set category for a single category, leave it null for the full grid.
 - net_worth: current net worth, total or for one person ("what's our net worth", "what's Tarika's net worth"). Set owner for one person, leave it null for the household total. Only set compare when the person explicitly asks how it's changed ("how has our net worth changed this month", "are we up or down this year") — leave compare null for a plain "what's our net worth" question, since that only wants the current figure. period is not used for net_worth; leave it as the default.
 - goal_progress: progress on a savings goal or a debt payoff ("how's the emergency fund", "are we on track for the car loan", "how are we doing on our goals"). Set goal to whatever name the person used — it will be matched to one of the household's real goals automatically, so paraphrasing is fine. Leave goal null for "how are the goals doing" style questions that want every goal at once.
+- upcoming_bills: what's due soon ("what bills are coming up", "what do we owe this week", "anything due in the next month"). Set days to the number of days the person means ("this week" → 7, "next month" → 30) — default to 14 when they don't say.
 
 category must be EXACTLY one of these, copied character for character, or null:
 ${ctx.categories.map((c) => `  - ${c}`).join('\n')}
@@ -211,6 +213,13 @@ function validatePlanDetailed(parsed: Record<string, unknown>, ctx: PromptContex
       // tie-handling included.
       const goal = cleanFreeText(parsed.goal)
       return { kind: 'ok', plan: { q: 'goal_progress', ...(goal ? { goal } : {}) } }
+    }
+    case 'upcoming_bills': {
+      // Clamping to 1-90 is bills.ts's job (run against a real default, not
+      // duplicated here) — plan.ts only needs to pass through a plausible number.
+      const raw = parsed.days
+      const days = raw === null || raw === undefined ? undefined : typeof raw === 'number' ? raw : Number(raw)
+      return { kind: 'ok', plan: { q: 'upcoming_bills', ...(days !== undefined && Number.isFinite(days) ? { days } : {}) } }
     }
   }
 }
