@@ -230,6 +230,8 @@ export interface IntakeStore {
   getTransaction(id: string): Promise<TransactionRow | null>
   /** Matches either the user's original message or the bot's follow-up prompt. */
   findTransactionByMessage(chatId: number, messageId: number): Promise<TransactionRow | null>
+  /** Taskiv #61: the most recent non-deleted row this bot logged (source='telegram') in this chat — /undo's scope, never a manually-entered row. */
+  findLastBotTransaction(chatId: number): Promise<TransactionRow | null>
   getSetting(key: string): Promise<unknown | null>
   /** Upsert. Used sparingly — e.g. capturing tg_chat_id once, not per-message config. */
   putSetting(key: string, value: unknown): Promise<void>

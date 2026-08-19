@@ -21,6 +21,7 @@ import { PostgrestStore } from '../_shared/store.ts'
 import { PostgrestQueryStore } from './query/store.ts'
 import { TelegramClient } from '../_shared/telegram.ts'
 import { GroqWhisper } from './transcribe.ts'
+import { UNDO_KIND, undoHandler } from './actions/undo.ts'
 import type { DownloadedFile, IntakeStore, Messenger, SendOptions, TelegramMessage, TelegramUpdate } from '../_shared/types.ts'
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -76,9 +77,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
     messenger: new LoggingMessenger(recorder ?? telegram, store),
     model,
     classifierModel: model,
-    // Taskiv #60: no kind has a registered handler yet — #63-67 add them as
-    // each action ships. Empty here is correct, not a placeholder to "fix later".
-    pendingActionHandlers: {},
+    // Taskiv #60/#61: /undo is the first registered kind. #63-67 add the
+    // rest (goal contribution, balance update, income log, category rule)
+    // as each ships.
+    pendingActionHandlers: { [UNDO_KIND]: undoHandler },
     transcriber: config.groqApiKey ? new GroqWhisper(config.groqApiKey, config.groqWhisperModel) : null,
     defaultCurrency: config.defaultCurrency,
     log: (message, data) => console.log(message, data ?? ''),

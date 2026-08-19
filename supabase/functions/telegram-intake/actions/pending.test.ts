@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { handlePendingActionCallback, proposeAction } from './pending.ts'
-import type { PendingActionHandlers, PendingActionStore } from './pending.ts'
+import type { PendingActionContext, PendingActionHandlers, PendingActionStore } from './pending.ts'
 import type { Messenger, PendingAction, SendOptions } from '../../_shared/types.ts'
 
 class FakeStore implements PendingActionStore {
@@ -82,12 +82,17 @@ class FakeMessenger implements Messenger {
 const ALLOWED = new Set([111, 222])
 const NOW = () => new Date('2026-08-19T12:00:00Z')
 
+// This module's own tests never look inside ctx — the fake handlers below
+// only record their payload — so an empty stand-in is enough; real handlers
+// (e.g. actions/undo.ts) get the genuine store/messenger from intake.ts.
+const FAKE_CTX = {} as PendingActionContext
+
 function fakeHandlers(applied: unknown[]): PendingActionHandlers {
   return {
     test_kind: {
       apply(payload: unknown) {
         applied.push(payload)
-        return Promise.resolve()
+        return Promise.resolve('done')
       },
     },
   }
@@ -110,6 +115,17 @@ test('proposeAction writes only the pending_actions row and sends Apply/Cancel �
   assert.ok(keyboard![0][0].callback_data.length <= 64)
 })
 
+test('proposeAction accepts custom button labels for kinds that need them (e.g. /undo\'s Remove/Keep)', async () => {
+  const store = new FakeStore(NOW)
+  const messenger = new FakeMessenger()
+
+  await proposeAction('test_kind', {}, 42, 111, 'Remove this?', store, messenger, { apply: '🗑 Remove', cancel: '✖️ Keep' })
+
+  const keyboard = messenger.sent[0].opts?.inlineKeyboard
+  assert.equal(keyboard?.[0][0].text, '🗑 Remove')
+  assert.equal(keyboard?.[0][1].text, '✖️ Keep')
+})
+
 test('a proposal that is never tapped writes nothing, ever', async () => {
   const store = new FakeStore(NOW)
   const messenger = new FakeMessenger()
@@ -126,9 +142,9 @@ test('happy path: a valid Apply tap resolves and calls the handler exactly once'
   const applied: unknown[] = []
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
 
-  const outcome = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), NOW)
+  const outcome = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, NOW)
 
-  assert.deepEqual(outcome, { status: 'applied' })
+  assert.deepEqual(outcome, { status: 'applied', message: 'done' })
   assert.deepEqual(applied, [{ amount: 500 }])
   assert.equal(store.rows.get(pending.id)?.resolution, 'applied')
 })
@@ -140,10 +156,10 @@ test('double-tap: tapping Apply twice results in exactly one write', async () =>
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
   const handlers = fakeHandlers(applied)
 
-  const first = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, handlers, NOW)
-  const second = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, handlers, NOW)
+  const first = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, handlers, FAKE_CTX, NOW)
+  const second = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, handlers, FAKE_CTX, NOW)
 
-  assert.deepEqual(first, { status: 'applied' })
+  assert.deepEqual(first, { status: 'applied', message: 'done' })
   assert.deepEqual(second, { status: 'already_resolved' })
   assert.equal(applied.length, 1)
 })
@@ -155,7 +171,7 @@ test('expired: a proposal tapped after expires_at writes nothing and says so', a
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
 
   const later = () => new Date('2026-08-19T13:01:00Z') // 61 minutes after NOW — past the 1-hour expiry
-  const outcome = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), later)
+  const outcome = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, later)
 
   assert.deepEqual(outcome, { status: 'expired' })
   assert.equal(applied.length, 0)
@@ -169,9 +185,9 @@ test('a tap at exactly expires_at is still on time — the boundary belongs to t
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
 
   const exactly = () => new Date('2026-08-19T13:00:00Z') // exactly one hour later
-  const outcome = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), exactly)
+  const outcome = await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, exactly)
 
-  assert.deepEqual(outcome, { status: 'applied' })
+  assert.deepEqual(outcome, { status: 'applied', message: 'done' })
 })
 
 test('wrong user: a tap from a non-allowlisted user writes nothing', async () => {
@@ -180,7 +196,7 @@ test('wrong user: a tap from a non-allowlisted user writes nothing', async () =>
   const applied: unknown[] = []
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
 
-  const outcome = await handlePendingActionCallback('apply', pending.id, 999, ALLOWED, store, fakeHandlers(applied), NOW)
+  const outcome = await handlePendingActionCallback('apply', pending.id, 999, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, NOW)
 
   assert.deepEqual(outcome, { status: 'forbidden' })
   assert.equal(applied.length, 0)
@@ -194,7 +210,7 @@ test('cancel leaves no trace beyond the resolved pending_actions row', async () 
   const applied: unknown[] = []
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
 
-  const outcome = await handlePendingActionCallback('cancel', pending.id, 222, ALLOWED, store, fakeHandlers(applied), NOW)
+  const outcome = await handlePendingActionCallback('cancel', pending.id, 222, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, NOW)
 
   assert.deepEqual(outcome, { status: 'cancelled' })
   assert.equal(applied.length, 0)
@@ -206,16 +222,16 @@ test('cancelling an already-resolved proposal is reported, not silently accepted
   const messenger = new FakeMessenger()
   const applied: unknown[] = []
   const pending = await proposeAction('test_kind', { amount: 500 }, 42, 111, 'Move 500?', store, messenger)
-  await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), NOW)
+  await handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, NOW)
 
-  const outcome = await handlePendingActionCallback('cancel', pending.id, 111, ALLOWED, store, fakeHandlers(applied), NOW)
+  const outcome = await handlePendingActionCallback('cancel', pending.id, 111, ALLOWED, store, fakeHandlers(applied), FAKE_CTX, NOW)
 
   assert.deepEqual(outcome, { status: 'already_resolved' })
 })
 
 test('a nonexistent id is reported as not_found, never thrown as an error to the household', async () => {
   const store = new FakeStore(NOW)
-  const outcome = await handlePendingActionCallback('apply', 'does-not-exist', 111, ALLOWED, store, fakeHandlers([]), NOW)
+  const outcome = await handlePendingActionCallback('apply', 'does-not-exist', 111, ALLOWED, store, fakeHandlers([]), FAKE_CTX, NOW)
   assert.deepEqual(outcome, { status: 'not_found' })
 })
 
@@ -224,7 +240,7 @@ test('an unregistered kind fails loudly (throws) rather than a silent no-op the 
   const messenger = new FakeMessenger()
   const pending = await proposeAction('unregistered_kind', {}, 42, 111, 'Do a thing?', store, messenger)
 
-  await assert.rejects(() => handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, {}, NOW))
+  await assert.rejects(() => handlePendingActionCallback('apply', pending.id, 111, ALLOWED, store, {}, FAKE_CTX, NOW))
   // Still claimed as applied — the row is not left dangling for a retry to double-apply once the handler ships.
   assert.equal(store.rows.get(pending.id)?.resolution, 'applied')
 })

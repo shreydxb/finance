@@ -179,6 +179,13 @@ export class PostgrestStore implements IntakeStore {
     return rows[0] ?? null
   }
 
+  async findLastBotTransaction(chatId: number): Promise<TransactionRow | null> {
+    const rows = await this.request<TransactionRow[]>(
+      `/transactions?source=eq.telegram&telegram_chat_id=eq.${chatId}&deleted_at=is.null&order=created_at.desc&limit=1`
+    )
+    return rows[0] ?? null
+  }
+
   /** Both sides of a transfer in one transaction, keyed against redelivery. */
   async createTransfer(args: TransferArgs): Promise<TransactionRow[]> {
     return this.rpc<TransactionRow[]>('create_transfer', {

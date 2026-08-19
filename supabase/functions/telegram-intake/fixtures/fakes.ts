@@ -149,6 +149,16 @@ export class FakeStore implements IntakeStore {
     return Promise.resolve(null)
   }
 
+  findLastBotTransaction(chatId: number): Promise<TransactionRow | null> {
+    const matches = Array.from(this.rows.values()).filter(
+      (row) => row.source === 'telegram' && row.telegram_chat_id === chatId && !row.deleted_at
+    )
+    if (matches.length === 0) return Promise.resolve(null)
+    // Most recently inserted wins, same convention as findPossibleDuplicate below.
+    const latest = matches.reduce((best, row) => (rowSequence(row.id) > rowSequence(best.id) ? row : best))
+    return Promise.resolve(latest)
+  }
+
   getSetting(key: string): Promise<unknown | null> {
     return Promise.resolve(this.settings.has(key) ? this.settings.get(key) : null)
   }

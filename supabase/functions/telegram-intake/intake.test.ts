@@ -1183,6 +1183,64 @@ test('/help explains the three ways to send a spend', async () => {
   assert.equal(h.store.rows.size, 0)
 })
 
+test('/undo with nothing to undo says so and writes nothing', async () => {
+  const h = harness()
+  await handleUpdate(textUpdate('/undo', SHREY_ID), h.deps)
+
+  assert.match(h.messenger.last().text ?? '', /Nothing of mine to undo/)
+  assert.equal(h.store.rows.size, 0)
+})
+
+test('/undo on a real bot-logged row proposes removal — asks first, deletes nothing yet', async () => {
+  const h = harness()
+  const row = await h.store.insertTransactionOnce(
+    {
+      date: TODAY,
+      amount: 84,
+      currency: 'AED',
+      category: 'Dining Out',
+      note: 'Noon',
+      account_id: 'acc-enbd',
+      source: 'telegram',
+      telegram_chat_id: CHAT_ID,
+      telegram_msg_id: 1,
+      needs_review: false,
+    },
+    'seed-key'
+  )
+
+  await handleUpdate(textUpdate('/undo', SHREY_ID), h.deps)
+
+  const prompt = h.messenger.last()
+  assert.match(prompt.text ?? '', /Remove this\?/)
+  assert.match(prompt.text ?? '', /Dining Out/)
+  assert.equal(prompt.opts?.inlineKeyboard?.[0][0].text, '🗑 Remove')
+  assert.equal(prompt.opts?.inlineKeyboard?.[0][1].text, '✖️ Keep')
+  // Nothing deleted yet — only a proposal was written, not a soft-delete.
+  const stillThere = await h.store.getTransaction(row.id)
+  assert.equal(stillThere?.deleted_at, null)
+})
+
+test('/undo ignores a manually-entered row even if it is the most recent one in the chat', async () => {
+  const h = harness()
+  await h.store.insertTransactionOnce(
+    {
+      date: TODAY,
+      amount: 50,
+      currency: 'AED',
+      category: 'Shopping',
+      source: 'manual',
+      telegram_chat_id: CHAT_ID,
+      needs_review: false,
+    },
+    'manual-key'
+  )
+
+  await handleUpdate(textUpdate('/undo', SHREY_ID), h.deps)
+
+  assert.match(h.messenger.last().text ?? '', /Nothing of mine to undo/)
+})
+
 test('matchAccountTies names the accounts a tie was between, matching the real ...1657 case', () => {
   // Two sub-ledgers on one physical card — exactly what broke in production:
   // "paid with card ...1657" is genuinely ambiguous between them.

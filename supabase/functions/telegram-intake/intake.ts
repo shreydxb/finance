@@ -22,8 +22,10 @@ import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
 import { routeMessage } from './route.ts'
-import { handlePendingActionCallback } from './actions/pending.ts'
+import { handlePendingActionCallback, proposeAction } from './actions/pending.ts'
 import type { PendingActionHandlers } from './actions/pending.ts'
+import { UNDO_KIND } from './actions/undo.ts'
+import type { UndoPayload } from './actions/undo.ts'
 import type { QueryStore } from './query/types.ts'
 import { matchAccount, matchAccountTies } from './accountMatch.ts'
 export { matchAccount, matchAccountTies } from './accountMatch.ts'
@@ -104,6 +106,7 @@ const HELP_TEXT = [
   '',
   '⚙️ Commands',
   '  /help — this message',
+  '  /undo — remove the last thing I logged in this chat (asks first)',
   '',
   "If I'm not sure, I'll show you what I got with Confirm / Fix buttons.",
   'Anything unconfirmed shows up as “Needs review” in the app.',
@@ -155,6 +158,10 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   if (text === '/start' || text === '/help') {
     await deps.messenger.sendMessage(message.chat.id, HELP_TEXT, { replyToMessageId: message.message_id })
     return { status: 'ignored', reason: 'help' }
+  }
+
+  if (text === '/undo') {
+    return handleUndo(message, household, deps)
   }
 
   const ctx = promptContextFrom(household, today(deps), deps.defaultCurrency)
@@ -237,6 +244,32 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   }
 
   return writeAndAnnounce(extraction, message, household, senderId, deps, t0, messageType)
+}
+
+/**
+ * /undo (Taskiv #61) — proposes removing the most recent bot-logged row in
+ * this chat (source='telegram', deleted_at is null); nothing is touched
+ * until the household taps Remove. Scoped to this chat and to rows the bot
+ * itself wrote — a manually-entered row was never something the sender
+ * expects /undo to reach. Repeated /undo walks backwards on its own: once a
+ * row is soft-deleted, findLastBotTransaction skips it next time.
+ */
+async function handleUndo(message: TelegramMessage, household: HouseholdContext, deps: IntakeDeps): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const row = await deps.store.findLastBotTransaction(message.chat.id)
+  if (!row) {
+    await deps.messenger.sendMessage(message.chat.id, 'Nothing of mine to undo in this chat.', {
+      replyToMessageId: message.message_id,
+    })
+    return { status: 'ignored', reason: 'nothing to undo' }
+  }
+  const summary = ['Remove this?', describeRow(row, household), formatDate(row.date)].join('\n')
+  const payload: UndoPayload = { transactionId: row.id }
+  const pending = await proposeAction(UNDO_KIND, payload, message.chat.id, senderId, summary, deps.store, deps.messenger, {
+    apply: '🗑 Remove',
+    cancel: '✖️ Keep',
+  })
+  return { status: 'ignored', reason: `undo proposed: ${pending.id}` }
 }
 
 /**
@@ -571,12 +604,12 @@ async function handleCashbackCallback(
 
 /**
  * Routes an apply:/cancel: tap to the generic propose-then-tap plumbing
- * (Taskiv #60). No `kind` has a registered handler yet (#63-67 add them) —
- * `deps.pendingActionHandlers` starts empty, so `applied` is unreachable in
- * production today. Reuses the same household allowlist `handleCallback`
- * already loaded, and the same edit-the-original-message pattern
- * `handleCashbackCallback` uses, rather than composing a new summary this
- * module has no way to describe (it never learns what a given `kind` means).
+ * (Taskiv #60, extended by #61's /undo). Reuses the same household
+ * allowlist `handleCallback` already loaded. The 'applied' case's edit text
+ * comes straight from the handler's own return value (each kind states
+ * plainly what happened, e.g. /undo's "Removed. It's gone from the app
+ * too.") — this function never composes that wording itself, since it
+ * never learns what a given `kind` means beyond dispatching to it.
  */
 async function handlePendingCallback(
   action: 'apply' | 'cancel',
@@ -592,7 +625,8 @@ async function handlePendingCallback(
     query.from.id,
     new Set(household.people.keys()),
     deps.store,
-    deps.pendingActionHandlers
+    deps.pendingActionHandlers,
+    { store: deps.store, messenger: deps.messenger }
   )
   const baseText = query.message?.text ?? ''
   switch (outcome.status) {
@@ -621,7 +655,7 @@ async function handlePendingCallback(
     case 'applied':
       await deps.messenger.answerCallbackQuery(query.id, 'Applied')
       if (query.message) {
-        await deps.messenger.editMessageText(chatId, query.message.message_id, `${baseText} ✓`)
+        await deps.messenger.editMessageText(chatId, query.message.message_id, outcome.message)
       }
       break
   }

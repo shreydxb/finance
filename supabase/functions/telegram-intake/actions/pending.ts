@@ -25,9 +25,22 @@ export type PendingActionStore = Pick<
   'createPendingAction' | 'getPendingAction' | 'setPendingActionPromptMsgId' | 'resolvePendingAction'
 >
 
-/** One `kind`'s actual write, run only after a tap has already been claimed. */
+/**
+ * Everything a handler's `apply()` gets beyond the payload — the full
+ * storage surface and the messenger, so a handler can do more than a single
+ * table write (e.g. /undo's handler also edits the original Confirm/Fix
+ * prompt on the row it just removed). Deliberately NOT the narrower
+ * `PendingActionStore` above: that one is scoped to this file's own
+ * plumbing, this one is scoped to what a real handler needs to do its job.
+ */
+export interface PendingActionContext {
+  store: IntakeStore
+  messenger: Messenger
+}
+
+/** One `kind`'s actual write, run only after a tap has already been claimed. Returns the household-facing confirmation text — never a generic default, so each kind states plainly what just happened. */
 export interface PendingActionHandler {
-  apply(payload: unknown): Promise<void>
+  apply(payload: unknown, ctx: PendingActionContext): Promise<string>
 }
 
 export type PendingActionHandlers = Record<string, PendingActionHandler>
@@ -44,14 +57,15 @@ export async function proposeAction(
   requestedBy: number,
   summary: string,
   store: PendingActionStore,
-  messenger: Messenger
+  messenger: Messenger,
+  buttonLabels: { apply?: string; cancel?: string } = {}
 ): Promise<PendingAction> {
   const pending = await store.createPendingAction(kind, payload, chatId, requestedBy)
   const sent = await messenger.sendMessage(chatId, summary, {
     inlineKeyboard: [
       [
-        { text: '✅ Apply', callback_data: `apply:${pending.id}` },
-        { text: '✖️ Cancel', callback_data: `cancel:${pending.id}` },
+        { text: buttonLabels.apply ?? '✅ Apply', callback_data: `apply:${pending.id}` },
+        { text: buttonLabels.cancel ?? '✖️ Cancel', callback_data: `cancel:${pending.id}` },
       ],
     ],
   })
@@ -60,7 +74,7 @@ export async function proposeAction(
 }
 
 export type PendingActionOutcome =
-  | { status: 'applied' }
+  | { status: 'applied'; message: string }
   | { status: 'cancelled' }
   | { status: 'not_found' }
   | { status: 'already_resolved' }
@@ -83,6 +97,7 @@ export async function handlePendingActionCallback(
   allowedTelegramIds: ReadonlySet<number>,
   store: PendingActionStore,
   handlers: PendingActionHandlers,
+  ctx: PendingActionContext,
   now: () => Date = () => new Date()
 ): Promise<PendingActionOutcome> {
   const pending = await store.getPendingAction(pendingId)
@@ -116,6 +131,6 @@ export async function handlePendingActionCallback(
     // no-op the household mistakes for success.
     throw new Error(`no pending-action handler registered for kind "${pending.kind}"`)
   }
-  await handler.apply(claimed.payload)
-  return { status: 'applied' }
+  const message = await handler.apply(claimed.payload, ctx)
+  return { status: 'applied', message }
 }
