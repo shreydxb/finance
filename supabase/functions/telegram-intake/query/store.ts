@@ -7,7 +7,7 @@
 // Plain fetch, same as `_shared/store.ts`, so this runs under Deno and under
 // `node --test` without a URL-import shim.
 
-import type { CategoryBudgetRow, NetWorthRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, GoalContribution, GoalRecord, NetWorthRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -53,6 +53,36 @@ function fromNwDailyRow(row: NwDailyRow): NetWorthRow {
     liabilitiesAed: Number(row.liabilities_aed),
     byOwner: row.by_owner ?? {},
   }
+}
+
+interface GoalAccountEmbed {
+  value: string
+  currency: string
+  type: string
+  interest_rate: string | null
+}
+
+interface GoalRow {
+  id: string
+  name: string
+  icon: string | null
+  kind: 'save_up' | 'pay_down'
+  target_amount: string | null
+  monthly_plan: string | null
+  priority: number | null
+  target_date: string | null
+  starting_balance: string | null
+  accounts: GoalAccountEmbed | null
+}
+
+interface GoalContributionRow {
+  goal_id: string
+  amount: string
+  date: string
+}
+
+interface SettingRow {
+  value: unknown
 }
 
 export class PostgrestQueryStore implements QueryStore {
@@ -201,6 +231,48 @@ export class PostgrestQueryStore implements QueryStore {
       limit: '1',
     })
     return rows[0]?.day ?? null
+  }
+
+  async goalsWithContributions(): Promise<GoalRecord[]> {
+    const [goals, contributions] = await Promise.all([
+      this.fetchJson<GoalRow[]>('goals', {
+        select: 'id,name,icon,kind,target_amount,monthly_plan,priority,target_date,starting_balance,accounts(value,currency,type,interest_rate)',
+        order: 'priority.asc.nullslast',
+      }),
+      this.fetchJson<GoalContributionRow[]>('goal_contributions', { select: 'goal_id,amount,date' }),
+    ])
+    const contributionsByGoal = new Map<string, GoalContribution[]>()
+    for (const c of contributions) {
+      const list = contributionsByGoal.get(c.goal_id) ?? []
+      list.push({ amount: Number(c.amount), date: c.date })
+      contributionsByGoal.set(c.goal_id, list)
+    }
+    return goals.map((g) => ({
+      id: g.id,
+      name: g.name,
+      icon: g.icon,
+      kind: g.kind,
+      targetAmount: g.target_amount === null ? null : Number(g.target_amount),
+      monthlyPlan: g.monthly_plan === null ? null : Number(g.monthly_plan),
+      priority: g.priority,
+      targetDate: g.target_date,
+      startingBalance: g.starting_balance === null ? null : Number(g.starting_balance),
+      linkedAccount: g.accounts
+        ? {
+            value: Number(g.accounts.value),
+            currency: g.accounts.currency,
+            type: g.accounts.type,
+            interestRate: g.accounts.interest_rate === null ? null : Number(g.accounts.interest_rate),
+          }
+        : null,
+      contributions: contributionsByGoal.get(g.id) ?? [],
+    }))
+  }
+
+  async fxRates(): Promise<Record<string, number>> {
+    const rows = await this.fetchJson<SettingRow[]>('settings', { select: 'value', key: 'eq.fx_rates' })
+    const value = rows[0]?.value
+    return value && typeof value === 'object' ? (value as Record<string, number>) : { AED: 1 }
   }
 
   private async fetchJson<T>(table: string, params: Record<string, string>): Promise<T> {

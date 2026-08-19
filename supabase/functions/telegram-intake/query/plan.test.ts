@@ -188,6 +188,18 @@ test('net_worth with a malformed compare refuses the plan, never silently droppi
   assert.equal(plan, null)
 })
 
+test('goal_progress with no goal name is the all-goals plan', async () => {
+  const model = new FakeModel(json({ q: 'goal_progress', goal: null }))
+  const plan = await planQuery('how are the goals doing', CTX, model)
+  assert.deepEqual(plan, { q: 'goal_progress' })
+})
+
+test('goal_progress with a goal name is carried through as free text, not matched at plan time', async () => {
+  const model = new FakeModel(json({ q: 'goal_progress', goal: 'the emergency fund' }))
+  const plan = await planQuery("how's the emergency fund", CTX, model)
+  assert.deepEqual(plan, { q: 'goal_progress', goal: 'the emergency fund' })
+})
+
 test('a non-JSON model response is an honest refusal, not a crash', async () => {
   const model = new FakeModel('Sure! Let me help with that.')
   const plan = await planQuery('anything', CTX, model)

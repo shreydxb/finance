@@ -8,6 +8,8 @@
 // this file only orchestrates.
 
 import { matchAccount, matchAccountTies } from '../accountMatch.ts'
+import { todayInTz } from '../../_shared/dates.ts'
+import { matchGoal, matchGoalTies } from './goals.ts'
 import { resolvePeriod } from './period.ts'
 import type { AccountRef } from '../../_shared/types.ts'
 import type { NetWorthChange, QueryPlan, QueryResult, QueryStore } from './types.ts'
@@ -101,6 +103,20 @@ export async function runQuery(
         byOwner: latest.byOwner,
         ...(change ? { change } : {}),
       }
+    }
+    case 'goal_progress': {
+      const [allGoals, fxRates] = await Promise.all([store.goalsWithContributions(), store.fxRates()])
+      let selected = allGoals
+      if (plan.goal) {
+        const matched = matchGoal(plan.goal, allGoals)
+        if (!matched) {
+          const tied = matchGoalTies(plan.goal, allGoals)
+          const candidates = tied.length > 0 ? tied.map((g) => g.name) : allGoals.map((g) => g.name)
+          return { q: 'goal_progress', status: 'needs_clarification', candidates }
+        }
+        selected = [matched]
+      }
+      return { q: 'goal_progress', status: 'ok', goals: selected, fxRates, todayIso: todayInTz(now()) }
     }
   }
 }

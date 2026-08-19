@@ -120,3 +120,12 @@ test('net_worth: dispatches to query/networth.ts (see networth.test.ts for the f
   }
   assert.match(formatQueryReply(result), /Net worth: 335,533 AED/)
 })
+
+test('goal_progress: dispatches to query/goals.ts (see goals.test.ts for the formatting itself)', () => {
+  const result: QueryResult = {
+    q: 'goal_progress',
+    status: 'needs_clarification',
+    candidates: ['Emergency Fund', 'Car Loan'],
+  }
+  assert.match(formatQueryReply(result), /Which goal did you mean/)
+})

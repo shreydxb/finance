@@ -49,6 +49,7 @@ export type QueryPlan =
   | { q: 'recent_transactions'; limit: number; owner?: string }
   | { q: 'budget_status'; category?: string; period: Period }
   | { q: 'net_worth'; owner?: string; compare?: Period }
+  | { q: 'goal_progress'; goal?: string }
 
 /** A resolved period, ready to hand to a parameterised query. */
 export interface ResolvedPeriod {
@@ -168,6 +169,56 @@ export interface NetWorthResult {
   change?: NetWorthChange
 }
 
+/** save_up: saving toward a target. pay_down: working down a linked liability. */
+export type GoalKind = 'save_up' | 'pay_down'
+
+export interface GoalContribution {
+  amount: number
+  date: string
+}
+
+/**
+ * The linked account's raw fields, in its own currency — conversion to AED
+ * happens at format time (query/goals.ts), the same "convert only at
+ * display time" rule `src/lib/money.js` documents for the app itself.
+ */
+export interface LinkedGoalAccount {
+  value: number
+  currency: string
+  type: string
+  interestRate: number | null
+}
+
+/**
+ * One `goals` row plus everything its progress math needs. Every formula
+ * that reads this is ported from `src/screens/Goals.jsx` and
+ * `src/screens/Debts.jsx`, not reinvented — see the Taskiv #56 task's own
+ * warning that a bot reporting different progress than those screens is
+ * worse than no bot.
+ */
+export interface GoalRecord {
+  id: string
+  name: string
+  icon: string | null
+  kind: GoalKind
+  targetAmount: number | null
+  monthlyPlan: number | null
+  priority: number | null
+  targetDate: string | null
+  /** AED, per the schema — never itself in a foreign currency (unlike a linked account's own `value`). */
+  startingBalance: number | null
+  linkedAccount: LinkedGoalAccount | null
+  contributions: GoalContribution[]
+}
+
+/**
+ * Both non-`ok` cases mirror `account_spend`'s pattern: a tied or
+ * unmatched free-text guess becomes a clarifying question, never a guess.
+ */
+export type GoalProgressResult =
+  | { status: 'ok'; goals: GoalRecord[]; fxRates: Record<string, number>; todayIso: string }
+  | { status: 'needs_clarification'; candidates: string[] }
+
 export type QueryResult =
   | ({ q: 'category_spend'; category: string; owner?: string } & SpendResult)
   | ({ q: 'total_spend'; owner?: string } & TotalSpendResult)
@@ -176,6 +227,7 @@ export type QueryResult =
   | { q: 'recent_transactions'; rows: RecentTransaction[]; owner?: string }
   | ({ q: 'budget_status'; category?: string } & BudgetStatusResult)
   | ({ q: 'net_worth'; owner?: string } & NetWorthResult)
+  | ({ q: 'goal_progress' } & GoalProgressResult)
 
 /**
  * Parameterised, hand-written query methods — no string-built SQL anywhere.
@@ -196,4 +248,8 @@ export interface QueryStore {
   netWorthOnOrBefore(day: string): Promise<NetWorthRow | null>
   /** The earliest day `nw_daily` has any row for, or null when the table is empty. */
   netWorthEarliestDay(): Promise<string | null>
+  /** Every goal, its linked account (if any) and every contribution — small tables, fetched whole. */
+  goalsWithContributions(): Promise<GoalRecord[]>
+  /** `settings.fx_rates` — "1 unit of X is worth N AED", AED always 1. */
+  fxRates(): Promise<Record<string, number>>
 }

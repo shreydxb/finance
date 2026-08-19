@@ -4,7 +4,7 @@ import test from 'node:test'
 import { resolvePeriod } from './period.ts'
 import { runQuery } from './run.ts'
 import type { AccountRef } from '../../_shared/types.ts'
-import type { CategoryBudgetRow, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, GoalRecord, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 const FX_RATES: Record<string, number> = { AED: 1, USD: 3.6725, INR: 0.044 }
 const SAVINGS_CATEGORY = 'Savings & Investments'
@@ -119,6 +119,18 @@ class FakeQueryStore implements QueryStore {
   netWorthEarliestDay(): Promise<string | null> {
     const sorted = [...this.nwDaily].sort((a, b) => (a.day < b.day ? -1 : 1))
     return Promise.resolve(sorted[0]?.day ?? null)
+  }
+
+  goals: GoalRecord[] = []
+
+  goalsWithContributions(): Promise<GoalRecord[]> {
+    return Promise.resolve(this.goals)
+  }
+
+  fxRatesValue: Record<string, number> = { AED: 1 }
+
+  fxRates(): Promise<Record<string, number>> {
+    return Promise.resolve(this.fxRatesValue)
   }
 }
 
@@ -395,4 +407,71 @@ test('net_worth: no snapshot ever recorded is an honest empty answer, not a thro
 
   assert.equal(result.q === 'net_worth' ? result.asOf : null, '')
   assert.equal(result.q === 'net_worth' ? result.totalAed : null, 0)
+})
+
+const EMERGENCY_FUND: GoalRecord = {
+  id: 'goal-ef',
+  name: 'Emergency Fund',
+  icon: '🛟',
+  kind: 'save_up',
+  targetAmount: 70000,
+  monthlyPlan: 5700,
+  priority: 1,
+  targetDate: null,
+  startingBalance: null,
+  linkedAccount: null,
+  contributions: [],
+}
+
+const CAR_LOAN: GoalRecord = {
+  id: 'goal-car',
+  name: 'Car Loan',
+  icon: '🚗',
+  kind: 'pay_down',
+  targetAmount: 0,
+  monthlyPlan: 2194,
+  priority: 4,
+  targetDate: '2030-07-03',
+  startingBalance: 114474,
+  linkedAccount: { value: 92633.66, currency: 'AED', type: 'loan', interestRate: null },
+  contributions: [],
+}
+
+test('goal_progress: no goal name dispatches to store.goalsWithContributions for all goals', async () => {
+  const store = new FakeQueryStore([])
+  store.goals = [EMERGENCY_FUND, CAR_LOAN]
+
+  const result = await runQuery({ q: 'goal_progress' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'goal_progress' && result.status, 'ok')
+  if (result.q === 'goal_progress' && result.status === 'ok') {
+    assert.equal(result.goals.length, 2)
+    assert.deepEqual(result.fxRates, { AED: 1 })
+  }
+})
+
+test('goal_progress: a matched goal name resolves to that single goal', async () => {
+  const store = new FakeQueryStore([])
+  store.goals = [EMERGENCY_FUND, CAR_LOAN]
+
+  const result = await runQuery({ q: 'goal_progress', goal: 'emergency fund' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'goal_progress' && result.status, 'ok')
+  if (result.q === 'goal_progress' && result.status === 'ok') {
+    assert.equal(result.goals.length, 1)
+    assert.equal(result.goals[0].id, 'goal-ef')
+  }
+})
+
+test('goal_progress: an unmatched goal name asks a clarifying question naming the real goals, never a guess', async () => {
+  const store = new FakeQueryStore([])
+  store.goals = [EMERGENCY_FUND, CAR_LOAN]
+
+  const result = await runQuery({ q: 'goal_progress', goal: 'vacation fund' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'goal_progress' ? result.status : null, 'needs_clarification')
+  assert.deepEqual(result.q === 'goal_progress' && result.status === 'needs_clarification' ? result.candidates.sort() : null, [
+    'Car Loan',
+    'Emergency Fund',
+  ])
 })
