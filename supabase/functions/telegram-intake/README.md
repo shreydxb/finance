@@ -140,6 +140,15 @@ there'd be no way to discover the ids. It only ever reveals the caller's own id.
 - **Voice note** — "spent eighty four dirhams at Karak House on the Wio card".
 - **Typed** — "84 lunch noon".
 - `/help` — what the bot accepts.
+- `/undo` — soft-deletes the most recent spend *this bot* logged in *this
+  chat*, after a Remove/Keep confirm tap (propose-then-tap, Taskiv #60/#61).
+  Never touches a manually-entered row or a row from another chat. Repeated
+  `/undo` walks backwards one row at a time.
+- `/review` — walk the `needs_review` queue one row at a time: Confirm, Fix,
+  Skip or Remove each one, and the next flagged row is presented
+  automatically until the queue is empty. No stored cursor — see Taskiv #62
+  and the `findNextNeedsReview` comment in `_shared/types.ts` for why that's
+  safe with two people reviewing at once.
 
 High confidence gets a one-line FYI:
 

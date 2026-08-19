@@ -186,6 +186,30 @@ export class PostgrestStore implements IntakeStore {
     return rows[0] ?? null
   }
 
+  async findNextNeedsReview(afterCreatedAt: string | null): Promise<TransactionRow | null> {
+    const cursor = afterCreatedAt ? `&created_at=gt.${encodeURIComponent(afterCreatedAt)}` : ''
+    const rows = await this.request<TransactionRow[]>(
+      `/transactions?needs_review=eq.true&deleted_at=is.null${cursor}&order=created_at.asc&limit=1`
+    )
+    return rows[0] ?? null
+  }
+
+  async countNeedsReview(): Promise<number> {
+    const res = await this.fetchImpl(`${this.baseUrl}/transactions?needs_review=eq.true&deleted_at=is.null&select=id`, {
+      method: 'GET',
+      headers: {
+        apikey: this.serviceKey,
+        authorization: `Bearer ${this.serviceKey}`,
+        prefer: 'count=exact',
+        range: '0-0',
+      },
+    })
+    if (!res.ok) throw new Error(`Supabase count transactions failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
+    const contentRange = res.headers.get('content-range') // e.g. "0-0/7"
+    const total = contentRange?.split('/')[1]
+    return total ? Number(total) : 0
+  }
+
   /** Both sides of a transfer in one transaction, keyed against redelivery. */
   async createTransfer(args: TransferArgs): Promise<TransactionRow[]> {
     return this.rpc<TransactionRow[]>('create_transfer', {

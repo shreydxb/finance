@@ -19,7 +19,7 @@ import { promptContextFrom } from './prompt.ts'
 import type { PromptContext } from './prompt.ts'
 import { extractTransfer, looksLikeTransfer } from './transfer.ts'
 import type { TransferExtraction } from './transfer.ts'
-import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
+import { confirmFixKeyboard, largestPhoto, parseCallbackData, reviewKeyboard, toBase64 } from '../_shared/telegram.ts'
 import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
 import { routeMessage } from './route.ts'
 import { handlePendingActionCallback, proposeAction } from './actions/pending.ts'
@@ -85,8 +85,8 @@ const ALBUM_DEBOUNCE_MS = 1200
 // Taskiv #53: keep this an honest catalogue of what's actually deployed, not
 // an aspirational one — a /help promising features that don't exist yet is
 // worse than a short one. Add a line here in the SAME sprint each feature
-// ships (Sprint 3 adds /undo and /review; Sprint 4 adds "action" — money
-// moves, balance updates, standing rules), never before.
+// ships (Sprint 4 adds "action" — money moves, balance updates, standing
+// rules), never before.
 const HELP_TEXT = [
   '📸 Log a spend',
   '  • a photo of the receipt',
@@ -107,6 +107,7 @@ const HELP_TEXT = [
   '⚙️ Commands',
   '  /help — this message',
   '  /undo — remove the last thing I logged in this chat (asks first)',
+  '  /review — walk flagged spends one at a time',
   '',
   "If I'm not sure, I'll show you what I got with Confirm / Fix buttons.",
   'Anything unconfirmed shows up as “Needs review” in the app.',
@@ -162,6 +163,11 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
 
   if (text === '/undo') {
     return handleUndo(message, household, deps)
+  }
+
+  if (text === '/review') {
+    const transactionId = await presentReview(message.chat.id, deps)
+    return { status: 'review_presented', transactionId }
   }
 
   const ctx = promptContextFrom(household, today(deps), deps.defaultCurrency)
@@ -1127,6 +1133,15 @@ async function applyCorrection(
   return { status: 'corrected', transactionId: updated.id, needsReview: resolved.needsReview }
 }
 
+/**
+ * /review's four buttons carry an `r` prefix (rconfirm/rfix/rskip/rdelete —
+ * see reviewKeyboard) so handleCallback can route confirm/fix/delete through
+ * the exact same branches below as the original inline prompt (Taskiv #62:
+ * "reuse the EXISTING handlers verbatim") while still knowing, via
+ * isReviewAction, to present the next queued row afterward.
+ */
+const REVIEW_ACTIONS: Record<string, string> = { rconfirm: 'confirm', rfix: 'fix', rskip: 'skip', rdelete: 'delete' }
+
 async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): Promise<IntakeOutcome> {
   const parsed = parseCallbackData(query.data)
   const chatId = query.message?.chat.id
@@ -1134,6 +1149,8 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     await deps.messenger.answerCallbackQuery(query.id)
     return { status: 'ignored', reason: 'callback without usable data' }
   }
+  const isReviewAction = parsed.action in REVIEW_ACTIONS
+  const action = isReviewAction ? REVIEW_ACTIONS[parsed.action] : parsed.action
 
   const household = await deps.store.loadHouseholdContext()
   if (!household.people.has(query.from.id)) {
@@ -1151,12 +1168,12 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     messenger: new GuardedMessenger(deps.messenger, allowedChatIds(new Set(household.people.keys()), household.chatId), deps.log),
   }
 
-  if (parsed.action === 'cashback_apply' || parsed.action === 'cashback_cancel') {
-    return handleCashbackCallback(parsed.action, parsed.transactionId, chatId, query, deps)
+  if (action === 'cashback_apply' || action === 'cashback_cancel') {
+    return handleCashbackCallback(action, parsed.transactionId, chatId, query, deps)
   }
 
-  if (parsed.action === 'apply' || parsed.action === 'cancel') {
-    return handlePendingCallback(parsed.action, parsed.transactionId, chatId, query, household, deps)
+  if (action === 'apply' || action === 'cancel') {
+    return handlePendingCallback(action, parsed.transactionId, chatId, query, household, deps)
   }
 
   const row = await deps.store.getTransaction(parsed.transactionId)
@@ -1166,7 +1183,7 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     return { status: 'ignored', reason: `transaction ${parsed.transactionId} not found` }
   }
 
-  if (parsed.action === 'confirm_group') {
+  if (action === 'confirm_group') {
     // Unlike the single-row 'confirm' below (and its transfer-only cascade
     // for a transfer pair, where both rows always share one amount), a bulk
     // group's rows can have independently zero amounts — so each sibling is
@@ -1198,7 +1215,7 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     return { status: 'confirmed', transactionId: row.id }
   }
 
-  if (parsed.action === 'confirm') {
+  if (action === 'confirm') {
     if (!Number(row.amount)) {
       // Confirming a row we never managed to read an amount for would bless a
       // zero into the budget. Ask for the number instead — except a transfer,
@@ -1249,10 +1266,11 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
       )
     }
     await logCallback(deps, query, chatId, 'confirm', { success: true, transactionId: row.id })
+    if (isReviewAction) await advanceReview(chatId, row, deps)
     return { status: 'confirmed', transactionId: row.id }
   }
 
-  if (parsed.action === 'fix') {
+  if (action === 'fix') {
     await deps.messenger.answerCallbackQuery(query.id)
     const prompt = await deps.messenger.sendMessage(
       chatId,
@@ -1265,11 +1283,24 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
     return { status: 'fix_requested', transactionId: row.id }
   }
 
-  if (parsed.action === 'delete') {
+  if (action === 'skip') {
+    // Advances the queue without touching the row — it stays flagged and will
+    // be offered again next time /review reaches the front of the queue.
+    await deps.messenger.answerCallbackQuery(query.id, 'Skipped')
+    if (query.message) {
+      await deps.messenger.editMessageText(chatId, query.message.message_id, `${describeRow(row, household)} — skipped ⏭`)
+    }
+    await logCallback(deps, query, chatId, 'skip', { success: true, transactionId: row.id })
+    if (isReviewAction) await advanceReview(chatId, row, deps)
+    return { status: 'skipped', transactionId: row.id }
+  }
+
+  if (action === 'delete') {
     // Tapping twice (or a stale button after a rebuild) is a no-op, not an error.
     if (row.deleted_at) {
       await deps.messenger.answerCallbackQuery(query.id, 'Already deleted')
       await logCallback(deps, query, chatId, 'delete_noop', { success: true, transactionId: row.id })
+      if (isReviewAction) await advanceReview(chatId, row, deps)
       return { status: 'deleted', transactionId: row.id }
     }
     await deps.store.updateTransaction(row.id, { deleted_at: new Date().toISOString() })
@@ -1279,6 +1310,7 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
       await deps.messenger.editMessageText(chatId, query.message.message_id, `${describeRow(row, household)} — deleted 🗑`)
     }
     await logCallback(deps, query, chatId, 'delete', { success: true, transactionId: row.id })
+    if (isReviewAction) await advanceReview(chatId, row, deps)
     return { status: 'deleted', transactionId: row.id }
   }
 
@@ -1419,6 +1451,55 @@ export function describe(extraction: Extraction, resolved: Resolved): string {
     resolved.accountName ?? 'account unknown',
   ]
   return parts.filter(Boolean).join(' · ')
+}
+
+/**
+ * `/review` itself — distinct empty-queue wording from advanceReview below,
+ * since "nothing was ever flagged" and "you just cleared the last one" are
+ * different states worth saying differently.
+ */
+async function presentReview(chatId: number, deps: IntakeDeps): Promise<string | null> {
+  const next = await deps.store.findNextNeedsReview(null)
+  if (!next) {
+    await deps.messenger.sendMessage(chatId, 'Nothing flagged. All clean.')
+    return null
+  }
+  return sendReviewCard(chatId, next, deps)
+}
+
+/**
+ * Called after a review-originated Confirm/Skip/Remove resolves `row`.
+ * Queries for the oldest flagged row created after `row` rather than
+ * tracking a cursor — see Taskiv #62. This is what makes Skip work without
+ * remembering anything: it just asks "what's flagged after this one", so a
+ * skipped row is passed over now and re-offered on the next fresh /review.
+ * It's also why two people reviewing at once, or a row resolved elsewhere
+ * mid-review, can never desync — a row already resolved is simply not
+ * offered again.
+ */
+async function advanceReview(chatId: number, row: TransactionRow, deps: IntakeDeps): Promise<string | null> {
+  const next = await deps.store.findNextNeedsReview(row.created_at)
+  if (!next) {
+    await deps.messenger.sendMessage(chatId, 'All clear — nothing else flagged. ✓')
+    return null
+  }
+  return sendReviewCard(chatId, next, deps)
+}
+
+async function sendReviewCard(chatId: number, row: TransactionRow, deps: IntakeDeps): Promise<string> {
+  const [household, total] = await Promise.all([deps.store.loadHouseholdContext(), deps.store.countNeedsReview()])
+  const gaps: string[] = []
+  if (!Number(row.amount)) gaps.push('the amount')
+  if (!row.category) gaps.push('the category')
+  if (!row.account_id) gaps.push('which account')
+  const lines = [
+    `1 of ${total}`,
+    describeRow(row, household),
+    formatDate(row.date),
+    ...(gaps.length ? [`Not sure about: ${gaps.join(', ')}.`] : []),
+  ]
+  await deps.messenger.sendMessage(chatId, lines.join('\n'), { inlineKeyboard: reviewKeyboard(row.id) })
+  return row.id
 }
 
 function describeRow(row: TransactionRow, household: HouseholdContext): string {

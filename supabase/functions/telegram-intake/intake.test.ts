@@ -18,6 +18,7 @@ import {
 } from './fixtures/updates.ts'
 import { errorHint, handleUpdate, matchAccount, matchAccountTies } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
+import type { TransactionRow } from '../_shared/types.ts'
 
 function json(fields: Record<string, unknown>): string {
   return JSON.stringify({
@@ -1369,4 +1370,126 @@ test('a reply-correction is resolved before the router ever runs, even if it rea
 
   assert.equal(h.classifierModel.calls.length, classifierCallsBefore, 'a threaded reply is a correction, never routed as a question')
   assert.equal(h.store.only().id, id, 'still the same row, updated in place')
+})
+
+// ── /review (Taskiv #62) ────────────────────────────────────────────────────
+
+function flagged(h: Harness, patch: Partial<TransactionRow> = {}) {
+  return h.store.insertTransaction({
+    date: TODAY,
+    amount: 48,
+    currency: 'AED',
+    category: 'Dining Out',
+    account_id: ACCOUNTS[1].id,
+    note: 'Karak stop',
+    needs_review: true,
+    ...patch,
+  })
+}
+
+test('/review with an empty queue says so and offers no buttons', async () => {
+  const h = harness()
+  const outcome = await handleUpdate(textUpdate('/review'), h.deps)
+
+  assert.deepEqual(outcome, { status: 'review_presented', transactionId: null })
+  assert.equal(h.messenger.last().text, 'Nothing flagged. All clean.')
+  assert.equal(h.messenger.last().opts?.inlineKeyboard, undefined)
+})
+
+test('/review presents the oldest flagged row with all four buttons', async () => {
+  const h = harness()
+  const first = await flagged(h)
+  await flagged(h, { note: 'Second one', amount: 12 })
+
+  const outcome = await handleUpdate(textUpdate('/review'), h.deps)
+
+  assert.deepEqual(outcome, { status: 'review_presented', transactionId: first.id })
+  const sent = h.messenger.last()
+  assert.match(sent.text ?? '', /^1 of 2\n/)
+  assert.match(sent.text ?? '', /Karak stop/)
+  assert.deepEqual(sent.opts?.inlineKeyboard, [
+    [
+      { text: '✅ Confirm', callback_data: `rconfirm:${first.id}` },
+      { text: '✏️ Fix', callback_data: `rfix:${first.id}` },
+    ],
+    [
+      { text: '⏭ Skip', callback_data: `rskip:${first.id}` },
+      { text: '🗑 Remove', callback_data: `rdelete:${first.id}` },
+    ],
+  ])
+})
+
+test('/review walks a three-row queue via Confirm, Skip and Remove, then reports all clear', async () => {
+  const h = harness()
+  const a = await flagged(h, { note: 'A' })
+  const b = await flagged(h, { note: 'B' })
+  const c = await flagged(h, { note: 'C' })
+
+  await handleUpdate(textUpdate('/review'), h.deps)
+  assert.equal(h.messenger.last().opts?.inlineKeyboard?.[0]?.[0]?.callback_data, `rconfirm:${a.id}`)
+
+  // Confirm row A — advances straight to B.
+  await handleUpdate(callbackUpdate('rconfirm', a.id), h.deps)
+  assert.equal((await h.store.getTransaction(a.id))?.needs_review, false)
+  assert.equal(h.messenger.last().opts?.inlineKeyboard?.[0]?.[0]?.callback_data, `rconfirm:${b.id}`)
+
+  // Skip row B — untouched, advances to C.
+  await handleUpdate(callbackUpdate('rskip', b.id), h.deps)
+  assert.equal((await h.store.getTransaction(b.id))?.needs_review, true, 'skip does not resolve the row')
+  assert.equal(h.messenger.last().opts?.inlineKeyboard?.[0]?.[0]?.callback_data, `rconfirm:${c.id}`)
+
+  // Remove row C — soft-deleted, queue is now empty.
+  await handleUpdate(callbackUpdate('rdelete', c.id), h.deps)
+  assert.ok((await h.store.getTransaction(c.id))?.deleted_at, 'remove soft-deletes')
+  assert.equal(h.messenger.last().text, 'All clear — nothing else flagged. ✓')
+  assert.equal(h.messenger.last().opts?.inlineKeyboard, undefined)
+
+  // B is still flagged (only skipped) and comes back on a fresh /review.
+  const again = await handleUpdate(textUpdate('/review'), h.deps)
+  assert.deepEqual(again, { status: 'review_presented', transactionId: b.id })
+})
+
+test('Confirm from /review refuses a zero amount exactly like the original inline prompt, and does not advance', async () => {
+  const h = harness()
+  const zero = await flagged(h, { amount: 0 })
+  await flagged(h, { note: 'still waiting' })
+  await handleUpdate(textUpdate('/review'), h.deps) // captures the chat so outbound replies aren't guard-blocked
+
+  const outcome = await handleUpdate(callbackUpdate('rconfirm', zero.id), h.deps)
+
+  assert.deepEqual(outcome, { status: 'fix_requested', transactionId: zero.id })
+  assert.equal((await h.store.getTransaction(zero.id))?.needs_review, true, 'a zero-amount row never goes clean')
+  assert.match(h.messenger.last().text ?? '', /never got an amount/)
+  assert.equal(h.messenger.last().opts?.forceReply, true, 'no next card yet — still waiting on this row')
+})
+
+test('Fix from /review opens the normal correction prompt and does not itself advance the queue', async () => {
+  const h = harness()
+  const row = await flagged(h)
+  await flagged(h, { note: 'next up' })
+  await handleUpdate(textUpdate('/review'), h.deps) // captures the chat so outbound replies aren't guard-blocked
+
+  const outcome = await handleUpdate(callbackUpdate('rfix', row.id), h.deps)
+
+  assert.deepEqual(outcome, { status: 'fix_requested', transactionId: row.id })
+  assert.match(h.messenger.last().text ?? '', /What should it be\?/)
+  assert.equal(h.messenger.last().opts?.forceReply, true)
+})
+
+test('two concurrent /review sessions cannot double-resolve the same row', async () => {
+  const h = harness()
+  const row = await flagged(h)
+  await handleUpdate(textUpdate('/review'), h.deps) // captures the chat so outbound replies aren't guard-blocked
+
+  // Both partners' clients fetched the same card before either tapped anything.
+  const [first, second] = await Promise.all([
+    handleUpdate(callbackUpdate('rconfirm', row.id), h.deps),
+    handleUpdate(callbackUpdate('rconfirm', row.id), h.deps),
+  ])
+
+  assert.equal(first.status, 'confirmed')
+  assert.equal(second.status, 'confirmed', 'a second confirm on an already-clean row is a harmless no-op, not a double-resolve')
+  assert.equal((await h.store.getTransaction(row.id))?.needs_review, false)
+  // Nothing else was ever flagged, so both sessions land on the empty queue.
+  assert.equal(h.messenger.sent.filter((s) => s.text === 'All clear — nothing else flagged. ✓').length, 2)
 })

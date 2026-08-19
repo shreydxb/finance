@@ -114,6 +114,25 @@ export function confirmFixKeyboard(transactionId: string): InlineKeyboardButton[
   ]
 }
 
+/**
+ * /review's card (Taskiv #62). Confirm/Fix/Delete carry the `r` prefix so
+ * handleCallback can route them through the exact same confirm/fix/delete
+ * logic as the original inline prompt while still knowing to auto-advance
+ * the queue afterward — see intake.ts's REVIEW_ACTIONS.
+ */
+export function reviewKeyboard(transactionId: string): InlineKeyboardButton[][] {
+  return [
+    [
+      { text: '✅ Confirm', callback_data: `rconfirm:${transactionId}` },
+      { text: '✏️ Fix', callback_data: `rfix:${transactionId}` },
+    ],
+    [
+      { text: '⏭ Skip', callback_data: `rskip:${transactionId}` },
+      { text: '🗑 Remove', callback_data: `rdelete:${transactionId}` },
+    ],
+  ]
+}
+
 export function parseCallbackData(data: string | undefined): { action: string; transactionId: string } | null {
   if (!data) return null
   const separator = data.indexOf(':')

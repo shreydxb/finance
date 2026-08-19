@@ -4,7 +4,7 @@ Private household finance app for a couple in Dubai. See `PLAN.md` for the
 product plan, data model and decisions log. This file is for the operational
 things that are easy to get wrong.
 
-## Handover — 19 Aug 2026
+## Handover — 19 Aug 2026 (updated, reconciliation session)
 
 Picking this up in a fresh chat? Read this section first, then the rest of
 the file for detail.
@@ -13,7 +13,26 @@ the file for detail.
 commits pushed to `origin`. `main` has **not** been touched this session —
 nothing here is deployed to production yet except what's noted below.
 
-**What shipped this session (#54–#61), all built, tested, committed, pushed,
+**Branch reconciliation, same day, later session:** a second, parallel
+session had independently built `/review` (#62) and its own `/undo` (#61) on
+a sibling branch (`claude/money-v4-open-items-5njpob`) without knowing this
+branch existed — discovered only when asked to deploy. This branch's #61
+(built on the #60 propose-then-tap plumbing, matching the original task
+spec) was kept as canonical; the sibling branch's standalone #61 was
+discarded. Its #62 (`/review`) was ported onto this branch's `intake.ts`
+using the identical `REVIEW_ACTIONS` prefix-routing pattern already
+established here for confirm/fix/delete reuse: `rconfirm`/`rfix`/`rskip`/
+`rdelete` callback actions route through the exact same branches as the
+original inline Confirm/Fix/Delete prompt, plus a new `skip` branch and
+`presentReview`/`advanceReview`/`sendReviewCard` helpers. Queue position is
+stateless — `IntakeStore.findNextNeedsReview(afterCreatedAt)` and
+`countNeedsReview()`, using a `created_at` field newly added to
+`TransactionRow` — so Skip, concurrent reviewers, and a row resolved
+elsewhere mid-review all just work without a stored cursor. Sibling branch
+`5njpob` is now superseded for `/review`/`/undo` and should not be merged;
+its other content (if any is later needed) would need re-review first.
+
+**What shipped this session (#54–#62), all built, tested, committed, pushed,
 sitting in Taskiv state **Review** (not Done — see the deferred-verification
 rule below):**
 - #54 `budget_status`, #55 `net_worth`, #56 goal/debt progress, #57 upcoming
@@ -27,13 +46,20 @@ rule below):**
   transaction in the chat (`deleted_at`, never a hard DELETE), edits away any
   open Confirm/Fix keyboard on that row. Wired into `intake.ts` and
   `index.ts`.
-- Test suite is at **564 `npm test`** cases, lint and build clean.
-  `npm run test:db` cannot run in this sandbox (no local Postgres) — schema
-  changes were instead verified applied live via Supabase `execute_sql`.
+- #62 `/review`: walks the `needs_review` queue one row at a time via
+  Confirm/Fix/Skip/Remove, reusing the existing confirm/fix/delete callback
+  logic verbatim. See the reconciliation note above for how it landed here.
+- Test suite is at **570 `npm test`** cases (564 + 6 new `/review` cases),
+  lint and build clean. `npm run test:db` cannot run in this sandbox (no
+  local Postgres) — schema changes were instead verified applied live via
+  Supabase `execute_sql`.
 
-**Deploy status: none of #54–#61 is live in `telegram-intake` yet.**
-Production is still whatever `main`/the last dashboard paste had (through the
-v40 deploy, which hit the `SERVICE_ROLE_KEY` staleness issue below). Deploy
+**Deploy status: none of #54–#62 is live in `telegram-intake` yet — a deploy
+package for all of it (33 files, the full transitive closure from
+`index.ts`) was assembled and handed to Shrey this session as a zip
+(`telegram-intake-deploy-v41.zip`) for dashboard browser-paste.** Production
+is still whatever `main`/the last dashboard paste had (through the v40
+deploy, which hit the `SERVICE_ROLE_KEY` staleness issue below). Deploy
 method by explicit standing instruction: **dashboard browser-paste, not
 MCP or CLI** — give Shrey the file contents and path, he pastes, then verify
 via `mcp__Supabase__get_edge_function`. Remember the `../_shared/` naming
@@ -64,14 +90,16 @@ moved straight to Done, no code changes. The rest of the open backlog —
 confirmed genuinely open, each for a documented reason (blocked on Shrey, or
 verifiably unbuilt).
 
-**Logical next steps, in the order the backlog suggests, none started yet:**
-#62 (`/review`), then #63–67 (goal contribution, balance update, income log,
-category rule handlers) — these all build on the now-proven #60
+**Logical next steps, in the order the backlog suggests:** #62 is now done
+(see above) — next up is #63–67 (goal contribution, balance update, income
+log, category rule handlers), which all build on the now-proven #60
 propose-then-tap pattern, so they should be straightforward extensions.
 After that, #24 and #68–79 (push infrastructure). #21, #23 and #102 stay
 blocked on Shrey (FIRE expense figure, leaked-password-protection dashboard
 toggle, backup passphrase/chat-id secrets) — don't attempt those without him
-providing the missing input first.
+providing the missing input first. Also filed this session (separate track,
+not bot-related): **#103**, a Monarch-style "this period vs. comparison
+period" spending chart for Reports — not started.
 
 ## Deploys cost real money — batch them
 

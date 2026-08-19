@@ -157,6 +157,8 @@ export interface TransactionRow {
   transfer_direction: 'out' | 'in' | null
   /** BOT-01: stable key making a redelivered Telegram update a no-op. */
   idempotency_key: string | null
+  /** Set by Postgres on insert. Used by /review (Taskiv #62) as a cursor-free "what's next" marker. */
+  created_at: string
 }
 
 /** A prior row that looks like the same spend re-sent — see findPossibleDuplicate. */
@@ -232,6 +234,16 @@ export interface IntakeStore {
   findTransactionByMessage(chatId: number, messageId: number): Promise<TransactionRow | null>
   /** Taskiv #61: the most recent non-deleted row this bot logged (source='telegram') in this chat — /undo's scope, never a manually-entered row. */
   findLastBotTransaction(chatId: number): Promise<TransactionRow | null>
+  /**
+   * The oldest still-flagged row created after `afterCreatedAt` (pass null for
+   * the very first card). /review's only state: no cursor is stored anywhere,
+   * so two people reviewing at once — or a row resolved elsewhere mid-review
+   * — can never desync, and Skip advances past a row without needing to
+   * remember it was skipped.
+   */
+  findNextNeedsReview(afterCreatedAt: string | null): Promise<TransactionRow | null>
+  /** How many rows are still flagged — /review's "1 of N" position line. */
+  countNeedsReview(): Promise<number>
   getSetting(key: string): Promise<unknown | null>
   /** Upsert. Used sparingly — e.g. capturing tg_chat_id once, not per-message config. */
   putSetting(key: string, value: unknown): Promise<void>
@@ -345,6 +357,8 @@ export type IntakeOutcome =
   | { status: 'fix_requested'; transactionId: string }
   | { status: 'corrected'; transactionId: string; needsReview: boolean }
   | { status: 'deleted'; transactionId: string }
+  | { status: 'skipped'; transactionId: string }
+  | { status: 'review_presented'; transactionId: string | null }
   | { status: 'cashback_proposed'; pendingId: string }
   | { status: 'cashback_applied'; pendingId: string }
   | { status: 'cashback_cancelled'; pendingId: string }

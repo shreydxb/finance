@@ -106,6 +106,10 @@ export class FakeStore implements IntakeStore {
       transaction_group_id: row.transaction_group_id ?? null,
       group_kind: row.group_kind ?? null,
       transfer_direction: row.transfer_direction ?? null,
+      // A monotonic stand-in for Postgres's real `now()` default — insertion
+      // order is all /review's cursor-free "what's next" logic needs, and a
+      // real timestamp would tie within the same test tick.
+      created_at: row.created_at ?? String(this.sequence).padStart(8, '0'),
     }
     this.rows.set(id, stored)
     return Promise.resolve(stored)
@@ -157,6 +161,20 @@ export class FakeStore implements IntakeStore {
     // Most recently inserted wins, same convention as findPossibleDuplicate below.
     const latest = matches.reduce((best, row) => (rowSequence(row.id) > rowSequence(best.id) ? row : best))
     return Promise.resolve(latest)
+  }
+
+  /** Oldest by insertion order, mirroring `order by created_at asc` on the real store. */
+  findNextNeedsReview(afterCreatedAt: string | null): Promise<TransactionRow | null> {
+    const flagged = Array.from(this.rows.values()).filter(
+      (row) => row.needs_review && !row.deleted_at && (afterCreatedAt === null || row.created_at > afterCreatedAt)
+    )
+    if (flagged.length === 0) return Promise.resolve(null)
+    const oldest = flagged.reduce((best, row) => (row.created_at < best.created_at ? row : best))
+    return Promise.resolve(oldest)
+  }
+
+  countNeedsReview(): Promise<number> {
+    return Promise.resolve(Array.from(this.rows.values()).filter((row) => row.needs_review && !row.deleted_at).length)
   }
 
   getSetting(key: string): Promise<unknown | null> {
