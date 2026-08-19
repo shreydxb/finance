@@ -4,6 +4,75 @@ Private household finance app for a couple in Dubai. See `PLAN.md` for the
 product plan, data model and decisions log. This file is for the operational
 things that are easy to get wrong.
 
+## Handover — 19 Aug 2026
+
+Picking this up in a fresh chat? Read this section first, then the rest of
+the file for detail.
+
+**Branch:** `claude/money-v4-open-items-mdw27c`. Working tree clean, all
+commits pushed to `origin`. `main` has **not** been touched this session —
+nothing here is deployed to production yet except what's noted below.
+
+**What shipped this session (#54–#61), all built, tested, committed, pushed,
+sitting in Taskiv state **Review** (not Done — see the deferred-verification
+rule below):**
+- #54 `budget_status`, #55 `net_worth`, #56 goal/debt progress, #57 upcoming
+  bills, #58 portfolio summary + needs-review count — five new bot query
+  types added to the Sprint 3 query toolbox.
+- #60 generic propose-then-tap plumbing: `037_pending_actions.sql` (applied
+  live to `our-rokda`), `actions/pending.ts` (`PendingActionStore`,
+  `proposeAction`, `handlePendingActionCallback`), `PendingActionHandler.apply(payload, ctx)` returns the confirmation text; `ctx` carries `store`/`messenger` so a
+  handler can do more than a bare write.
+- #61 `/undo`: `actions/undo.ts`, soft-deletes the last bot-logged
+  transaction in the chat (`deleted_at`, never a hard DELETE), edits away any
+  open Confirm/Fix keyboard on that row. Wired into `intake.ts` and
+  `index.ts`.
+- Test suite is at **564 `npm test`** cases, lint and build clean.
+  `npm run test:db` cannot run in this sandbox (no local Postgres) — schema
+  changes were instead verified applied live via Supabase `execute_sql`.
+
+**Deploy status: none of #54–#61 is live in `telegram-intake` yet.**
+Production is still whatever `main`/the last dashboard paste had (through the
+v40 deploy, which hit the `SERVICE_ROLE_KEY` staleness issue below). Deploy
+method by explicit standing instruction: **dashboard browser-paste, not
+MCP or CLI** — give Shrey the file contents and path, he pastes, then verify
+via `mcp__Supabase__get_edge_function`. Remember the `../_shared/` naming
+trap documented further down when constructing any file list.
+
+**Standing constraint — do not violate this without the user saying so
+explicitly:** bot query/action tasks (#54–#61 and everything that follows in
+this vein) stay in Taskiv **Review**, never **Done**, until a live Telegram
+round-trip actually verifies them. This was an explicit user instruction
+("Let's fix telegram related stuff later... it needs review and testing once
+we've completed building everything else that's pending"). Don't attempt
+live verification again until asked — the last attempt surfaced a real
+blocker (below) that needs Shrey, not more code.
+
+**Known blocker, not a code bug:** the most recent live test got no bot
+reply. Diagnosed via `intake_logs`/`edge_logs` as `PGRST303: "JWT issued at
+future"` — the `SERVICE_ROLE_KEY` custom secret in the Supabase dashboard has
+gone stale again (same failure mode as the 16 Aug entry below). Fails inside
+`_shared/store.ts`'s `loadHouseholdContext`, before any router/query code
+runs — not something this session's code changes caused or can fix. **Needs
+Shrey to re-paste a fresh service-role key** from Project Settings → API,
+same fix as before.
+
+**Backlog sweep done this session:** #93 and #94 were found to be stale
+tickets for already-shipped work (Budget sticky panel, Fixed Deposits) and
+moved straight to Done, no code changes. The rest of the open backlog —
+#21, #23, #24, #62–79, #102 — was checked against the live codebase and
+confirmed genuinely open, each for a documented reason (blocked on Shrey, or
+verifiably unbuilt).
+
+**Logical next steps, in the order the backlog suggests, none started yet:**
+#62 (`/review`), then #63–67 (goal contribution, balance update, income log,
+category rule handlers) — these all build on the now-proven #60
+propose-then-tap pattern, so they should be straightforward extensions.
+After that, #24 and #68–79 (push infrastructure). #21, #23 and #102 stay
+blocked on Shrey (FIRE expense figure, leaked-password-protection dashboard
+toggle, backup passphrase/chat-id secrets) — don't attempt those without him
+providing the missing input first.
+
 ## Deploys cost real money — batch them
 
 Netlify is on the **free tier: 300 build minutes/month, resetting on the 20th**.
