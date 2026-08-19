@@ -164,6 +164,30 @@ test('budget_status with an unknown category refuses the plan, never inventing o
   assert.equal(plan, null)
 })
 
+test('net_worth with no owner and no compare is a bare plan', async () => {
+  const model = new FakeModel(json({ q: 'net_worth', owner: null, compare: null }))
+  const plan = await planQuery("what's our net worth", CTX, model)
+  assert.deepEqual(plan, { q: 'net_worth' })
+})
+
+test('net_worth with an owner carries it through', async () => {
+  const model = new FakeModel(json({ q: 'net_worth', owner: 'Tarika', compare: null }))
+  const plan = await planQuery("what's Tarika's net worth", CTX, model)
+  assert.deepEqual(plan, { q: 'net_worth', owner: 'Tarika' })
+})
+
+test('net_worth with a compare period carries it through, structurally validated the same as period', async () => {
+  const model = new FakeModel(json({ q: 'net_worth', compare: { kind: 'this_month' } }))
+  const plan = await planQuery('how has our net worth changed this month', CTX, model)
+  assert.deepEqual(plan, { q: 'net_worth', compare: { kind: 'this_month' } })
+})
+
+test('net_worth with a malformed compare refuses the plan, never silently dropping it', async () => {
+  const model = new FakeModel(json({ q: 'net_worth', compare: { kind: 'explicit', from: 'not a date', to: '2026-08-17' } }))
+  const plan = await planQuery('how has our net worth changed since not a date', CTX, model)
+  assert.equal(plan, null)
+})
+
 test('a non-JSON model response is an honest refusal, not a crash', async () => {
   const model = new FakeModel('Sure! Let me help with that.')
   const plan = await planQuery('anything', CTX, model)

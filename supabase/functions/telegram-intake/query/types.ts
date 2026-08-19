@@ -48,6 +48,7 @@ export type QueryPlan =
   | { q: 'account_spend'; account: string; period: Period }
   | { q: 'recent_transactions'; limit: number; owner?: string }
   | { q: 'budget_status'; category?: string; period: Period }
+  | { q: 'net_worth'; owner?: string; compare?: Period }
 
 /** A resolved period, ready to hand to a parameterised query. */
 export interface ResolvedPeriod {
@@ -131,6 +132,42 @@ export interface BudgetStatusResult {
   isCurrentMonth: boolean
 }
 
+/**
+ * One recorded day of `nw_daily` (src/lib/snapshots.js) — client-recorded,
+ * upserted once per day the app is opened, never backfilled or estimated.
+ * `byOwner` keys are the literal `accounts.owner` strings the app writer
+ * groups by ("Shrey", "Tarika"), not a fixed enum — read from the live row,
+ * never assumed (see the Taskiv #55 task).
+ */
+export interface NetWorthRow {
+  day: string
+  totalAed: number
+  assetsAed: number
+  liabilitiesAed: number
+  byOwner: Record<string, number>
+}
+
+/**
+ * The result of comparing `net_worth`'s latest snapshot against an earlier
+ * one for `compare`. `unavailable` is not an error — it is the honest
+ * response when the earliest recorded day falls *inside* the requested
+ * window, so there is no snapshot from before the period started to compare
+ * against. Never interpolated or estimated (PLAN.md's rule for this table).
+ */
+export type NetWorthChange =
+  | { kind: 'unavailable'; earliestDay: string }
+  | { kind: 'delta'; fromDay: string; fromAed: number; deltaAed: number; deltaPct: number; periodLabel: string }
+
+export interface NetWorthResult {
+  asOf: string
+  totalAed: number
+  assetsAed: number
+  liabilitiesAed: number
+  byOwner: Record<string, number>
+  /** Present only when the plan asked for a `compare` period. */
+  change?: NetWorthChange
+}
+
 export type QueryResult =
   | ({ q: 'category_spend'; category: string; owner?: string } & SpendResult)
   | ({ q: 'total_spend'; owner?: string } & TotalSpendResult)
@@ -138,6 +175,7 @@ export type QueryResult =
   | ({ q: 'account_spend' } & AccountSpendOutcome)
   | { q: 'recent_transactions'; rows: RecentTransaction[]; owner?: string }
   | ({ q: 'budget_status'; category?: string } & BudgetStatusResult)
+  | ({ q: 'net_worth'; owner?: string } & NetWorthResult)
 
 /**
  * Parameterised, hand-written query methods — no string-built SQL anywhere.
@@ -152,4 +190,10 @@ export interface QueryStore {
   recentTransactions(limit: number, owner?: string): Promise<RecentTransaction[]>
   /** Every real (non-Transfer) category, its budget limit if any, and its spend for `period`. */
   budgetStatus(period: ResolvedPeriod): Promise<CategoryBudgetRow[]>
+  /** The most recently recorded `nw_daily` row, or null if none has ever been recorded. */
+  netWorthLatest(): Promise<NetWorthRow | null>
+  /** The most recent `nw_daily` row on or before `day`, or null when no row that old exists. */
+  netWorthOnOrBefore(day: string): Promise<NetWorthRow | null>
+  /** The earliest day `nw_daily` has any row for, or null when the table is empty. */
+  netWorthEarliestDay(): Promise<string | null>
 }

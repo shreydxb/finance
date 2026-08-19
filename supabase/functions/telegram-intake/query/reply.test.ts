@@ -108,3 +108,15 @@ test('budget_status: dispatches to query/budget.ts (full grid and single categor
   const single: QueryResult = { q: 'budget_status', category: 'Groceries', rows, period: PERIOD_1_10_AUG, isCurrentMonth: true }
   assert.match(formatQueryReply(single), /Groceries — 1–10 Aug/)
 })
+
+test('net_worth: dispatches to query/networth.ts (see networth.test.ts for the formatting itself)', () => {
+  const result: QueryResult = {
+    q: 'net_worth',
+    asOf: '2026-08-17',
+    totalAed: 335533,
+    assetsAed: 462058,
+    liabilitiesAed: 126525,
+    byOwner: { Shrey: 290333, Tarika: 45200 },
+  }
+  assert.match(formatQueryReply(result), /Net worth: 335,533 AED/)
+})

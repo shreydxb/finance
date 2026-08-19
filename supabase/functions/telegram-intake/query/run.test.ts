@@ -4,7 +4,7 @@ import test from 'node:test'
 import { resolvePeriod } from './period.ts'
 import { runQuery } from './run.ts'
 import type { AccountRef } from '../../_shared/types.ts'
-import type { CategoryBudgetRow, QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 const FX_RATES: Record<string, number> = { AED: 1, USD: 3.6725, INR: 0.044 }
 const SAVINGS_CATEGORY = 'Savings & Investments'
@@ -102,6 +102,23 @@ class FakeQueryStore implements QueryStore {
 
   budgetStatus(): Promise<CategoryBudgetRow[]> {
     return Promise.resolve(this.budgetRows)
+  }
+
+  nwDaily: NetWorthRow[] = []
+
+  netWorthLatest(): Promise<NetWorthRow | null> {
+    const sorted = [...this.nwDaily].sort((a, b) => (a.day < b.day ? 1 : -1))
+    return Promise.resolve(sorted[0] ?? null)
+  }
+
+  netWorthOnOrBefore(day: string): Promise<NetWorthRow | null> {
+    const eligible = this.nwDaily.filter((r) => r.day <= day).sort((a, b) => (a.day < b.day ? 1 : -1))
+    return Promise.resolve(eligible[0] ?? null)
+  }
+
+  netWorthEarliestDay(): Promise<string | null> {
+    const sorted = [...this.nwDaily].sort((a, b) => (a.day < b.day ? -1 : 1))
+    return Promise.resolve(sorted[0]?.day ?? null)
   }
 }
 
@@ -313,4 +330,69 @@ test('recent_transactions respects an owner filter', async () => {
   const rows = result.q === 'recent_transactions' ? result.rows : []
   assert.equal(rows.length, 1)
   assert.equal(rows[0].owner, 'Tarika')
+})
+
+test('net_worth: no compare dispatches to store.netWorthLatest only', async () => {
+  const store = new FakeQueryStore([])
+  store.nwDaily = [
+    { day: '2026-08-17', totalAed: 335533, assetsAed: 462058, liabilitiesAed: 126525, byOwner: { Shrey: 290333, Tarika: 45200 } },
+  ]
+
+  const result = await runQuery({ q: 'net_worth' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q, 'net_worth')
+  assert.equal(result.q === 'net_worth' ? result.asOf : null, '2026-08-17')
+  assert.equal(result.q === 'net_worth' ? result.totalAed : null, 335533)
+  assert.equal(result.q === 'net_worth' ? result.change : 'unset', undefined)
+})
+
+test('net_worth: compare with a baseline before the period start computes a delta', async () => {
+  const store = new FakeQueryStore([])
+  store.nwDaily = [
+    { day: '2026-07-25', totalAed: 300000, assetsAed: 400000, liabilitiesAed: 100000, byOwner: {} },
+    { day: '2026-08-17', totalAed: 335533, assetsAed: 462058, liabilitiesAed: 126525, byOwner: {} },
+  ]
+
+  const result = await runQuery({ q: 'net_worth', compare: { kind: 'this_month' } }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'net_worth' && result.change?.kind, 'delta')
+  if (result.q === 'net_worth' && result.change?.kind === 'delta') {
+    assert.equal(result.change.fromDay, '2026-07-25')
+    assert.equal(result.change.deltaAed, 35533)
+  }
+})
+
+test('net_worth: compare with no baseline before the period start reports unavailable, not a guessed delta', async () => {
+  const store = new FakeQueryStore([])
+  store.nwDaily = [
+    { day: '2026-08-09', totalAed: 300000, assetsAed: 400000, liabilitiesAed: 100000, byOwner: {} },
+    { day: '2026-08-17', totalAed: 335533, assetsAed: 462058, liabilitiesAed: 126525, byOwner: {} },
+  ]
+
+  // this_month for NOW (2026-08-17) starts 2026-08-01 — earlier than the earliest row (08-09).
+  const result = await runQuery({ q: 'net_worth', compare: { kind: 'this_month' } }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'net_worth' && result.change?.kind, 'unavailable')
+  if (result.q === 'net_worth' && result.change?.kind === 'unavailable') {
+    assert.equal(result.change.earliestDay, '2026-08-09')
+  }
+})
+
+test('net_worth: owner and byOwner pass through untouched', async () => {
+  const store = new FakeQueryStore([])
+  store.nwDaily = [{ day: '2026-08-17', totalAed: 335533, assetsAed: 462058, liabilitiesAed: 126525, byOwner: { Shrey: 290333, Tarika: 45200 } }]
+
+  const result = await runQuery({ q: 'net_worth', owner: 'Tarika' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'net_worth' ? result.owner : null, 'Tarika')
+  assert.deepEqual(result.q === 'net_worth' ? result.byOwner : null, { Shrey: 290333, Tarika: 45200 })
+})
+
+test('net_worth: no snapshot ever recorded is an honest empty answer, not a throw', async () => {
+  const store = new FakeQueryStore([])
+
+  const result = await runQuery({ q: 'net_worth' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'net_worth' ? result.asOf : null, '')
+  assert.equal(result.q === 'net_worth' ? result.totalAed : null, 0)
 })

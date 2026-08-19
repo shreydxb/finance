@@ -39,7 +39,7 @@ export const PLANNER_FAILED_TEXT = "I couldn't work that one out — try rephras
 export const UNSUPPORTED_REFUSAL_TEXT = [
   "I can't answer that one yet.",
   '',
-  'I can tell you about: spend by category, merchant, account or total for a period, and your recent transactions.',
+  'I can tell you about: spend by category, merchant, account or total for a period, your recent transactions, budget status, and net worth.',
 ].join('\n')
 
 export function formatUnknownCategoryRefusal(attempted: string, categories: string[]): string {

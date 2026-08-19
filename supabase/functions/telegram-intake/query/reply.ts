@@ -5,6 +5,7 @@
 
 import { formatAmount, formatDate } from '../format.ts'
 import { formatBudgetStatusReply } from './budget.ts'
+import { formatNetWorthReply } from './networth.ts'
 import type { QueryResult } from './types.ts'
 
 export function formatQueryReply(result: QueryResult): string {
@@ -35,6 +36,8 @@ export function formatQueryReply(result: QueryResult): string {
       return formatRecentTransactions(result)
     case 'budget_status':
       return formatBudgetStatusReply(result.category, result.rows, result.period, result.isCurrentMonth)
+    case 'net_worth':
+      return formatNetWorthReply(result.owner, result)
   }
 }
 

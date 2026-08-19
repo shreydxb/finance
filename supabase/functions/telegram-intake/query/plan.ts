@@ -14,7 +14,7 @@ import type { PromptContext } from '../prompt.ts'
 import type { ModelClient } from '../../_shared/types.ts'
 import type { Period, QueryPlan } from './types.ts'
 
-const KNOWN_QUERIES = ['category_spend', 'total_spend', 'merchant_spend', 'account_spend', 'recent_transactions', 'budget_status'] as const
+const KNOWN_QUERIES = ['category_spend', 'total_spend', 'merchant_spend', 'account_spend', 'recent_transactions', 'budget_status', 'net_worth'] as const
 type KnownQuery = (typeof KNOWN_QUERIES)[number]
 
 const KNOWN_PERIOD_KINDS = ['this_month', 'last_month', 'this_week', 'last_week', 'ytd', 'last_n_days', 'explicit'] as const
@@ -24,13 +24,19 @@ const MAX_LIMIT = 20
 
 const OUTPUT_CONTRACT = `Return ONLY a JSON object, no prose, no markdown fences, with exactly these keys:
 {
-  "q": "category_spend" | "total_spend" | "merchant_spend" | "account_spend" | "recent_transactions" | "budget_status",
+  "q": "category_spend" | "total_spend" | "merchant_spend" | "account_spend" | "recent_transactions" | "budget_status" | "net_worth",
   "category": string | null,
   "merchant": string | null,
   "account": string | null,
   "owner": string | null,
   "limit": number | null,
   "period": {
+    "kind": "this_month" | "last_month" | "this_week" | "last_week" | "ytd" | "last_n_days" | "explicit",
+    "n": number | null,
+    "from": "YYYY-MM-DD" | null,
+    "to": "YYYY-MM-DD" | null
+  },
+  "compare": null | {
     "kind": "this_month" | "last_month" | "this_week" | "last_week" | "ytd" | "last_n_days" | "explicit",
     "n": number | null,
     "from": "YYYY-MM-DD" | null,
@@ -46,13 +52,14 @@ function buildSystemPrompt(ctx: PromptContext): string {
 
 ${OUTPUT_CONTRACT}
 
-The five queries:
+The queries:
 - category_spend: how much was spent in one category ("how much on groceries this month"). Set category.
 - total_spend: overall spend across every category ("how much did I spend in July").
 - merchant_spend: spend at one named merchant/place ("how much at Carrefour this week"). Set merchant to whatever name the person used — it does not need to match a known account or category.
 - account_spend: spend on one card/account ("how much on the ENBD card this month"). Set account.
 - recent_transactions: a plain list of the latest spends ("what did I spend on today", "show my last 5"). Set limit (default 10 if the person didn't say a number).
 - budget_status: how spend compares to the household's budget — either one category ("are we over on groceries", "how's dining out this month") or the whole grid ("how's the budget looking", "are we over anywhere"). Set category for a single category, leave it null for the full grid.
+- net_worth: current net worth, total or for one person ("what's our net worth", "what's Tarika's net worth"). Set owner for one person, leave it null for the household total. Only set compare when the person explicitly asks how it's changed ("how has our net worth changed this month", "are we up or down this year") — leave compare null for a plain "what's our net worth" question, since that only wants the current figure. period is not used for net_worth; leave it as the default.
 
 category must be EXACTLY one of these, copied character for character, or null:
 ${ctx.categories.map((c) => `  - ${c}`).join('\n')}
@@ -67,7 +74,9 @@ period.kind:
 - this_month / last_month / this_week / last_week / ytd — use these whenever the question maps to one of them ("this month", "this week", "so far this year").
 - last_n_days — set n to the number of days ("last 7 days", "past two weeks" → n: 14).
 - explicit — only when the person names specific dates or a named past month other than this one or last one; set from/to as YYYY-MM-DD, both inclusive. Never return a future date for "to".
-If the question doesn't say a period at all, default to this_month.`
+If the question doesn't say a period at all, default to this_month.
+
+compare uses the same kind values as period, and is only ever set for net_worth — null for every other q.`
 }
 
 function buildUserPrompt(question: string): string {
@@ -178,6 +187,19 @@ function validatePlanDetailed(parsed: Record<string, unknown>, ctx: PromptContex
       const category = matchCategory(parsed.category, ctx.categories)
       if (!category) return { kind: 'unknown_category', attempted: parsed.category.trim() }
       return { kind: 'ok', plan: { q: 'budget_status', category, period } }
+    }
+    case 'net_worth': {
+      // `compare` is optional and structurally separate from `period` — a
+      // plain "what's our net worth" question has no compare at all, so
+      // null/absent is the ordinary case, not a fallback to this_month the
+      // way every other query's missing period is.
+      let compare: Period | undefined
+      if (parsed.compare != null) {
+        const validatedCompare = validatePeriodShape(parsed.compare)
+        if (validatedCompare === null) return { kind: 'unsupported' }
+        compare = validatedCompare
+      }
+      return { kind: 'ok', plan: { q: 'net_worth', ...(owner ? { owner } : {}), ...(compare ? { compare } : {}) } }
     }
   }
 }

@@ -10,7 +10,7 @@
 import { matchAccount, matchAccountTies } from '../accountMatch.ts'
 import { resolvePeriod } from './period.ts'
 import type { AccountRef } from '../../_shared/types.ts'
-import type { QueryPlan, QueryResult, QueryStore } from './types.ts'
+import type { NetWorthChange, QueryPlan, QueryResult, QueryStore } from './types.ts'
 
 export async function runQuery(
   plan: QueryPlan,
@@ -61,6 +61,45 @@ export async function runQuery(
         period,
         rows,
         isCurrentMonth: plan.period.kind === 'this_month',
+      }
+    }
+    case 'net_worth': {
+      const latest = await store.netWorthLatest()
+      // Genuinely shouldn't happen live — the app records a snapshot on every
+      // open — but a fresh/empty household must get an honest answer, not a throw.
+      if (!latest) {
+        return {
+          q: 'net_worth',
+          ...(plan.owner ? { owner: plan.owner } : {}),
+          asOf: '',
+          totalAed: 0,
+          assetsAed: 0,
+          liabilitiesAed: 0,
+          byOwner: {},
+        }
+      }
+      let change: NetWorthChange | undefined
+      if (plan.compare) {
+        const resolvedCompare = resolvePeriod(plan.compare, now())
+        const baseline = await store.netWorthOnOrBefore(resolvedCompare.from)
+        if (!baseline) {
+          const earliestDay = (await store.netWorthEarliestDay()) ?? latest.day
+          change = { kind: 'unavailable', earliestDay }
+        } else {
+          const deltaAed = latest.totalAed - baseline.totalAed
+          const deltaPct = baseline.totalAed !== 0 ? (deltaAed / Math.abs(baseline.totalAed)) * 100 : 0
+          change = { kind: 'delta', fromDay: baseline.day, fromAed: baseline.totalAed, deltaAed, deltaPct, periodLabel: resolvedCompare.label }
+        }
+      }
+      return {
+        q: 'net_worth',
+        ...(plan.owner ? { owner: plan.owner } : {}),
+        asOf: latest.day,
+        totalAed: latest.totalAed,
+        assetsAed: latest.assetsAed,
+        liabilitiesAed: latest.liabilitiesAed,
+        byOwner: latest.byOwner,
+        ...(change ? { change } : {}),
       }
     }
   }

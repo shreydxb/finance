@@ -7,7 +7,7 @@
 // Plain fetch, same as `_shared/store.ts`, so this runs under Deno and under
 // `node --test` without a URL-import shim.
 
-import type { CategoryBudgetRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, NetWorthRow, QueryStore, RecentTransaction, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -35,6 +35,24 @@ interface CategoryRow {
 interface BudgetRow {
   monthly_limit: string
   categories: { name: string } | null
+}
+
+interface NwDailyRow {
+  day: string
+  total_aed: string
+  assets_aed: string
+  liabilities_aed: string
+  by_owner: Record<string, number> | null
+}
+
+function fromNwDailyRow(row: NwDailyRow): NetWorthRow {
+  return {
+    day: row.day,
+    totalAed: Number(row.total_aed),
+    assetsAed: Number(row.assets_aed),
+    liabilitiesAed: Number(row.liabilities_aed),
+    byOwner: row.by_owner ?? {},
+  }
 }
 
 export class PostgrestQueryStore implements QueryStore {
@@ -155,6 +173,34 @@ export class PostgrestQueryStore implements QueryStore {
         limitAed: limitByCategory.get(c.name) ?? null,
         spentAed: spentByCategory.get(c.name) ?? 0,
       }))
+  }
+
+  async netWorthLatest(): Promise<NetWorthRow | null> {
+    const rows = await this.fetchJson<NwDailyRow[]>('nw_daily', {
+      select: 'day,total_aed,assets_aed,liabilities_aed,by_owner',
+      order: 'day.desc',
+      limit: '1',
+    })
+    return rows[0] ? fromNwDailyRow(rows[0]) : null
+  }
+
+  async netWorthOnOrBefore(day: string): Promise<NetWorthRow | null> {
+    const rows = await this.fetchJson<NwDailyRow[]>('nw_daily', {
+      select: 'day,total_aed,assets_aed,liabilities_aed,by_owner',
+      day: `lte.${day}`,
+      order: 'day.desc',
+      limit: '1',
+    })
+    return rows[0] ? fromNwDailyRow(rows[0]) : null
+  }
+
+  async netWorthEarliestDay(): Promise<string | null> {
+    const rows = await this.fetchJson<{ day: string }[]>('nw_daily', {
+      select: 'day',
+      order: 'day.asc',
+      limit: '1',
+    })
+    return rows[0]?.day ?? null
   }
 
   private async fetchJson<T>(table: string, params: Record<string, string>): Promise<T> {
