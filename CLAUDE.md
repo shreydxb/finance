@@ -192,6 +192,35 @@ backlog is built, per Shrey's instruction 19 Aug. When it's picked back up,
 the sequence is: refresh `SERVICE_ROLE_KEY`, send a real budget/net-worth
 question, confirm a reply, then move both tasks from Review to Done.
 
+**Taskiv #56, #57 and #58 followed the same session** (bot queries:
+goal/debt progress, upcoming bills, portfolio summary + needs-review
+count) — same status as #54/#55: done in code, pushed, held in Review, not
+yet deployed or live-verified, pending the same `SERVICE_ROLE_KEY` refresh
+above. 544 `npm test` by the end of #58 (was 440 at the start of this run).
+
+**Taskiv #60 (generic propose-then-tap plumbing) is also done in code and
+pushed, held in Review.** Migration `037_pending_actions.sql` applied live
+to `our-rokda` — `pending_actions` (kind/payload jsonb, chat_id,
+requested_by, expires_at defaulting to 1 hour, resolved_at/resolution) plus
+its `pending_actions_open_idx`. New `telegram-intake/actions/pending.ts`
+owns propose/expire/idempotent-resolve/allowlist for any bot write that
+isn't a transaction — transactions keep write-then-flag, everything else
+proposes first, per the design rule the task restates. Idempotency is a
+PostgREST `PATCH ... WHERE resolved_at is null`, not a lock: a redelivered
+callback finds nothing left to claim. Wired into `intake.ts`'s
+`handleCallback` as a sibling of the existing `confirm:`/`fix:` and
+`cashback_apply:`/`cashback_cancel:` branches, which are untouched.
+**No action `kind` has a registered handler yet** — `IntakeDeps.pendingActionHandlers`
+starts as `{}` in `index.ts`, so tapping Apply on a real proposal can't
+happen in production today because nothing calls `proposeAction` yet
+either; an unregistered kind throws loudly rather than a silent no-op,
+since the row is already claimed as applied by the time that check runs.
+Taskiv #63–67 (goal contribution, balance update, income log, category
+rule) register real handlers against this same table next. 555 `npm test`
+(was 544), lint and build clean, demo unaffected; `test:db` not runnable
+in-session (no local Postgres) — the migration was verified applied
+cleanly against the live database directly instead.
+
 ## Deploy — 14–16 Aug 2026
 
 Migration `034_transfer_direction_null_safe` applied to `our-rokda` (found by
