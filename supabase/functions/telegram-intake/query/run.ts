@@ -11,6 +11,7 @@ import { matchAccount, matchAccountTies } from '../accountMatch.ts'
 import { todayInTz } from '../../_shared/dates.ts'
 import { clampDays, computeUpcomingBills } from './bills.ts'
 import { matchGoal, matchGoalTies } from './goals.ts'
+import { computePortfolioSummary } from './portfolio.ts'
 import { resolvePeriod } from './period.ts'
 import type { AccountRef } from '../../_shared/types.ts'
 import type { NetWorthChange, QueryPlan, QueryResult, QueryStore } from './types.ts'
@@ -124,6 +125,15 @@ export async function runQuery(
       const days = clampDays(plan.days)
       const result = computeUpcomingBills(entries, days, fxRates, todayInTz(now()))
       return { q: 'upcoming_bills', ...result }
+    }
+    case 'portfolio_summary': {
+      const [holdings, fxRates] = await Promise.all([store.investmentHoldings(), store.fxRates()])
+      const result = computePortfolioSummary(holdings, plan.owner, fxRates)
+      return { q: 'portfolio_summary', ...result }
+    }
+    case 'needs_review_count': {
+      const count = await store.needsReviewCount()
+      return { q: 'needs_review_count', count }
     }
   }
 }

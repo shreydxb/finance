@@ -51,6 +51,8 @@ export type QueryPlan =
   | { q: 'net_worth'; owner?: string; compare?: Period }
   | { q: 'goal_progress'; goal?: string }
   | { q: 'upcoming_bills'; days?: number }
+  | { q: 'portfolio_summary'; owner?: string }
+  | { q: 'needs_review_count' }
 
 /** A resolved period, ready to hand to a parameterised query. */
 export interface ResolvedPeriod {
@@ -260,6 +262,46 @@ export interface UpcomingBillsResult {
   notOnAutopayUnconvertedCount: number
 }
 
+/** One `accounts` row where `type = 'investment'`. */
+export interface InvestmentHolding {
+  id: string
+  name: string
+  ticker: string | null
+  quantity: number | null
+  avgCost: number | null
+  lastPrice: number | null
+  value: number
+  currency: string
+  owner: string
+  /** NOT `updated_at` — that moves on any edit, including a rename, which used to look like a fresh quote (see src/screens/Investments.jsx). */
+  priceUpdatedAt: string | null
+}
+
+/**
+ * Every figure ported from Investments.jsx's own row/total maths, not
+ * reinvented — same rule as goal_progress. `costAed` is derived as
+ * `valueAed - gainAed`, not summed from each holding's own cost basis: a
+ * holding with no `avg_cost`/`quantity` contributes 0 to `gainAed` but its
+ * full value still counts as "cost" in that subtraction, exactly as the
+ * screen's own `totalCost = totalValue - totalGain` does.
+ */
+export interface PortfolioSummaryResult {
+  owner?: string
+  holdingsCount: number
+  valueAed: number
+  costAed: number
+  gainAed: number
+  gainPct: number | null
+  /** Value per owner in AED — populated only for the combined (no owner filter) view, mirroring the screen's per-owner split. */
+  byOwner: Record<string, number>
+  /** Holdings whose currency has no FX rate right now — excluded from every total above, not silently 1:1'd. */
+  unconvertedCount: number
+  tickerPricedCount: number
+  manualCount: number
+  /** Latest `price_updated_at` among ticker-priced holdings only — null when there are none (or refresh-prices has never run). */
+  latestPriceUpdate: string | null
+}
+
 export type QueryResult =
   | ({ q: 'category_spend'; category: string; owner?: string } & SpendResult)
   | ({ q: 'total_spend'; owner?: string } & TotalSpendResult)
@@ -270,6 +312,8 @@ export type QueryResult =
   | ({ q: 'net_worth'; owner?: string } & NetWorthResult)
   | ({ q: 'goal_progress' } & GoalProgressResult)
   | ({ q: 'upcoming_bills' } & UpcomingBillsResult)
+  | ({ q: 'portfolio_summary' } & PortfolioSummaryResult)
+  | { q: 'needs_review_count'; count: number }
 
 /**
  * Parameterised, hand-written query methods — no string-built SQL anywhere.
@@ -296,4 +340,8 @@ export interface QueryStore {
   fxRates(): Promise<Record<string, number>>
   /** The whole `recurring` table — 24 rows live, small enough to fetch whole and project client-side. */
   recurringEntries(): Promise<RecurringEntry[]>
+  /** Every `accounts` row where `type = 'investment'` — 41 live. */
+  investmentHoldings(): Promise<InvestmentHolding[]>
+  /** count(*) where needs_review = true and deleted_at is null. */
+  needsReviewCount(): Promise<number>
 }

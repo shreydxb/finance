@@ -8,6 +8,7 @@ import { formatUpcomingBillsReply } from './bills.ts'
 import { formatBudgetStatusReply } from './budget.ts'
 import { formatGoalProgressReply } from './goals.ts'
 import { formatNetWorthReply } from './networth.ts'
+import { formatNeedsReviewCountReply, formatPortfolioSummaryReply } from './portfolio.ts'
 import type { QueryResult } from './types.ts'
 
 export function formatQueryReply(result: QueryResult): string {
@@ -44,6 +45,10 @@ export function formatQueryReply(result: QueryResult): string {
       return formatGoalProgressReply(result)
     case 'upcoming_bills':
       return formatUpcomingBillsReply(result)
+    case 'portfolio_summary':
+      return formatPortfolioSummaryReply(result)
+    case 'needs_review_count':
+      return formatNeedsReviewCountReply(result.count)
   }
 }
 

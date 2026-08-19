@@ -143,3 +143,25 @@ test('upcoming_bills: dispatches to query/bills.ts (see bills.test.ts for the fo
   }
   assert.match(formatQueryReply(result), /Nothing due\./)
 })
+
+test('portfolio_summary: dispatches to query/portfolio.ts (see portfolio.test.ts for the formatting itself)', () => {
+  const result: QueryResult = {
+    q: 'portfolio_summary',
+    holdingsCount: 0,
+    valueAed: 0,
+    costAed: 0,
+    gainAed: 0,
+    gainPct: null,
+    byOwner: {},
+    unconvertedCount: 0,
+    tickerPricedCount: 0,
+    manualCount: 0,
+    latestPriceUpdate: null,
+  }
+  assert.match(formatQueryReply(result), /don't have any investment holdings/)
+})
+
+test('needs_review_count: dispatches to query/portfolio.ts', () => {
+  const result: QueryResult = { q: 'needs_review_count', count: 0 }
+  assert.equal(formatQueryReply(result), 'Nothing flagged. All clean.')
+})

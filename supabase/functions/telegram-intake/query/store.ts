@@ -7,7 +7,7 @@
 // Plain fetch, same as `_shared/store.ts`, so this runs under Deno and under
 // `node --test` without a URL-import shim.
 
-import type { CategoryBudgetRow, GoalContribution, GoalRecord, NetWorthRow, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, GoalContribution, GoalRecord, InvestmentHolding, NetWorthRow, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 type FetchLike = typeof fetch
 
@@ -83,6 +83,19 @@ interface GoalContributionRow {
 
 interface SettingRow {
   value: unknown
+}
+
+interface InvestmentRow {
+  id: string
+  name: string
+  ticker: string | null
+  quantity: string | null
+  avg_cost: string | null
+  last_price: string | null
+  value: string
+  currency: string
+  owner: string
+  price_updated_at: string | null
 }
 
 interface RecurringRow {
@@ -304,6 +317,34 @@ export class PostgrestQueryStore implements QueryStore {
       autopay: r.autopay,
       endDate: r.end_date,
     }))
+  }
+
+  async investmentHoldings(): Promise<InvestmentHolding[]> {
+    const rows = await this.fetchJson<InvestmentRow[]>('accounts', {
+      select: 'id,name,ticker,quantity,avg_cost,last_price,value,currency,owner,price_updated_at',
+      type: 'eq.investment',
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      ticker: r.ticker,
+      quantity: r.quantity === null ? null : Number(r.quantity),
+      avgCost: r.avg_cost === null ? null : Number(r.avg_cost),
+      lastPrice: r.last_price === null ? null : Number(r.last_price),
+      value: Number(r.value),
+      currency: r.currency,
+      owner: r.owner,
+      priceUpdatedAt: r.price_updated_at,
+    }))
+  }
+
+  async needsReviewCount(): Promise<number> {
+    const rows = await this.fetchJson<{ id: string }[]>('transactions', {
+      select: 'id',
+      needs_review: 'eq.true',
+      deleted_at: 'is.null',
+    })
+    return rows.length
   }
 
   private async fetchJson<T>(table: string, params: Record<string, string>): Promise<T> {

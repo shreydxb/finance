@@ -4,7 +4,7 @@ import test from 'node:test'
 import { resolvePeriod } from './period.ts'
 import { runQuery } from './run.ts'
 import type { AccountRef } from '../../_shared/types.ts'
-import type { CategoryBudgetRow, GoalRecord, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
+import type { CategoryBudgetRow, GoalRecord, InvestmentHolding, NetWorthRow, QueryPlan, QueryStore, RecentTransaction, RecurringEntry, ResolvedPeriod, SpendResult, TotalSpendResult } from './types.ts'
 
 const FX_RATES: Record<string, number> = { AED: 1, USD: 3.6725, INR: 0.044 }
 const SAVINGS_CATEGORY = 'Savings & Investments'
@@ -137,6 +137,18 @@ class FakeQueryStore implements QueryStore {
 
   recurringEntries(): Promise<RecurringEntry[]> {
     return Promise.resolve(this.recurring)
+  }
+
+  holdings: InvestmentHolding[] = []
+
+  investmentHoldings(): Promise<InvestmentHolding[]> {
+    return Promise.resolve(this.holdings)
+  }
+
+  reviewCount = 0
+
+  needsReviewCount(): Promise<number> {
+    return Promise.resolve(this.reviewCount)
   }
 }
 
@@ -505,4 +517,25 @@ test('upcoming_bills: an out-of-range days value is clamped, never trusted as-is
   const result = await runQuery({ q: 'upcoming_bills', days: 500 }, store, ACCOUNTS, NOW)
 
   assert.equal(result.q === 'upcoming_bills' ? result.days : null, 90)
+})
+
+test('portfolio_summary: dispatches to store.investmentHoldings/fxRates and passes owner through', async () => {
+  const store = new FakeQueryStore([])
+  store.holdings = [
+    { id: 'h1', name: 'NETWEB', ticker: 'NETWEB', quantity: 15, avgCost: 4000, lastPrice: 5200, value: 78186, currency: 'INR', owner: 'Shrey', priceUpdatedAt: '2026-08-17T18:27:56Z' },
+  ]
+
+  const result = await runQuery({ q: 'portfolio_summary', owner: 'Shrey' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'portfolio_summary' ? result.owner : null, 'Shrey')
+  assert.equal(result.q === 'portfolio_summary' ? result.holdingsCount : null, 1)
+})
+
+test('needs_review_count: dispatches to store.needsReviewCount', async () => {
+  const store = new FakeQueryStore([])
+  store.reviewCount = 3
+
+  const result = await runQuery({ q: 'needs_review_count' }, store, ACCOUNTS, NOW)
+
+  assert.equal(result.q === 'needs_review_count' ? result.count : null, 3)
 })

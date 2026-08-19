@@ -212,6 +212,24 @@ test('upcoming_bills with a days value carries it through untouched — clamping
   assert.deepEqual(plan, { q: 'upcoming_bills', days: 30 })
 })
 
+test('portfolio_summary with no owner is the combined plan', async () => {
+  const model = new FakeModel(json({ q: 'portfolio_summary', owner: null }))
+  const plan = await planQuery("how's the portfolio doing", CTX, model)
+  assert.deepEqual(plan, { q: 'portfolio_summary' })
+})
+
+test('portfolio_summary with an owner carries it through', async () => {
+  const model = new FakeModel(json({ q: 'portfolio_summary', owner: 'Shrey' }))
+  const plan = await planQuery("what's Shrey's portfolio worth", CTX, model)
+  assert.deepEqual(plan, { q: 'portfolio_summary', owner: 'Shrey' })
+})
+
+test('needs_review_count has no parameters', async () => {
+  const model = new FakeModel(json({ q: 'needs_review_count' }))
+  const plan = await planQuery('anything need review', CTX, model)
+  assert.deepEqual(plan, { q: 'needs_review_count' })
+})
+
 test('a non-JSON model response is an honest refusal, not a crash', async () => {
   const model = new FakeModel('Sure! Let me help with that.')
   const plan = await planQuery('anything', CTX, model)
