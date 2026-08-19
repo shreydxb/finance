@@ -114,7 +114,7 @@ category — plus the advice-detection regex and the success path) without a
 Telegram harness. 420 `npm test` (was 410), lint and build clean,
 `npm run demo:telegram` unaffected.
 
-**Taskiv #54 (budget vs actual query) is done in code, not yet deployed.**
+**Taskiv #54 (budget vs actual query) is done in code and deployed, but not yet verified live — held in Review, not Done.**
 Sprint 3's first query: `{ q: 'budget_status'; category?: string; period: Period }`
 added to the closed enum (`query/types.ts`, `query/plan.ts`), backed by a new
 `query/budget.ts` module and a real `PostgrestQueryStore.budgetStatus`
@@ -141,6 +141,56 @@ edge cases), 3 in `plan.test.ts`, 2 in `run.test.ts`, 1 in `reply.test.ts`.
 440 `npm test` (was 420), lint and build clean, `npm run demo:telegram`
 unaffected (the question path was already routed through `answerQuestion`
 before this task; `intake.ts` needed no changes).
+
+**Taskiv #55 (net worth query) is done in code and deployed, also held in
+Review, not Done — same reason as #54.** `{ q: 'net_worth'; owner?: string;
+compare?: Period }` added to the enum, reading `nw_daily` (never recomputed
+from `accounts` — one source of truth with the app's own Home/Accounts net
+worth). `by_owner`'s real keys (`Shrey`, `Tarika`) were confirmed against the
+live table before coding, per the task's own warning not to assume them.
+`compare` computes a delta against the closest `nw_daily` row on or before
+the period's start; when no such row exists (the earliest recorded day falls
+*inside* the requested window — real risk right now, since the table only
+goes back to 9 Aug), the reply says so honestly instead of faking a number,
+per `nw_daily`'s forward-only, never-backfilled rule in PLAN.md. New
+`query/networth.ts` module + `query/networth.test.ts` (19 new tests total
+across networth/plan/run/reply). 459 `npm test` (was 440), lint and build
+clean, demo unaffected.
+
+**Deploy — 19 Aug 2026: `telegram-intake` v40, carrying #54 and #55.** Got
+there in three attempts, all via the Supabase dashboard's in-browser code
+editor (this session's sandbox network policy blocks `api.supabase.com` and
+`mcp.supabase.com` outright, so neither the Supabase CLI nor a from-scratch
+MCP deploy could run from here — dashboard paste was the only path). v38's
+first paste pass corrupted `query/plan.ts` and `query/store.ts` with
+runaway auto-indentation from the editor's paste handling (each line gained
+more leading whitespace than the last) — harmless everywhere except inside
+`plan.ts`'s multi-line prompt template literals, where the extra whitespace
+became literal characters in the actual text sent to the LLM planner. Fixed
+by rewriting those files from clean source. v39's second pass then cut
+`query/plan.ts` off mid-paste, mid-sentence, missing the entire
+`validatePlanDetailed` switch statement including the whole `net_worth`
+case — a real functional bug, not cosmetic. v40's third pass has been
+verified byte-for-byte against the repo (every deployed file matches
+exactly, modulo a harmless trailing newline) via `mcp__Supabase__get_edge_function`.
+
+**Live end-to-end verification is still blocked, and deliberately left
+that way.** A real Telegram message sent right after the v40 deploy got no
+reply. `intake_logs` had no new rows, and Supabase's own `function_logs`
+showed why: `loadHouseholdContext`'s `settings` query failed with
+`PGRST303: "JWT issued at future"` — the exact same service-role-key
+freshness failure documented in "Deploy — 14–16 Aug 2026" below, where the
+fix was Shrey re-pasting a fresh `service_role` key from Project Settings →
+API into the `SERVICE_ROLE_KEY` custom secret. `accounts`/`categories`
+succeeded in the same request while `settings` alone 401'd, consistent with
+a key sitting right at its freshness boundary rather than being wholesale
+invalid. **Not a code bug in #54/#55 — the failure is entirely inside
+`_shared/store.ts`'s `loadHouseholdContext`, before the router or query
+code is ever reached.** Explicitly deferred: don't re-attempt live
+Telegram verification of #54/#55 until the rest of the currently-pending
+backlog is built, per Shrey's instruction 19 Aug. When it's picked back up,
+the sequence is: refresh `SERVICE_ROLE_KEY`, send a real budget/net-worth
+question, confirm a reply, then move both tasks from Review to Done.
 
 ## Deploy — 14–16 Aug 2026
 
