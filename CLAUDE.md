@@ -1,3 +1,72 @@
+## Handover — 20 Aug 2026: #103 + #24 shipped to `main`, blocked on Netlify credits
+
+**Code status: done.** `main` is at commit `d05a939` (fast-forwarded from
+`4ec715e`), carrying both Taskiv #103 (Reports/Spending comparison chart) and
+#24 (assign-to-partner, link-to-goal, forecasting). 455 `npm test`, lint and
+build all clean at that commit. Full detail on both in the two sections
+below this one.
+
+**Deploy status: blocked, not broken.** Netlify's production site
+(`apna-rokda`, site id `3f5a1f18-8602-44ed-8880-2fcd00f94c29`,
+`https://apna-rokda.netlify.app`) is still serving the **17 Aug** build
+(commit `e9cdba4`) — confirmed live via the Netlify MCP's `get-project`/
+`get-deploy-for-site`. The free tier's 300 build-minutes/month ran out
+before `d05a939` could auto-build; Shrey confirmed credits reset **21 Aug**.
+**No code action needed** — once minutes reset, either the queued
+git-triggered build clears on its own, or trigger one manually from
+[app.netlify.com/projects/apna-rokda](https://app.netlify.com/projects/apna-rokda)
+→ Deploys → "Trigger deploy". (A `netlify-deploy-services-updater
+deploy-site` MCP call is also available from a session with Netlify
+connected, but that path re-uploads local source rather than using the
+existing git integration — prefer the dashboard trigger or just letting the
+webhook-queued build clear, to avoid burning extra minutes on a redundant
+manual deploy.)
+
+**A test account exists for live verification**, added this session:
+`claude@claude.com` / `claude`, already inserted into `household_members`
+(`user_id 818e789c-83d7-458e-acd2-dba59ff2999e`) so it can sign in and see
+real household data immediately — no further setup needed. Safe to leave in
+place or delete after testing; it's Shrey's call.
+
+**Supabase connection details** (safe to record — the anon key is the same
+public, client-side key already shipped in the deployed frontend):
+```
+VITE_SUPABASE_URL=https://wrxqgfbolryveivgdjia.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_LAs_dTc0Br2KeBSFM9XyQg_PsdAVQfP
+```
+
+**Live-browser testing from inside a Claude Code Remote sandbox hit a real
+infrastructure wall, worth knowing about before trying it again**: this
+session's environment ("Default") originally had `Network access: Trusted`,
+which blocked all direct egress to Supabase (403 from the agent-proxy relay).
+Shrey changed it to `Custom` with `wrxqgfbolryveivgdjia.supabase.co`
+allowlisted, and that **did** open egress — confirmed via direct `curl`
+against both the REST API and the Auth password-grant endpoint, which
+authenticated successfully and repeatedly (5/5) with the test account above.
+**But Chromium specifically could not complete the same request** — every
+attempt through Playwright hung ~30s then died with
+`net::ERR_CONNECTION_RESET`, reproduced with and without the local relay
+proxy, with HTTP/2 disabled, across multiple retries. The proxy's own
+`/__agentproxy/status` failure log showed nothing for these attempts,
+meaning something further out on the path resets connections that look like
+browser TLS traffic specifically, while plain `curl` from the same
+container sails through every time. Not an app bug, not a credentials
+problem, not this session's network-policy setting — something about
+Chromium's connection fingerprint trips a filter that `curl` doesn't.
+**Practical conclusion: live-browser verification from this kind of sandbox
+isn't reliable for this project even with egress opened — use the deployed
+Netlify site with a real browser instead**, which is what Shrey plans to do
+once credits reset.
+
+**Non-Telegram backlog checked this session — genuinely nothing else
+unblocked to pick up.** Everything left in Backlog besides #103/#24 (now
+both moved to Review) is either Telegram-bot work (out of scope per Shrey's
+own "not telegram" ask) or blocked on Shrey directly: #21 (FIRE number —
+needs his real monthly expense figure), #23 (leaked-password protection —
+dashboard-only toggle, no API surface reaches it), #102 (nightly backups —
+needs `BACKUP_PASSPHRASE`/`BACKUP_CHAT_ID` secrets only he should set). Don't
+manufacture scope here; wait for Netlify verification or new input from him.
+
 ## Taskiv #24 — Phase 2 backlog, all three pieces (20 Aug 2026)
 
 Built on this branch (`claude/money-v4-open-items-5njpob`), same as #103.
