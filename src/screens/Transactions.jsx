@@ -14,6 +14,7 @@ import {
 import { listRules, createRule, deleteRule } from '../lib/categoryRules'
 import { listAccounts, OWNERS } from '../lib/accounts'
 import { listCategories } from '../lib/categories'
+import { listGoals } from '../lib/goals'
 import { sortByAmountAED, transactionStats, transactionsToCSV } from '../lib/reports'
 import { usePrefs } from '../lib/PrefsContext'
 import TransactionForm from '../components/TransactionForm'
@@ -39,6 +40,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
   const [categories, setCategories] = useState([])
+  const [goals, setGoals] = useState([])
   const [rules, setRules] = useState([])
   const [reviewCount, setReviewCount] = useState(0)
   const [unreviewedCount, setUnreviewedCount] = useState(0)
@@ -54,13 +56,14 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   async function refresh() {
     setError('')
     try {
-      const [txns, accts, cats, pending, unreviewed, ruleRows] = await Promise.all([
+      const [txns, accts, cats, pending, unreviewed, ruleRows, goalRows] = await Promise.all([
         listTransactions(filters),
         listAccounts(),
         listCategories(),
         countNeedsReview(),
         countUnreviewed(),
         listRules(),
+        listGoals(),
       ])
       setTransactions(txns)
       // You don't spend from a stock holding — a share of NVDA is not an
@@ -72,6 +75,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
       setReviewCount(pending)
       setUnreviewedCount(unreviewed)
       setRules(ruleRows)
+      setGoals(goalRows)
     } catch {
       setError('Could not load transactions. Check your connection and try again.')
     } finally {
@@ -185,6 +189,11 @@ export default function Transactions({ navPayload, onConsumeNav }) {
     const map = new Map(accounts.map((a) => [a.id, a.name]))
     return (id) => map.get(id) ?? '—'
   }, [accounts])
+
+  const goalLabel = useMemo(() => {
+    const map = new Map(goals.map((g) => [g.id, `${g.icon ? `${g.icon} ` : ''}${g.name}`]))
+    return (id) => map.get(id) ?? null
+  }, [goals])
 
   const flat = filters.sort === 'amount'
   // Postgres sorted these by raw amount, which does not order mixed currencies
@@ -378,6 +387,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
           <TransactionList
             transactions={ordered}
             accountName={accountName}
+            goalLabel={goalLabel}
             flat={flat}
             onEntryClick={selectMode ? (entry) => toggleSelect(entryKey(entry)) : openEdit}
             onMarkReviewed={selectMode ? undefined : handleMarkReviewed}
@@ -417,6 +427,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
           transaction={editing === 'new' ? null : editing}
           accounts={accounts}
           categories={categories}
+          goals={goals}
           rules={rules}
           onSave={handleSave}
           onCancel={() => setEditing(null)}

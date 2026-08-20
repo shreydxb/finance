@@ -11,6 +11,8 @@ export async function listTransactions(filters = {}) {
   if (filters.search) query = query.ilike('note', `%${filters.search}%`)
   if (filters.needsReview) query = query.eq('needs_review', true)
   if (filters.unreviewed) query = query.is('reviewed_at', null)
+  if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo)
+  if (filters.goalId) query = query.eq('goal_id', filters.goalId)
 
   const sortColumn = filters.sort === 'amount' ? 'amount' : 'date'
   query = query.order(sortColumn, { ascending: false }).order('created_at', { ascending: false })
@@ -97,6 +99,25 @@ export async function setReviewedMany(ids, reviewed) {
     .update({ reviewed_at: reviewed ? new Date().toISOString() : null })
     .in('id', ids)
   if (error) throw error
+}
+
+/**
+ * "Can you check this one?" — flags a transaction for the *other* partner,
+ * independent of `reviewed_at` (which is the weekend-reconciliation pass, not
+ * a request aimed at a specific person). `person` is null to clear the flag.
+ */
+export async function assignForReview(id, person) {
+  return updateTransaction(id, { assigned_to: person })
+}
+
+/**
+ * Tags a transaction as related to a goal — display only, never a
+ * contribution. A goal's actual progress still only moves via
+ * goal_contributions (see src/lib/goals.js's createContributionWithTransfer);
+ * this just lets "that Ikea run" show up next to the New Sofa goal.
+ */
+export async function linkToGoal(id, goalId) {
+  return updateTransaction(id, { goal_id: goalId })
 }
 
 export async function updateTransaction(id, patch) {

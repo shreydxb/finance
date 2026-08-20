@@ -12,6 +12,7 @@ export function formatAmount(amount, currency) {
 export default function TransactionList({
   transactions,
   accountName,
+  goalLabel,
   flat = false,
   onEntryClick,
   onMarkReviewed,
@@ -42,6 +43,7 @@ export default function TransactionList({
                 key={entryKey(entry)}
                 entry={entry}
                 accountName={accountName}
+                goalLabel={goalLabel}
                 showDate={flat}
                 onClick={() => onEntryClick(entry)}
                 onMarkReviewed={onMarkReviewed}
@@ -124,6 +126,7 @@ function ReviewedToggle({ reviewed, onToggle }) {
 function EntryRow({
   entry,
   accountName,
+  goalLabel,
   showDate,
   onClick,
   onMarkReviewed,
@@ -156,6 +159,16 @@ function EntryRow({
               {t.needs_review && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
                   Needs review
+                </span>
+              )}
+              {t.assigned_to && (
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-700" title={`Flagged for ${t.assigned_to} to review`}>
+                  For {t.assigned_to}
+                </span>
+              )}
+              {t.goal_id && goalLabel?.(t.goal_id) && (
+                <span className="rounded-full bg-pos-50 px-2 py-0.5 text-[10px] font-semibold text-pos-600">
+                  {goalLabel(t.goal_id)}
                 </span>
               )}
             </span>

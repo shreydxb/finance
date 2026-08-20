@@ -1,3 +1,74 @@
+## Taskiv #24 — Phase 2 backlog, all three pieces (20 Aug 2026)
+
+Built on this branch (`claude/money-v4-open-items-5njpob`), same as #103.
+`#24` was a three-item grab-bag, not one task — did all three, scoped down
+where the task's own notes flagged something as bigger than it looked.
+
+**Assign spend to partner for review.** New `transactions.assigned_to`
+(`038_partner_review_and_goal_link.sql`, applied live) — "can you check this
+one?", independent of `reviewed_at` (the separate weekend-reconciliation
+pass). `assignForReview(id, person)` in `lib/transactions.js`; a select in
+`TransactionForm.jsx` ("Ask Shrey"/"Ask Tarika"/"Not assigned"), a badge in
+`TransactionList.jsx`. Never touches a money total.
+
+**Link spend to goal.** New `transactions.goal_id` (same migration), also
+display-only — deliberately does **not** create a `goal_contributions` row.
+A goal's real progress still only moves through
+`createContributionWithTransfer` (the existing transfer-funded mechanism);
+this is "this Ikea run was for the New Sofa goal," a tag for context, not a
+second way to move money into a goal. `linkToGoal(id, goalId)`; same form
+gets a "Linked goal" select, same list gets a badge (goal icon + name).
+
+**Forecasting.** The biggest of the three, scoped down once from Monarch's
+full version and said so upfront: **click-to-edit instead of draggable
+pins** — dragging a timeline marker needs live pointer tracking and
+month-grid snapping for a number that's a rough estimate to begin with;
+clicking a marker opens the same add/edit form instead, one extra tap for
+the same outcome. Everything else is real: `forecast_events` (already
+existed, unused — `001_init`/`002_rls`, confirmed via `list_tables` before
+building against it) now actually holds data.
+
+- `lib/forecast.js` — pure projection logic, no Supabase import, 12 tests.
+  `computeMonthlyAssumptions` reads real trailing-12-month income/expense
+  actuals (money-data rule: never a hand-typed guess unless the household
+  explicitly overrides it in the form). `projectNetWorth` compounds one
+  blended annual growth rate monthly on the running balance, adds net cash
+  flow, and applies life events: a one-time `amount` plus an optional
+  ongoing `monthlyDelta` for most kinds, or — for `retirement` — a
+  permanent replacement of monthly income with `retirementIncome` from that
+  date onward, nothing before it disturbed.
+- **Real bug caught by its own test, not by inspection**: `dateAtAge`
+  (birthday + retirement age → the actual event date) first returned a
+  `Date` object, converted at the call site via `.toISOString().slice(0,
+  10)` — exactly the UTC-vs-Dubai-local trap `lib/dates.js` already
+  documents (`new Date(2045, 0, 1).toISOString()` lands on 31 Dec 2044 at
+  UTC+4). Fixed by having `dateAtAge` return the date string directly,
+  never round-tripping through UTC. A dedicated regression test
+  (`dateAtAge never round-trips through toISOString...`) pins the 1 Jan
+  case specifically, since that's the date most likely to expose it again.
+- `lib/forecastEvents.js` — plain CRUD against `forecast_events`.
+- New `ForecastSetup.jsx` (assumptions — birthday, growth rate, retirement
+  age + post-retirement income, participating accounts, all seeded from
+  real data with the household able to override), `ForecastEventForm.jsx`
+  (add/edit one event), `ForecastChart.jsx` (projected net-worth line with
+  event markers, hand-rolled SVG matching `LineChart.jsx`'s style). Lives
+  as a new "Forecast" card on the **Accounts** screen, below the existing
+  net-worth history chart — the natural sibling, not a new nav tab (the app
+  is deliberately fixed at 10).
+
+455 `npm test` (was 432 before #103, 443 after #103, then +12 for forecast =
+455), lint and build clean. `npm run test:db` not run this session (no
+local Postgres) — the new `038` migration is additive-only, matches every
+existing convention (`if not exists`, nullable, `on delete set null` not
+cascade), and was verified applied cleanly against the live database
+directly via `execute_sql`, so risk is low, but a real `test:db` run is
+still worth doing before this is called fully done. **Not verified in a
+live browser** — same reason as #103, no Supabase credentials in this
+session. Someone should click through Accounts → Forecast (set up
+assumptions, add a life event, confirm the chart and the retirement/final
+stat blocks look right) and Transactions → Assign/Link a spend before
+treating this as finished.
+
 ## Taskiv #103 — Reports/Spending comparison chart (19 Aug 2026)
 
 Built on this branch (`claude/money-v4-open-items-5njpob`) — unrelated to the

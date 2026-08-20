@@ -11,17 +11,32 @@ import {
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
 import { listCategories } from '../lib/categories'
+import { listIncome } from '../lib/income'
 import { listDailyNetWorth, recordDailyNetWorth } from '../lib/snapshots'
+import { getSetting, upsertSetting } from '../lib/settings'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
 import { formatMoney, toAED } from '../lib/money'
 import { cardSummary, parseLast4, cardDisplayName, previousCycles, categoryBreakdown } from '../lib/cards'
 import { todayLocal } from '../lib/dates'
+import { computeMonthlyAssumptions, dateAtAge, participatingNetWorth, projectNetWorth } from '../lib/forecast'
+import {
+  listForecastEvents,
+  createForecastEvent,
+  updateForecastEvent,
+  deleteForecastEvent,
+} from '../lib/forecastEvents'
 import AccountForm from '../components/AccountForm'
 import TransactionForm from '../components/TransactionForm'
 import TransactionList from '../components/TransactionList'
 import LineChart from '../components/LineChart'
+import ForecastChart from '../components/ForecastChart'
+import ForecastSetup from '../components/ForecastSetup'
+import ForecastEventForm from '../components/ForecastEventForm'
 import AnimatedNumber from '../components/AnimatedNumber'
+
+const FORECAST_SETTING_KEY = 'forecast_assumptions'
+const FORECAST_YEARS = 25
 
 /** Investments live on their own tab; this screen is about what you spend from and owe. */
 const INVESTMENTS_EXCLUDED = (a) => a.type !== 'investment'
@@ -50,6 +65,87 @@ export default function Accounts({ onNavigate }) {
   const [recentTxns, setRecentTxns] = useState([])
   const [viewingCard, setViewingCard] = useState(null)
   const today = todayLocal()
+
+  // Forecast (Taskiv #24) — its own trailing-12-month window, separate from
+  // recentTxns' 220-day card-cycle window above.
+  const [forecastAssumptions, setForecastAssumptions] = useState(null)
+  const [forecastEvents, setForecastEvents] = useState([])
+  const [yearIncome, setYearIncome] = useState([])
+  const [yearTxns, setYearTxns] = useState([])
+  const [forecastLoaded, setForecastLoaded] = useState(false)
+  const [showForecastSetup, setShowForecastSetup] = useState(false)
+  const [editingForecastEvent, setEditingForecastEvent] = useState(null) // null | 'new' | an event row
+
+  useEffect(() => {
+    let cancelled = false
+    const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
+    Promise.all([
+      getSetting(FORECAST_SETTING_KEY),
+      listForecastEvents(),
+      listIncome({ dateFrom: yearAgo, dateTo: today }),
+      listTransactions({ dateFrom: yearAgo, dateTo: today }),
+    ])
+      .then(([assumptions, events, income, txns]) => {
+        if (cancelled) return
+        setForecastAssumptions(assumptions)
+        setForecastEvents(events)
+        setYearIncome(income)
+        setYearTxns(txns)
+        setForecastLoaded(true)
+      })
+      .catch(() => !cancelled && setForecastLoaded(true))
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const forecastMonthlyDefaults = useMemo(() => computeMonthlyAssumptions(yearIncome, yearTxns, fxRates, 12), [yearIncome, yearTxns, fxRates])
+
+  const forecastProjection = useMemo(() => {
+    if (!forecastAssumptions) return null
+    const startNetWorth = participatingNetWorth(accounts, fxRates, forecastAssumptions.participatingAccountIds)
+    const events = [
+      ...forecastEvents,
+      {
+        kind: 'retirement',
+        target_date: dateAtAge(forecastAssumptions.birthday, forecastAssumptions.retirementAge),
+        params: { retirementIncome: forecastAssumptions.retirementIncome },
+      },
+    ]
+    return projectNetWorth({
+      startNetWorth,
+      monthlyIncome: forecastAssumptions.monthlyIncomeOverride,
+      monthlyExpenses: forecastAssumptions.monthlyExpenseOverride,
+      annualGrowthPct: forecastAssumptions.growthRatePct,
+      years: FORECAST_YEARS,
+      events,
+    })
+  }, [forecastAssumptions, forecastEvents, accounts, fxRates])
+
+  async function saveForecastAssumptions(assumptions) {
+    await upsertSetting(FORECAST_SETTING_KEY, assumptions)
+    setForecastAssumptions(assumptions)
+    setShowForecastSetup(false)
+  }
+
+  async function saveForecastEvent(fields) {
+    if (editingForecastEvent && editingForecastEvent !== 'new') {
+      const updated = await updateForecastEvent(editingForecastEvent.id, fields)
+      setForecastEvents((rows) => rows.map((r) => (r.id === updated.id ? updated : r)))
+    } else {
+      const created = await createForecastEvent(fields)
+      setForecastEvents((rows) => [...rows, created])
+    }
+    setEditingForecastEvent(null)
+  }
+
+  async function deleteForecastEventRow() {
+    if (!editingForecastEvent || editingForecastEvent === 'new') return
+    await deleteForecastEvent(editingForecastEvent.id)
+    setForecastEvents((rows) => rows.filter((r) => r.id !== editingForecastEvent.id))
+    setEditingForecastEvent(null)
+  }
 
   // Net worth still counts investments — they're part of what the household is
   // worth, they just aren't listed on this screen.
@@ -265,6 +361,17 @@ export default function Accounts({ onNavigate }) {
         </aside>
       </div>
 
+      <ForecastSection
+        loaded={forecastLoaded}
+        assumptions={forecastAssumptions}
+        projection={forecastProjection}
+        events={forecastEvents}
+        fmt={fmt}
+        onSetup={() => setShowForecastSetup(true)}
+        onAddEvent={() => setEditingForecastEvent('new')}
+        onEventClick={(ev) => setEditingForecastEvent(ev)}
+      />
+
       <CardsSection
         cards={cards}
         transactions={recentTxns}
@@ -321,6 +428,106 @@ export default function Accounts({ onNavigate }) {
           onDelete={handleDelete}
         />
       )}
+
+      {showForecastSetup && (
+        <ForecastSetup
+          accounts={accounts}
+          defaultMonthlyIncome={forecastMonthlyDefaults.monthlyIncome}
+          defaultMonthlyExpenses={forecastMonthlyDefaults.monthlyExpenses}
+          initial={forecastAssumptions}
+          onSave={saveForecastAssumptions}
+          onCancel={() => setShowForecastSetup(false)}
+        />
+      )}
+
+      {editingForecastEvent && (
+        <ForecastEventForm
+          event={editingForecastEvent === 'new' ? null : editingForecastEvent}
+          onSave={saveForecastEvent}
+          onCancel={() => setEditingForecastEvent(null)}
+          onDelete={deleteForecastEventRow}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Accounts → Forecast (Taskiv #24). Prompts a one-time setup if no
+ * assumptions are saved yet; once they are, shows the projection chart plus
+ * a couple of headline numbers (net worth at retirement, years to get there).
+ */
+function ForecastSection({ loaded, assumptions, projection, events, fmt, onSetup, onAddEvent, onEventClick }) {
+  if (!loaded) return null
+
+  if (!assumptions) {
+    return (
+      <div className="mt-5 rounded-2xl border border-ink-200 bg-surface p-5 text-center shadow-card">
+        <h3 className="mb-1 text-sm font-semibold text-ink-900">Forecast</h3>
+        <p className="mb-3 text-sm text-ink-500">
+          Project your net worth forward from your real income and spending, plus any life events you want to plan around.
+        </p>
+        <button
+          type="button"
+          onClick={onSetup}
+          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+        >
+          Set up forecast
+        </button>
+      </div>
+    )
+  }
+
+  const retirementPoint = projection?.find((p) => p.events.some((e) => e.kind === 'retirement'))
+  const finalPoint = projection?.[projection.length - 1]
+
+  return (
+    <div className="mt-5 rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink-900">Forecast</h3>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onAddEvent} className="rounded-lg border border-ink-300 px-2.5 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50">
+            + Life event
+          </button>
+          <button type="button" onClick={onSetup} className="rounded-lg border border-ink-300 px-2.5 py-1 text-xs font-medium text-ink-600 hover:bg-ink-50">
+            Edit assumptions
+          </button>
+        </div>
+      </div>
+
+      {retirementPoint && (
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <StatBlock label="Projected at retirement" value={fmt(retirementPoint.netWorth)} />
+          <StatBlock label={`Projected in ${Math.round((projection.length - 1) / 12)} years`} value={fmt(finalPoint.netWorth)} />
+        </div>
+      )}
+
+      <ForecastChart points={projection ?? []} formatValue={fmt} onEventClick={onEventClick} />
+
+      {events.length > 0 && (
+        <div className="mt-4 space-y-1 border-t border-ink-100 pt-3">
+          {events.map((ev) => (
+            <button
+              key={ev.id}
+              type="button"
+              onClick={() => onEventClick(ev)}
+              className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs hover:bg-ink-50"
+            >
+              <span className="text-ink-600">{ev.params?.label || ev.kind}</span>
+              <span className="text-ink-400">{formatDayMonth(ev.target_date)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatBlock({ label, value }) {
+  return (
+    <div className="rounded-xl bg-ink-50 p-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{label}</p>
+      <p className="tnum mt-0.5 text-lg font-semibold text-ink-900">{value}</p>
     </div>
   )
 }

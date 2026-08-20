@@ -52,6 +52,9 @@ findings each one closes, and the verification evidence.
 | `033_plain_idempotency_unique_index` | Idempotency index made non-partial — PostgREST's `on_conflict=` can't express a predicate | BOT-01 follow-up |
 | `034_transfer_direction_null_safe` | Closes a NULL-passes-CHECK gap in the 025 transfer-direction constraint | found by `test:db` (Taskiv #101) |
 | `035_statement_cycle` | `accounts.statement_day` / `due_day` / `credit_limit`, all nullable | Taskiv #75 — Accounts card section |
+| `036_money_view` | `v_transactions_aed` FX view (applied via `claude/money-v4-open-items-mdw27c`) | Bot expansion Sprint 2 |
+| `037_pending_actions` | Propose-then-tap plumbing table (applied via `claude/money-v4-open-items-mdw27c`) | Taskiv #60 |
+| `038_partner_review_and_goal_link` | `transactions.assigned_to` / `goal_id`, both display-only tags | Taskiv #24 |
 
 ## Rules
 
@@ -69,12 +72,23 @@ findings each one closes, and the verification evidence.
 
 ## Not applied, despite appearing in design docs
 
-`pending_actions` and `v_transactions_aed` are described in `PLAN.md` and the
-bot-expansion docs but do not exist. `pg_cron` and `pg_net` are available and
-**not installed** — both are needed for the nightly backup schedule and future
-Telegram pushes.
+`pg_cron` and `pg_net` are available and **not installed** — both are needed
+for the nightly backup schedule and future Telegram pushes.
 
 `accounts.statement_day` / `due_day` / `credit_limit` **were** in this list and
 are now applied as `035_statement_cycle`. The columns exist and are null on all
 46 rows: no card has had its limit or cycle entered yet, and those values must
 come from the bank app rather than being inferred from an EMI date.
+
+`pending_actions` and `v_transactions_aed` **were** also in this list — both
+are now applied (`036_money_view`, `037_pending_actions`, built on the
+`claude/money-v4-open-items-mdw27c` branch's Telegram bot expansion work, not
+reflected in this branch's git history but live in the shared `our-rokda`
+database — verified via `list_migrations` before adding `038` on top).
+
+`038_partner_review_and_goal_link` (this branch) adds `transactions.assigned_to`
+(flag a spend for the other partner to review) and `transactions.goal_id`
+(display-only link to a goal — never a contribution; see the migration's own
+comment). `forecast_events` was already applied (in `001_init`/`002_rls`) but
+unused until this branch's forecasting feature (Taskiv #24) started reading
+and writing it.

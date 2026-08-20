@@ -16,6 +16,7 @@ export default function TransactionForm({
   prefill,
   accounts,
   categories,
+  goals = [],
   rules = [],
   onSave,
   onCancel,
@@ -40,6 +41,12 @@ export default function TransactionForm({
   const [appliedRule, setAppliedRule] = useState(initialRuleMatch)
   const [saveAsRule, setSaveAsRule] = useState(false)
   const [tagsInput, setTagsInput] = useState(transaction?.tags?.join(', ') ?? '')
+  // Display-only tags (Taskiv #24) — never touch a money total. assignedTo is
+  // "can you check this one?" aimed at the other person, independent of the
+  // reviewed_at reconciliation flag; goalId is "this was for the New Sofa
+  // goal", independent of goal_contributions (see lib/transactions.js).
+  const [assignedTo, setAssignedTo] = useState(transaction?.assigned_to ?? '')
+  const [linkedGoalId, setLinkedGoalId] = useState(transaction?.goal_id ?? '')
   const [split, setSplit] = useState(Boolean(isSplitEdit))
   const [splitLines, setSplitLines] = useState(
     isSplitEdit
@@ -114,7 +121,10 @@ export default function TransactionForm({
           splitLines: splitLines.map((l) => ({ category: l.category, amount: Number(l.amount) })),
         })
       } else {
-        await onSave({ split: false, fields: { ...baseFields, amount: Number(amount), category } })
+        await onSave({
+          split: false,
+          fields: { ...baseFields, amount: Number(amount), category, assigned_to: assignedTo || null, goal_id: linkedGoalId || null },
+        })
         if (saveAsRule && onCreateRule && note.trim()) {
           await onCreateRule(note.trim(), category)
         }
@@ -358,6 +368,47 @@ export default function TransactionForm({
               placeholder="comma, separated, optional"
             />
           </div>
+
+          {!split && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="assignedTo" className="mb-1 block text-sm font-medium text-ink-700">
+                  Ask partner to review
+                </label>
+                <select
+                  id="assignedTo"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                >
+                  <option value="">Not assigned</option>
+                  {OWNERS.filter((o) => o !== 'Joint').map((o) => (
+                    <option key={o} value={o}>
+                      Ask {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="linkedGoal" className="mb-1 block text-sm font-medium text-ink-700">
+                  Linked goal
+                </label>
+                <select
+                  id="linkedGoal"
+                  value={linkedGoalId}
+                  onChange={(e) => setLinkedGoalId(e.target.value)}
+                  className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+                >
+                  <option value="">No goal</option>
+                  {goals.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.icon ? `${g.icon} ` : ''}{g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="text-sm text-neg-600">
