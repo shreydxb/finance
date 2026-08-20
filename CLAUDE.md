@@ -1,3 +1,72 @@
+## Taskiv #21 — correction: a real bug in the derivation, fixed with Shrey (20 Aug 2026)
+
+Shrey pushed back on the first `fire_expense` figure below ("I don't think
+these are my actual expenses") — right to. The category breakdown I showed
+him was quietly dropping every transaction with no category at all: the
+analysis query filtered `category != 'Transfer'` in raw SQL, and SQL's
+`!=` is neither true nor false against `NULL` — such a row is silently
+excluded, not counted as spend and not excluded on purpose. **31 real
+transactions, AED 5,988.03, never entered the average.**
+
+Checked whether this bug reaches the live app, not just my one-off query —
+it doesn't. `src/lib/reports.js`'s `isSpend()` does `t.category !==
+TRANSFER_CATEGORY` in JavaScript, where `null !== 'Transfer'` is `true`, so
+every Reports/Budget screen already counted these rows correctly (bucketed
+"Uncategorised"). The bug was isolated to this one derivation, not a
+product bug.
+
+Grouped the 31 rows by merchant and asked Shrey directly rather than
+guessing any of them (money-data rule). He resolved the material ones live:
+
+- `Paymob**Al WATHBA temp` (AED 3,160.50) → flight tickets to Sri Lanka for
+  him and Tarika → **Travel**.
+- `Al Kabayel Trading` (3×, AED 648.67) → household-goods shopping →
+  **Groceries**.
+- `SmartDXB` + the three AED 50 `Dubai Digital Authority` charges (AED
+  200) → parking/Salik → **Transport & Fuel**. (A fourth `Dubai Digital
+  Authority` charge, AED 390, is a different amount and stays
+  uncategorised — not covered by that answer.)
+- `MILLENNIUM PLACE BARSHA` (2×, AED 15) → breakfast/lunch at his office →
+  **Dining Out**, matching the 40+ other visits already tagged that way.
+- `African & Eastern` (AED 144) → wine → **Groceries** (no dedicated
+  alcohol category exists).
+- `To Saleem Fayyaz` (AED 241.50) → **not a personal transfer** — a real
+  recurring household expense, water bottle/can vouchers (38 vouchers,
+  ~3 months' supply) → **Utilities**, note rewritten to say so. This one
+  reclassifies real spend that would otherwise have been silently excluded
+  from every future spend total the same way the Transfer category is.
+
+All resolved rows also got `needs_review = false` and a real `reviewed_at`.
+~AED 1,258.38/5 months (~AED 252/month) of the original 31 rows are still
+sitting genuinely uncategorised (Factory, Yousuf Mohd Amin Rashi, T W R
+Priyasoma Sri Lanka, King Kabul Auto, Cutting Edge, PJP Investments Group,
+Connectech LLC, Jumeirah, two "Credit (reversal, unclear)" rows, the AED 390
+Dubai Digital Authority charge, three stray zero/near-zero rows, Ginnys
+Plus, Al Hayat Al Jadeeda, Blue Bay FZ LLC, Billed finance charges, and the
+AED 300 ATM withdrawal) — nobody has said what these are yet. That's fine
+for `fire_expense`'s accuracy: the fixed query counts every uncategorised
+row as spend regardless of label (matching `isSpend()`'s real behaviour), so
+the total is complete even though a slice of it isn't neatly labelled yet.
+It only matters for category-level reporting (Reports/Budget breakdowns),
+not this number.
+
+**Recomputed on-ledger average, same Mar–Jul window**: AED 53,553.19 / 5 =
+**AED 10,710.64/month** (up from the buggy AED 9,654.13). Off-ledger
+recurring total is unchanged at AED 15,745.41/month (a separate table,
+unaffected by transaction categorisation).
+
+**`fire_expense` = AED 26,456.05/month** (was AED 25,399.54), written to
+`settings`, replacing the earlier value. FIRE target = 26,456.05 × 12 ÷
+0.04 ≈ **AED 7.94M** (was AED 7.62M). Sanity check against base salaries
+(AED 28,500/month): surplus is now ~AED 2,043.95/month (~7.2%), still
+positive and believable, just tighter than the first pass — which is itself
+a sign the fix mattered, not just noise.
+
+The Settings card and `src/lib/fire.js` need no code change — they always
+read `fire_expense` from `settings` rather than hardcoding the figure, so
+the UI picks up the corrected number automatically. Not yet re-verified in
+a live browser, same sandbox limitation as everything else this session.
+
 ## Taskiv #21 — FIRE number, built from real spend (20 Aug 2026)
 
 Unblocked by Shrey: "based on my past spends using my credit card statements
