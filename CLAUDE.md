@@ -1,3 +1,52 @@
+## Taskiv #21 — data cleanup round 2: Shrey reviewed live, more real fixes (20 Aug 2026)
+
+Shrey reviewed the remaining flagged transactions directly on the deployed
+site (Transactions → "Unreviewed only") rather than going back and forth
+here — confirmed this works fine even on the stale 17 Aug build, since
+category editing has been live since before that deploy and writes straight
+to the same database. He answered several more from there plus a few he
+noticed while reviewing:
+
+- **`DU Google Payment` (AED 157.50/157.69, 3 rows)** → his mobile bill, not
+  a subscription → **Utilities**. A separate `DU Google Payment` amount
+  (AED 450.45, 3 rows) is still unresolved — a different bill under the
+  same merchant descriptor, not yet identified.
+- **`Google Payment · Subscription` (AED 236.44)** → his home WiFi paid via
+  Google Pay, not an actual Google subscription → **Utilities**.
+- **`UADDS Cr Trf` (AED 2,193, 3 Aug)** → the Car Loan EMI payment from FAB
+  — resolves the "destination unclear" transfer flagged on 17 Aug. Left the
+  category as **Transfer** deliberately: the same EMI is already counted
+  once via `recurring`'s off-ledger monthly-equivalent, so recategorising
+  this row as spend would double-count it in `fire_expense`.
+- **Damas Jewellery (AED 3,213 + AED 100)** → confirmed one-time jewelry
+  purchase, **Shopping** is the right fit (no dedicated category exists).
+- **Noon merchant variants** — turned out to already be correctly split
+  (`Noon Food` → Dining Out, `Noon Minutes` → Groceries, `Noon.com`/`Noon
+  E-Commerce` → Shopping) before Shrey even flagged it; added
+  `category_rules` for all four patterns anyway as a safety net for any
+  future bulk/statement-import path, since he's moving to Telegram for new
+  entries going forward.
+
+All of the above are **category/note fixes only — no amount changed**, and
+none moved a row into or out of the `Transfer` category, so the Mar–Jul
+on-ledger total is unchanged (AED 53,553.19, same as the corrected figure
+above) and `fire_expense` did not need recomputing.
+
+**Two things surfaced and still open, not guessed at:**
+- Four AED-0/1-ish rows on 10 Aug (`Google stocks sale` AED 0, a null/null
+  AED 0 row, another null-note AED 0 row, `Microsoft · stock purchase`
+  USD 1) look like leftover test artifacts from stock-tracking, not real
+  broker-statement-sourced holdings — but Shrey didn't recognise them
+  either. Financially immaterial either way; not deleted without an
+  explicit go-ahead since deletion is destructive.
+- The three AED 450.45 `DU Google Payment` rows are still unidentified and
+  still flagged `needs_review`.
+
+Also noted, not acted on: Shrey flagged that tapping "Mark reviewed" on a
+transaction doesn't visually clear the "Needs review" badge the way "Looks
+right" does — he said the current behaviour is fine, so left as-is rather
+than treated as a bug to fix.
+
 ## Taskiv #21 — correction: a real bug in the derivation, fixed with Shrey (20 Aug 2026)
 
 Shrey pushed back on the first `fire_expense` figure below ("I don't think
