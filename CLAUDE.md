@@ -54,19 +54,27 @@ rule below):**
   local Postgres) — schema changes were instead verified applied live via
   Supabase `execute_sql`.
 
-**Deploy status: none of #54–#62 is live in `telegram-intake` yet — a deploy
-package for all of it (33 files, the full transitive closure from
-`index.ts`) was assembled and handed to Shrey this session as a zip
-(`telegram-intake-deploy-v41.zip`) for dashboard browser-paste.** Production
-is still whatever `main`/the last dashboard paste had (through the v40
-deploy, which hit the `SERVICE_ROLE_KEY` staleness issue below). Deploy
-method by explicit standing instruction: **dashboard browser-paste, not
-MCP or CLI** — give Shrey the file contents and path, he pastes, then verify
-via `mcp__Supabase__get_edge_function`. Remember the `../_shared/` naming
-trap documented further down when constructing any file list.
+**Deploy — 19 Aug 2026: `telegram-intake` v41, carrying #54–#62 (all of the
+above).** Shrey pasted the zip (`telegram-intake-deploy-v41.zip`) via the
+Supabase dashboard, `verify_jwt: false` (unchanged). Verified byte-for-byte
+against the repo via `mcp__Supabase__get_edge_function`: every one of the 33
+runtime files matches exactly (modulo a harmless trailing newline). Two
+files from the zip — `_shared/types.ts` and `query/types.ts` — aren't in the
+deployed set and that's fine, not a paste mistake: both files export nothing
+but `interface`/`type` declarations, so every import from them elsewhere is
+type-only and erased at compile time; the bundler never needed to fetch
+them. Worth remembering for future deploy packages — a pure-types file can
+safely be dropped from the manual list without breaking the build, unlike
+every other file here, which still must all be present in one shot per the
+`../_shared/` naming-trap note below.
+
+**Live end-to-end verification is still outstanding — deliberately not done
+by this session.** Same known blocker as before may still apply (see below):
+if `/help`, `/undo` or `/review` gets no reply in the group chat,
+`SERVICE_ROLE_KEY` is the first thing to check, not the new code.
 
 **Standing constraint — do not violate this without the user saying so
-explicitly:** bot query/action tasks (#54–#61 and everything that follows in
+explicitly:** bot query/action tasks (#54–#62 and everything that follows in
 this vein) stay in Taskiv **Review**, never **Done**, until a live Telegram
 round-trip actually verifies them. This was an explicit user instruction
 ("Let's fix telegram related stuff later... it needs review and testing once
