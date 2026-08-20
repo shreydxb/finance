@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import { listCategories, createCategory, updateCategory, deleteCategory, GROUPS } from '../lib/categories'
 import { listAccounts, updateAccount } from '../lib/accounts'
 import { listRecurring } from '../lib/recurring'
+import { listBudgets } from '../lib/budgets'
+import { listTransactions } from '../lib/transactions'
 import { getSetting, saveTelegramSettings, upsertSetting } from '../lib/settings'
 import {
   describeConfiguration,
   payableAccounts,
   validateTelegramSettings,
 } from '../lib/telegramSettings'
-import { computeFireTarget, monthlyRecurringTotal, yearsToFire } from '../lib/fire'
+import { computeFireTarget, monthlyRecurringTotal, trailingMonthsRange, budgetVsActual, yearsToFire } from '../lib/fire'
 import { participatingNetWorth } from '../lib/forecast'
 import { formatMoney } from '../lib/money'
 import { supabase } from '../lib/supabaseClient'
@@ -25,6 +27,13 @@ function formatRelativeTime(isoString) {
   const days = Math.round(hours / 24)
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
+
+// How far back the FIRE card's budget-vs-actual comparison looks. Kept
+// separate from fire_expense's own derivation (which a household member
+// verifies by hand each time it's recomputed) so this stays a lightweight,
+// always-current comparison rather than another number someone has to
+// remember to update.
+const BUDGET_TRAILING_MONTHS = 6
 
 const BUCKETS = [
   { value: '', label: 'Unassigned' },
@@ -50,6 +59,8 @@ export default function Settings() {
   const [refreshingFx, setRefreshingFx] = useState(false)
   const [fxError, setFxError] = useState('')
   const [recurring, setRecurring] = useState([])
+  const [budgets, setBudgets] = useState([])
+  const [trailingTxns, setTrailingTxns] = useState([])
   const [fireSwr, setFireSwr] = useState(0.04)
   const [fireReturn, setFireReturn] = useState(0.07)
   const [fireExpense, setFireExpense] = useState(null)
@@ -82,19 +93,25 @@ export default function Settings() {
   async function refresh() {
     setError('')
     try {
-      const [cats, accts, recurringRows, splitSetting, swrSetting, returnSetting, expenseSetting] = await Promise.all([
-        listCategories(),
-        listAccounts(),
-        listRecurring(),
-        getSetting('income_split'),
-        getSetting('fire_swr'),
-        getSetting('fire_return'),
-        getSetting('fire_expense'),
-        loadFx(),
-      ])
+      const { from, to } = trailingMonthsRange(BUDGET_TRAILING_MONTHS)
+      const [cats, accts, recurringRows, budgetRows, txns, splitSetting, swrSetting, returnSetting, expenseSetting] =
+        await Promise.all([
+          listCategories(),
+          listAccounts(),
+          listRecurring(),
+          listBudgets(),
+          listTransactions({ dateFrom: from, dateTo: to }), // trailingMonthsRange's `to` is inclusive
+          getSetting('income_split'),
+          getSetting('fire_swr'),
+          getSetting('fire_return'),
+          getSetting('fire_expense'),
+          loadFx(),
+        ])
       setCategories(cats)
       setAccounts(accts)
       setRecurring(recurringRows)
+      setBudgets(budgetRows)
+      setTrailingTxns(txns)
       if (splitSetting) {
         setSplit(splitSetting)
         setSplitDraft({
@@ -254,6 +271,9 @@ export default function Settings() {
         accounts={accounts}
         recurring={recurring}
         fxRates={fxRates}
+        budgets={budgets}
+        trailingTxns={trailingTxns}
+        trailingMonths={BUDGET_TRAILING_MONTHS}
       />
 
       <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
@@ -389,6 +409,9 @@ function FireCard({
   accounts,
   recurring,
   fxRates,
+  budgets,
+  trailingTxns,
+  trailingMonths,
 }) {
   const target = computeFireTarget(fireExpense, fireSwr)
   const netWorth = fxRates ? participatingNetWorth(accounts, fxRates, null) : null
@@ -398,6 +421,7 @@ function FireCard({
     target != null && netWorth != null && monthlySavings != null
       ? yearsToFire({ startNetWorth: netWorth, fireTarget: target, monthlyNetSavings: monthlySavings, annualReturnPct: fireReturn * 100 })
       : null
+  const comparisonRows = fxRates ? budgetVsActual(budgets, trailingTxns, fxRates, trailingMonths) : []
 
   return (
     <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
@@ -447,6 +471,46 @@ function FireCard({
         <p role="alert" className="mt-2 text-sm text-neg-600">
           {error}
         </p>
+      )}
+
+      {comparisonRows.length > 0 && (
+        <div className="mt-5 border-t border-ink-100 pt-4">
+          <h3 className="mb-1 text-sm font-semibold text-ink-900">Budget vs. actual</h3>
+          <p className="mb-3 text-xs text-ink-500">
+            Trailing {trailingMonths} full months, monthly average. The FIRE number above is built from actual spend, not
+            the budget — a category with real spend and no budget row (marked below) is exactly why: a budget with gaps
+            would understate this figure.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-ink-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-ink-200 bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
+                  <th className="px-3 py-2 font-medium">Category</th>
+                  <th className="px-3 py-2 text-right font-medium">Budget/mo</th>
+                  <th className="px-3 py-2 text-right font-medium">Actual/mo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparisonRows.map((row) => (
+                  <tr key={row.category} className="border-b border-ink-100 last:border-b-0">
+                    <td className="px-3 py-1.5 font-medium text-ink-900">
+                      {row.category}
+                      {!row.hasBudget && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                          No budget line
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tnum text-ink-700">
+                      {row.hasBudget ? formatMoney(row.budgetMonthly, 'AED') : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tnum text-ink-900">{formatMoney(row.actualMonthly, 'AED')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -10,6 +10,7 @@
 
 import { toAED } from './money.js'
 import { todayLocal } from './dates.js'
+import { isSpend } from './reports.js'
 
 /** FIRE target = 12 months of expenses, divided by the safe withdrawal rate. */
 export function computeFireTarget(fireExpense, fireSwr) {
@@ -38,6 +39,73 @@ export function monthlyRecurringTotal(recurringRows, kind, fxRates, today = toda
   return recurringRows
     .filter((r) => r.kind === kind && (!r.end_date || r.end_date >= today))
     .reduce((sum, r) => sum + monthlyEquivalent(r, fxRates), 0)
+}
+
+/**
+ * The trailing window of `months` full completed calendar months before
+ * today's (partial) month — `{ from, to }` as `YYYY-MM-DD`, both inclusive,
+ * matching `listTransactions`'s `dateFrom`/`dateTo` (`gte`/`lte`). Never
+ * hardcode a date range for this: "the last N full months" has to keep
+ * moving with real time, or the budget comparison quietly goes stale the
+ * way the first FIRE derivation's fixed Mar–Jul window would have.
+ */
+export function trailingMonthsRange(months, today = todayLocal()) {
+  const [y, m] = today.split('-').map(Number)
+  // Day 0 of the current month == the last day of the previous month, so
+  // this lands on the last full completed month without ever going
+  // through toISOString (the UTC-vs-Dubai-local trap dates.js documents).
+  const toDate = new Date(y, m - 1, 0)
+  const fromDate = new Date(y, m - 1 - months, 1)
+  const pad = (n) => String(n).padStart(2, '0')
+  return {
+    from: `${fromDate.getFullYear()}-${pad(fromDate.getMonth() + 1)}-01`,
+    to: `${toDate.getFullYear()}-${pad(toDate.getMonth() + 1)}-${pad(toDate.getDate())}`,
+  }
+}
+
+/**
+ * Monthly-average AED spend per category over `months` trailing full
+ * months. `transactions` should already be filtered to that window (e.g.
+ * via `trailingMonthsRange`) — this only sums and divides, matching
+ * `reports.js`'s `sumByCategoryAED` grouping convention (`Uncategorised`
+ * bucket, Transfer excluded via `isSpend`).
+ */
+export function categoryMonthlyAverages(transactions, fxRates, months) {
+  const totals = new Map()
+  for (const t of transactions) {
+    if (!isSpend(t)) continue
+    const aed = toAED(Number(t.amount) || 0, t.currency, fxRates)
+    if (!Number.isFinite(aed)) continue
+    const key = t.category || 'Uncategorised'
+    totals.set(key, (totals.get(key) || 0) + aed)
+  }
+  if (months > 0) {
+    for (const [key, total] of totals) totals.set(key, total / months)
+  }
+  return totals
+}
+
+/**
+ * Every category with a budget limit or real spend (or both) in the
+ * window, budget vs. actual monthly AED, sorted by actual spend
+ * descending. A budget row with no matching spend still shows (0 actual);
+ * real spend with no budget row shows `hasBudget: false` rather than being
+ * silently dropped — that gap is the whole point of the comparison.
+ */
+export function budgetVsActual(budgetRows, transactions, fxRates, months) {
+  const actual = categoryMonthlyAverages(transactions, fxRates, months)
+  const rows = new Map()
+  for (const b of budgetRows) {
+    const name = b.category?.name
+    if (!name) continue
+    rows.set(name, { category: name, budgetMonthly: Number(b.monthly_limit) || 0, actualMonthly: 0, hasBudget: true })
+  }
+  for (const [name, monthly] of actual) {
+    const existing = rows.get(name)
+    if (existing) existing.actualMonthly = monthly
+    else rows.set(name, { category: name, budgetMonthly: null, actualMonthly: monthly, hasBudget: false })
+  }
+  return [...rows.values()].sort((a, b) => b.actualMonthly - a.actualMonthly)
 }
 
 /**

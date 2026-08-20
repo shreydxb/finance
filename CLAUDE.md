@@ -1,3 +1,39 @@
+## Taskiv #21 — budget-vs-actual comparison, built into the FIRE card (20 Aug 2026)
+
+Shrey asked whether the FIRE number could be built from the household's
+existing `budgets` table instead of actual spend, and separately asked for
+a real page in the app rather than a one-off artifact each time, "build it
+as part of the site and then build on top of it later." Checked the budget
+against actual trailing spend first — the two don't match closely enough to
+swap: `budgets` has **no line at all for Travel** (AED 4,145/mo actual, the
+single largest category) and Shopping is budgeted at AED 500/mo against
+AED 2,898 actually spent. A budget-based `fire_expense` would have
+understated the real figure by roughly AED 6,300/month. Recommendation
+given to Shrey: keep `fire_expense` sourced from actual spend; treat this
+mismatch as a reason to fix the *budget* (add Travel, raise Shopping),
+which is a separate Budget-screen task, not something to silently fold into
+the FIRE derivation.
+
+Built the comparison itself into the **FIRE number card on Settings** as
+the "build on top of it later" first increment, rather than a one-off
+artifact — same numbers, permanent, no redeploy needed to see them next
+time. Four new pure functions in `src/lib/fire.js` (6 more tests, 18
+total): `trailingMonthsRange` (last N full completed calendar months
+before today's partial month, both bounds inclusive to match
+`listTransactions`'s `gte`/`lte` — deliberately never hardcodes a date
+range, and never round-trips through `toISOString` building it, the same
+UTC-vs-Dubai-local trap `dateAtAge` hit for #24), `categoryMonthlyAverages`
+(reuses `reports.js`'s `isSpend`/`Uncategorised` convention), and
+`budgetVsActual` (unions budget categories with actual-spend categories so
+a real-spend category with no budget row is flagged `hasBudget: false`
+rather than silently dropped — that gap is the whole point). Settings now
+fetches `budgets` and a trailing-6-month transaction window alongside what
+it already loaded, and the FIRE card renders a "Budget vs. actual" table
+below the target, with a "No budget line" badge on any category like
+Travel that has real spend and nothing to compare it to. 461 `npm test`
+(was 455, +6), lint and build clean. Not yet verified in a live browser,
+same sandbox limitation as everything else this session.
+
 ## Taskiv #21 — data cleanup round 2: Shrey reviewed live, more real fixes (20 Aug 2026)
 
 Shrey reviewed the remaining flagged transactions directly on the deployed
