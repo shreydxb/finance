@@ -1,3 +1,70 @@
+## Taskiv #21 — FIRE number, built from real spend (20 Aug 2026)
+
+Unblocked by Shrey: "based on my past spends using my credit card statements
+and my recurring expenses, can we come up with a number for calculating
+FIRE?" — supplies the real `fire_expense` figure the task had been sitting on
+since 7 Aug (`fire_swr`/`fire_return` were already set; nothing read them).
+Deliberately the small static version per the task's own scope note — a
+3-field formula, not Monarch's Forecasting feature (that's the separate
+"Forecast" card on Accounts, built for #24, not merged with this).
+
+**How `fire_expense` was derived, entirely from real data, no guess:**
+`transactions` only captures card-based day-to-day spend — checked by
+grepping every row's `note` for "rent", "EMI", "LIC" and "send money" and
+finding zero matches, and by confirming the category list has nothing like
+"Rent" or "Loan". Rent cheques, loan EMIs, LIC premiums and the monthly
+India remittances are bank-level movements that never touch a card, so they
+only exist in `recurring` and would be silently missing from a
+transactions-only average. So the number combines two real sources:
+
+- **On-ledger (card spend)**: 5 full logged months, Mar–Jul 2026 (Feb and
+  Aug were partial), 386 non-transfer, non-deleted rows, AED 48,270.64 total
+  → AED 9,654.13/month average. Left the one real outlier in (a AED 15,500
+  one-time vacation-home booking in June) rather than excluding it — a
+  household's real travel spend is lumpy, not a reason to under-count it.
+- **Off-ledger (recurring, monthly-equivalent)**: rent cheques (two cheque
+  schedules averaged over the year), all four EMIs (0% CC loan, car
+  down-payment, car loan, mobile), both LIC premiums and both Send Money
+  Home rows, each spread across 12 months when the `recurring` row's own
+  `months` array says it only fires in specific months (e.g. LIC Shrey's
+  150,000 INR every December → ÷12). Total AED 15,745.41/month.
+
+**`fire_expense` = AED 25,399.54/month**, written directly to `settings`
+(verified live). Sanity check against real income: Shrey + Tarika's base
+salaries alone are AED 28,500/month, leaving a ~AED 3,100/month (~11%)
+surplus at this expense figure — a believable number, not an implausible
+one, which is the cross-check this kind of derived figure needs.
+FIRE target = 25,399.54 × 12 / 0.04 ≈ **AED 7.62M**.
+
+`src/lib/fire.js` — pure logic, no Supabase import, 12 tests:
+`computeFireTarget` (the 3-field formula, refuses on null/zero rather than
+dividing by zero), `monthlyEquivalent`/`monthlyRecurringTotal` (spreads a
+`recurring` row's annual cost across 12 months when its `months` array is
+non-empty, matches `recurringSchedule.js`'s own "empty = every month"
+convention, skips a row whose `end_date` has passed), and `yearsToFire` (a
+simple monthly-compounding loop — reuses the same growth/cash-flow shape as
+`forecast.js`'s `projectNetWorth`, deliberately not the same code since #21
+and #24 are scoped apart, but no reason to invent a different compounding
+model). New "FIRE number" card on **Settings**, below Household split: shows
+the target and an editable AED/month input (so the household can update the
+figure by hand later without needing another data-derivation pass), plus a
+years-to-FIRE estimate reusing `forecast.js`'s already-exported
+`participatingNetWorth` against every account and `fire.js`'s own
+`monthlyRecurringTotal` against `recurring`'s income rows for the savings
+rate. 455 `npm test` total (12 new from `fire.test.js`), lint and build
+clean. **Not verified in a live browser** — same sandbox
+Chromium/Supabase limitation as #103/#24 below; someone should open
+Settings once Netlify redeploys and confirm the card renders and the number
+matches.
+
+This branch (`claude/money-v4-open-items-5njpob`) had gone stale relative to
+`main` — its old tip (`b6ea971`) predates the version of #103/#24 that
+actually shipped (`main`'s `d05a939` has a different hash for the same
+work, from a squash/rebase during the earlier merge). Per the "already
+merged, treat as fresh" rule, this branch was restarted from `main`'s current
+HEAD (`1011668`) and force-pushed — no unmerged work was on the old tip to
+lose, it was purely stale history.
+
 ## Handover — 20 Aug 2026: #103 + #24 shipped to `main`, blocked on Netlify credits
 
 **Code status: done.** `main` is at commit `d05a939` (fast-forwarded from

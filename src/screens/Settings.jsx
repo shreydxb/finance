@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { listCategories, createCategory, updateCategory, deleteCategory, GROUPS } from '../lib/categories'
 import { listAccounts, updateAccount } from '../lib/accounts'
+import { listRecurring } from '../lib/recurring'
 import { getSetting, saveTelegramSettings, upsertSetting } from '../lib/settings'
 import {
   describeConfiguration,
   payableAccounts,
   validateTelegramSettings,
 } from '../lib/telegramSettings'
+import { computeFireTarget, monthlyRecurringTotal, yearsToFire } from '../lib/fire'
+import { participatingNetWorth } from '../lib/forecast'
+import { formatMoney } from '../lib/money'
 import { supabase } from '../lib/supabaseClient'
 import CategoryForm from '../components/CategoryForm'
 import { usePrefs } from '../lib/PrefsContext'
@@ -45,6 +49,13 @@ export default function Settings() {
   const [fxUpdatedAt, setFxUpdatedAt] = useState(null)
   const [refreshingFx, setRefreshingFx] = useState(false)
   const [fxError, setFxError] = useState('')
+  const [recurring, setRecurring] = useState([])
+  const [fireSwr, setFireSwr] = useState(0.04)
+  const [fireReturn, setFireReturn] = useState(0.07)
+  const [fireExpense, setFireExpense] = useState(null)
+  const [fireDraft, setFireDraft] = useState('')
+  const [savingFire, setSavingFire] = useState(false)
+  const [fireError, setFireError] = useState('')
 
   async function loadFx() {
     const { data } = await supabase.from('settings').select('value, updated_at').eq('key', 'fx_rates').maybeSingle()
@@ -71,20 +82,31 @@ export default function Settings() {
   async function refresh() {
     setError('')
     try {
-      const [cats, accts, splitSetting] = await Promise.all([
+      const [cats, accts, recurringRows, splitSetting, swrSetting, returnSetting, expenseSetting] = await Promise.all([
         listCategories(),
         listAccounts(),
+        listRecurring(),
         getSetting('income_split'),
+        getSetting('fire_swr'),
+        getSetting('fire_return'),
+        getSetting('fire_expense'),
         loadFx(),
       ])
       setCategories(cats)
       setAccounts(accts)
+      setRecurring(recurringRows)
       if (splitSetting) {
         setSplit(splitSetting)
         setSplitDraft({
           shrey: String(Math.round(splitSetting.shrey * 100)),
           tarika: String(Math.round(splitSetting.tarika * 100)),
         })
+      }
+      if (swrSetting != null) setFireSwr(Number(swrSetting))
+      if (returnSetting != null) setFireReturn(Number(returnSetting))
+      if (expenseSetting != null) {
+        setFireExpense(Number(expenseSetting))
+        setFireDraft(String(Number(expenseSetting)))
       }
     } catch {
       setError('Could not load settings. Check your connection and try again.')
@@ -135,6 +157,25 @@ export default function Settings() {
       setSplitError('Could not save. Try again.')
     } finally {
       setSavingSplit(false)
+    }
+  }
+
+  async function handleSaveFire(e) {
+    e.preventDefault()
+    setFireError('')
+    const expense = Number(fireDraft)
+    if (!Number.isFinite(expense) || expense <= 0) {
+      setFireError('Enter a monthly expense above zero.')
+      return
+    }
+    setSavingFire(true)
+    try {
+      await upsertSetting('fire_expense', expense)
+      setFireExpense(expense)
+    } catch {
+      setFireError('Could not save. Try again.')
+    } finally {
+      setSavingFire(false)
     }
   }
 
@@ -200,6 +241,20 @@ export default function Settings() {
           </p>
         )}
       </div>
+
+      <FireCard
+        fireExpense={fireExpense}
+        fireDraft={fireDraft}
+        setFireDraft={setFireDraft}
+        fireSwr={fireSwr}
+        fireReturn={fireReturn}
+        onSave={handleSaveFire}
+        saving={savingFire}
+        error={fireError}
+        accounts={accounts}
+        recurring={recurring}
+        fxRates={fxRates}
+      />
 
       <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
         <div className="mb-1 flex items-center justify-between gap-3">
@@ -310,6 +365,88 @@ export default function Settings() {
           onCancel={() => setEditing(null)}
           onDelete={handleDelete}
         />
+      )}
+    </div>
+  )
+}
+
+/**
+ * FIRE target = 12x fire_expense / fire_swr — the small static version
+ * (Taskiv #21), not Monarch's Forecasting feature (that's the "Forecast"
+ * card on Accounts, built separately for #24 and deliberately not merged
+ * with this). fire_expense should come from real trailing spend, not a
+ * guess — see CLAUDE.md's money-data rule.
+ */
+function FireCard({
+  fireExpense,
+  fireDraft,
+  setFireDraft,
+  fireSwr,
+  fireReturn,
+  onSave,
+  saving,
+  error,
+  accounts,
+  recurring,
+  fxRates,
+}) {
+  const target = computeFireTarget(fireExpense, fireSwr)
+  const netWorth = fxRates ? participatingNetWorth(accounts, fxRates, null) : null
+  const monthlyIncome = fxRates ? monthlyRecurringTotal(recurring, 'income', fxRates) : null
+  const monthlySavings = fireExpense != null && monthlyIncome != null ? monthlyIncome - fireExpense : null
+  const years =
+    target != null && netWorth != null && monthlySavings != null
+      ? yearsToFire({ startNetWorth: netWorth, fireTarget: target, monthlyNetSavings: monthlySavings, annualReturnPct: fireReturn * 100 })
+      : null
+
+  return (
+    <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
+      <h2 className="mb-1 text-lg font-semibold text-ink-900">FIRE number</h2>
+      <p className="mb-4 text-sm text-ink-500">
+        Target = 12 months of expenses ÷ {Math.round(fireSwr * 100)}% safe withdrawal rate.
+      </p>
+
+      {target != null && (
+        <div className="mb-4 space-y-1">
+          <p className="text-2xl font-semibold text-ink-900">{formatMoney(target, 'AED')}</p>
+          {years != null && (
+            <p className="text-sm text-ink-500">
+              ~{years.toFixed(1)} years away at current net worth ({formatMoney(netWorth, 'AED')}) and savings rate (
+              {formatMoney(monthlySavings, 'AED')}/mo), growing {Math.round(fireReturn * 100)}%/yr.
+            </p>
+          )}
+          {years == null && monthlySavings != null && monthlySavings <= 0 && (
+            <p className="text-sm text-neg-600">Current recurring income doesn&apos;t cover this expense figure — savings rate is zero or negative.</p>
+          )}
+        </div>
+      )}
+
+      <form onSubmit={onSave} className="flex items-end gap-3">
+        <div>
+          <label htmlFor="fire-expense" className="mb-1 block text-xs font-medium text-ink-700">
+            Monthly expense (AED)
+          </label>
+          <input
+            id="fire-expense"
+            type="number"
+            step="0.01"
+            value={fireDraft}
+            onChange={(e) => setFireDraft(e.target.value)}
+            className="w-40 rounded-lg border border-ink-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </form>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-neg-600">
+          {error}
+        </p>
       )}
     </div>
   )
