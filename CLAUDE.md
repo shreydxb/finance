@@ -1,3 +1,61 @@
+## Taskiv #103 — Reports/Spending comparison chart (19 Aug 2026)
+
+Built on this branch (`claude/money-v4-open-items-5njpob`) — unrelated to the
+Telegram bot work below, which moved to `claude/money-v4-open-items-mdw27c`
+after a branch reconciliation (see that branch's CLAUDE.md).
+
+Monarch-style "this period vs a comparison period" cumulative spend chart,
+new `Compare` sub-tab on Reports → Spending, alongside the existing
+Breakdown/Trends tabs. Five comparisons via a dropdown (This week vs last
+week, This month vs last month, This month vs last year, This month vs
+average month — default, This year vs last year), matching the screenshots
+Shrey shared.
+
+`src/lib/spendingComparison.js` is the pure logic (no Supabase import, same
+rule as `reports.js`): `resolveComparisonPeriod(key)` turns a comparison key
+into the current period (always ends "today"), the comparison period (a real
+past period — `null` only for the average-month case, whose comparison is a
+synthetic curve, not one period), and the widest date range to fetch.
+`buildComparisonSeries` turns a flat transaction list into two cumulative
+daily series **aligned by day-offset**, not calendar date — day 12 of "this
+month" lines up under day 12 of "last month" regardless of month length, and
+a `null` at an index (today onward for the current series; a window edge for
+the average) breaks the line rather than drawing a false slope to zero. The
+average-month case computes the mean AED spend per day-of-month (1–31)
+across the trailing 12 full calendar months, correctly skipping months that
+don't have a given day (Feb has no 31st).
+
+New `ComparisonChart.jsx` — a two-series SVG line/area chart in the same
+hand-rolled style as `LineChart.jsx` (no charting library). The comparison
+series draws as a dashed neutral-gray line rather than a second categorical
+hue, since it's a reference line (like a budget line), not a competing
+identity — the current period keeps the app's usual `CHART_PALETTE[0]` brand
+blue with an area fill. Both series break into separate path segments
+wherever they go `null`, so gaps never draw as false drops to zero.
+
+Comparison is tied to real "today", independent of the screen's own
+← → period navigator — matches Monarch's own dropdown behaviour, and matters
+because a household member browsing an old month shouldn't see "this week"
+silently mean that old month's week.
+
+11 new tests in `spendingComparison.test.js` (period resolution for all 5
+keys including year/month boundary rollovers and leap-year day counts,
+day-offset cumulative alignment, transfer exclusion, non-AED conversion, the
+day-of-month averaging including the skip-months-without-day-31 case, and an
+empty-data all-zero-not-null case). 443 `npm test` (was 432), lint and build
+clean. **Not verified in a live browser this session** — no Supabase login
+credentials available here; the dev server itself launches fine and the
+production build compiles, but nobody has clicked through the actual Compare
+tab yet. Do that before calling this done.
+
+Frontend-only — needs a Netlify build once pushed to `main`; not yet merged
+there.
+
+(The Telegram bot work referenced above as "below" moved to
+`claude/money-v4-open-items-mdw27c` after a same-day branch reconciliation —
+see that branch's own CLAUDE.md for `/undo`/`/review`. Not carried into this
+file since `main` doesn't have that code.)
+
 # Our Money v4 — working notes
 
 Private household finance app for a couple in Dubai. See `PLAN.md` for the

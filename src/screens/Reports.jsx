@@ -23,8 +23,10 @@ import BreakdownBars from '../components/BreakdownBars'
 import SankeyChart from '../components/SankeyChart'
 import LineChart from '../components/LineChart'
 import VerticalBarChart from '../components/VerticalBarChart'
+import ComparisonChart from '../components/ComparisonChart'
 import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
+import { COMPARISON_OPTIONS, buildComparisonSeries, resolveComparisonPeriod } from '../lib/spendingComparison'
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -54,7 +56,7 @@ export default function Reports() {
   const [quarterCursor, setQuarterCursor] = useState(currentQuarter())
   const [yearCursor, setYearCursor] = useState(new Date().getFullYear())
   const [groupingMode, setGroupingMode] = useState('category') // category | group | merchant
-  const [subView, setSubView] = useState('breakdown') // breakdown | trends
+  const [subView, setSubView] = useState('breakdown') // breakdown | trends | compare
   const [spendShape, setSpendShape] = useState('bars')
   const [incomeShape, setIncomeShape] = useState('donut')
   const [trendShape, setTrendShape] = useState('line') // line | bars
@@ -70,6 +72,9 @@ export default function Reports() {
   const [error, setError] = useState('')
   const [trendTransactions, setTrendTransactions] = useState([])
   const [trendLoading, setTrendLoading] = useState(false)
+  const [comparisonKey, setComparisonKey] = useState('month_average')
+  const [comparisonTransactions, setComparisonTransactions] = useState([])
+  const [comparisonLoading, setComparisonLoading] = useState(false)
 
   const cursor = mode === 'month' ? monthCursor : mode === 'quarter' ? quarterCursor : yearCursor
   const { from, to, label } = periodInfo(mode, mode === 'year' ? { year: cursor } : cursor)
@@ -114,6 +119,28 @@ export default function Reports() {
       .finally(() => setTrendLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, subView, to])
+
+  // Tied to real "today", not the screen's own period nav — Monarch's
+  // comparison dropdown is its own thing, always "this week/month/year"
+  // relative to now, independent of whatever period the ← → controls show.
+  const comparisonResolved = useMemo(() => resolveComparisonPeriod(comparisonKey), [comparisonKey])
+
+  useEffect(() => {
+    if (section !== 'spending' || subView !== 'compare') return
+    setComparisonLoading(true)
+    const todayStr = new Date().toISOString().slice(0, 10)
+    listTransactions({ dateFrom: comparisonResolved.fetchFrom, dateTo: todayStr })
+      .then(setComparisonTransactions)
+      .catch(() => setComparisonTransactions([]))
+      .finally(() => setComparisonLoading(false))
+  }, [section, subView, comparisonResolved])
+
+  const comparisonSeries = useMemo(
+    () => buildComparisonSeries(comparisonTransactions, fxRates, comparisonResolved),
+    [comparisonTransactions, fxRates, comparisonResolved]
+  )
+  // The latest non-null "current" point — the running cumulative total to date.
+  const comparisonCurrentTotal = [...comparisonSeries.points].reverse().find((p) => p.current !== null)?.current ?? 0
 
   const totalIncome = useMemo(() => totalAED(income, fxRates), [income, fxRates])
   const totalExpenses = useMemo(() => totalAED(transactions, fxRates), [transactions, fxRates])
@@ -320,7 +347,7 @@ export default function Reports() {
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
-              {['breakdown', 'trends'].map((v) => (
+              {['breakdown', 'trends', 'compare'].map((v) => (
                 <button key={v} type="button" onClick={() => setSubView(v)}
                   className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${subView === v ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}>{v}</button>
               ))}
@@ -331,7 +358,7 @@ export default function Reports() {
             </button>
           </div>
 
-          {subView === 'breakdown' ? (
+          {subView === 'breakdown' && (
             <BreakdownBars title="Expenses" groups={catGroups} formatValue={fmt}
               emptyMessage="No expenses logged for this period."
               shape={spendShape} onShapeChange={setSpendShape}
@@ -341,32 +368,63 @@ export default function Reports() {
                 { key: 'merchant', label: 'Merchant' },
               ]}
               activeTab={groupingMode} onTabChange={setGroupingMode} />
-          ) : trendLoading ? (
-            <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
-              <p className="py-6 text-center text-sm text-ink-500">Loading trend…</p>
-            </div>
-          ) : (
+          )}
+
+          {subView === 'trends' && (
+            trendLoading ? (
+              <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+                <p className="py-6 text-center text-sm text-ink-500">Loading trend…</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-ink-900">Spend, last {TREND_MONTHS} months</h2>
+                  <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+                    {[
+                      { key: 'line', label: '⟋', aria: 'Line view' },
+                      { key: 'bars', label: '▤', aria: 'Bar view' },
+                    ].map((s) => (
+                      <button key={s.key} type="button" onClick={() => setTrendShape(s.key)} aria-label={s.aria}
+                        className={`rounded-md px-2 py-1 font-medium transition-colors ${trendShape === s.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'}`}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {trendGroups.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-ink-500">No expenses logged in this window.</p>
+                ) : trendShape === 'line' ? (
+                  <LineChart points={trendGroups} formatValue={fmt} height={220} />
+                ) : (
+                  <VerticalBarChart points={trendGroups} formatValue={fmt} height={220} />
+                )}
+              </div>
+            )
+          )}
+
+          {subView === 'compare' && (
             <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-ink-900">Spend, last {TREND_MONTHS} months</h2>
-                <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
-                  {[
-                    { key: 'line', label: '⟋', aria: 'Line view' },
-                    { key: 'bars', label: '▤', aria: 'Bar view' },
-                  ].map((s) => (
-                    <button key={s.key} type="button" onClick={() => setTrendShape(s.key)} aria-label={s.aria}
-                      className={`rounded-md px-2 py-1 font-medium transition-colors ${trendShape === s.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'}`}>
-                      {s.label}
-                    </button>
+                <h2 className="text-sm font-semibold text-ink-900">
+                  Spending {fmt(comparisonCurrentTotal)} {comparisonSeries.currentLabel.toLowerCase()}
+                </h2>
+                <select value={comparisonKey} onChange={(e) => setComparisonKey(e.target.value)}
+                  className="rounded-lg border border-ink-300 bg-surface px-2.5 py-1.5 text-xs font-medium text-ink-700">
+                  {COMPARISON_OPTIONS.map((o) => (
+                    <option key={o.key} value={o.key}>{o.label}</option>
                   ))}
-                </div>
+                </select>
               </div>
-              {trendGroups.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No expenses logged in this window.</p>
-              ) : trendShape === 'line' ? (
-                <LineChart points={trendGroups} formatValue={fmt} height={220} />
+              {comparisonLoading ? (
+                <p className="py-6 text-center text-sm text-ink-500">Loading comparison…</p>
               ) : (
-                <VerticalBarChart points={trendGroups} formatValue={fmt} height={220} />
+                <ComparisonChart
+                  points={comparisonSeries.points}
+                  currentLabel={comparisonSeries.currentLabel}
+                  comparisonLabel={comparisonSeries.comparisonLabel}
+                  formatValue={fmt}
+                  height={240}
+                />
               )}
             </div>
           )}
