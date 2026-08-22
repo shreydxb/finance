@@ -1,0 +1,80 @@
+# Our Money v5 financial rules
+
+Status: canonical invariants and current known semantics for SHR-108. An item marked **unresolved** must not be guessed; define it in a reviewed decision before changing calculations.
+
+## General invariants
+
+- Stored money facts come from a user, an authoritative source, or a validated deterministic process. Never invent them.
+- A plausible wrong number is worse than an explicit unavailable/unknown result.
+- All totals must state or inherit a reporting currency and period.
+- Missing FX or valuation inputs must surface as unavailable/incomplete, not silently use parity, zero, or omit the row.
+- Soft-deleted transactions do not contribute to current reports.
+- Unknown zero-amount Telegram rows are placeholders only while `needs_review` is true; they cannot be treated as reviewed financial facts.
+- Ownership is descriptive unless a metric explicitly defines an owner filter. It is not the authorization boundary.
+
+## Currency and valuation
+
+- AED is the base reporting currency.
+- Repository FX settings express conversion to AED. `toAED` returns an unavailable numeric result when a rate is missing.
+- `v_transactions_aed.amount_aed` is NULL when a rate is missing. PostgreSQL `sum()` skips NULL, so every database aggregate over this view must also detect missing converted rows.
+- Display-currency switching is presentation-only and must not mutate stored amounts.
+- Current-rate conversion of historical transactions is the current approximation. Historical/daily FX valuation is **planned/unresolved**, not currently implemented.
+- Holding prices require provenance and freshness metadata. A stale or missing price must be visible; it must not be represented as a current valuation without qualification.
+
+## Transactions, splits, and transfers
+
+- A transaction records economic activity in its stored currency and account context.
+- Category splits are multiple lines of one purchase. The sum of the split lines must equal the original economic amount.
+- Transfers are paired movements between accounts and are not spending or income.
+- Transfer rows must carry `group_kind = transfer` and an explicit `transfer_direction` of `out` or `in`; non-transfer groups must not carry a transfer direction.
+- A credit-card payment is a transfer/debt settlement, not new spending. The underlying purchase is the spend.
+- An investment purchase recorded as a cash-flow transaction is categorized as savings/investment movement under current behavior; it must not also create or modify an authoritative holding unless supported by broker-sourced facts.
+- Duplicate intake events must create one financial effect. Preserve idempotency keys and atomic intake functions.
+- Deletion uses `deleted_at` for transaction history. Group operations must preserve the same soft-delete semantics.
+
+## Income, spend, cash flow, and savings
+
+- **Current spend:** non-deleted transactions whose category is not `Transfer`, converted to AED using the canonical FX helper. Uncategorised transactions are still spend.
+- **Current income:** rows in the `income` table for the selected period, converted using the same FX rules.
+- **Cash flow:** income minus spend for the same period and reporting basis.
+- Internal transfers are excluded from both spend and income.
+- Recurring rows describe obligations/expectations and must not be added to ledger actuals without an explicit metric definition; doing so can double count.
+- **Savings and savings rate are unresolved as a single canonical cross-product definition.** Existing screens may derive approximations. A future issue must specify whether savings is cash flow, explicit Savings-category outflow, account-value change, or another reconciled primitive before v5 exposes it as authoritative.
+
+## Accounts, liabilities, and net worth
+
+- Account value is stored in the account currency and converted through the canonical FX layer.
+- Assets and liabilities are distinguished by `is_liability`/account type. Liability magnitudes reduce net worth once; do not double-apply a negative sign.
+- **Net worth = total converted assets - total converted liabilities.**
+- Internal transfers and credit-card payments do not change household net worth by themselves.
+- `nw_daily` and `nw_snapshots` are historical records. Do not rewrite or fabricate them to make a chart look complete.
+- Current `nw_daily` recording is an application-triggered daily upsert. Scheduled authoritative snapshots, recomputation rules, and attribution are **planned**.
+
+## Budgets and recurring commitments
+
+- Budget actual uses the same spend definition as reporting, including uncategorised spend and excluding transfers.
+- A missing budget line is a data-quality signal, not permission to omit actual spend.
+- Recurring monthly equivalents must respect start/end dates, cadence, currency conversion, and the current Dubai-local date boundary.
+- Credit-card cycle spend is a floor based on logged transactions, never a forecast of the bill. Missing purchases make it incomplete.
+
+## Goals, debts, and forecasting
+
+- Save-up and pay-down goals share the `goals` entity but remain distinct financial meanings.
+- Goal progress comes from the goal's defined starting/current basis plus recorded `goal_contributions`; a transaction `goal_id` is display-only and is not a contribution.
+- Contribution-with-transfer operations must be atomic where they affect both a goal and an account.
+- Forecasts and FIRE outputs are scenarios based on explicit assumptions, not promises or current balances.
+- Forecast events alter scenario projections only; they must not mutate ledger history.
+- Debt progress and savings-rate definitions beyond the implemented goal formulas remain **unresolved** until specified and tested.
+
+## Required invariant tests for changes
+
+Relevant work should prove, as applicable:
+
+- assets minus liabilities equals net worth;
+- transfers have zero household spend and one balanced economic movement;
+- split lines reconcile to their parent amount;
+- duplicate external events have one effect;
+- missing FX/price inputs cannot produce a deceptively complete total;
+- soft-deleted rows are excluded without destroying history;
+- one household member cannot bypass the household authorization boundary;
+- goal/debt progress changes only through its defined primitives.
