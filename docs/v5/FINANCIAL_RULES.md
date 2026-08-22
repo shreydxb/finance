@@ -34,12 +34,12 @@ Status: canonical invariants and current known semantics for SHR-108. An item ma
 
 ## Income, spend, cash flow, and savings
 
-- **Current spend:** non-deleted transactions whose category is not `Transfer`, converted to AED using the canonical FX helper. Uncategorised transactions are still spend.
+- **Legacy current-consumer spend:** non-deleted transactions whose category is not `Transfer`, converted to AED using the shared FX helper. Uncategorised transactions are still spend. Migration `041` adds the approved canonical classification below without migrating these consumers.
 - **Current income:** rows in the `income` table for the selected period, converted using the same FX rules.
-- **Cash flow:** income minus spend for the same period and reporting basis.
+- **Legacy current-consumer cash flow:** income minus legacy spend for the same period and reporting basis.
 - Internal transfers are excluded from both spend and income.
 - Recurring rows describe obligations/expectations and must not be added to ledger actuals without an explicit metric definition; doing so can double count.
-- **Savings and savings rate are unresolved as a single canonical cross-product definition.** Existing screens may derive approximations. A future issue must specify whether savings is cash flow, explicit Savings-category outflow, account-value change, or another reconciled primitive before v5 exposes it as authoritative.
+- Existing screens still derive legacy savings approximations. SHR-111 resolves the canonical Phase A definitions below; consumer migration remains separately reviewed work.
 
 ## Accounts, liabilities, and net worth
 
@@ -64,7 +64,7 @@ Status: canonical invariants and current known semantics for SHR-108. An item ma
 - Contribution-with-transfer operations must be atomic where they affect both a goal and an account.
 - Forecasts and FIRE outputs are scenarios based on explicit assumptions, not promises or current balances.
 - Forecast events alter scenario projections only; they must not mutate ledger history.
-- Debt progress and savings-rate definitions beyond the implemented goal formulas remain **unresolved** until specified and tested.
+- Legacy screens retain their implemented goal/debt formulas until migrated. SHR-111 resolves the Phase A canonical goal/debt and savings-rate contracts below.
 
 ## Required invariant tests for changes
 
@@ -78,3 +78,21 @@ Relevant work should prove, as applicable:
 - soft-deleted rows are excluded without destroying history;
 - one household member cannot bypass the household authorization boundary;
 - goal/debt progress changes only through its defined primitives.
+
+## SHR-111 Phase A canonical contracts
+
+Status: accepted and implemented in repository migration `041`; production **NOT APPLIED** and current consumers **NOT MIGRATED**.
+
+- `posted_income` is posted `income` rows. Recurring income remains expected/planned.
+- `consumption_spend` excludes typed transfers, legacy exact `Transfer`, and exact `Savings & Investments`. Uncategorised consumption counts; a negative category refund reduces it.
+- `savings_movement` is exact `Savings & Investments` transaction movement and is never silently collapsed into consumption.
+- `cash_retained = posted_income - consumption_spend - savings_movement`.
+- `cash_flow = cash_retained` for this contract.
+- `savings = cash_retained + savings_movement = posted_income - consumption_spend`.
+- savings rate is `100 × savings / posted_income` only when required income/consumption inputs are complete and posted income is positive. Zero/negative income returns NULL plus `nonpositive_income`.
+- Nonzero `needs_review` rows contribute provisionally. An unresolved zero placeholder makes its affected aggregate incomplete. Missing required FX/input makes dependent monetary outputs NULL.
+- Monetary aggregation is Postgres `numeric`; canonical AED outputs round to two decimals. Current-rate AED is the Phase A compatibility basis and reports its FX timestamp/missing currencies.
+- Current assets and liabilities use canonical account values with positive liability magnitudes. Net worth equals rounded assets minus rounded liabilities exactly.
+- Quoted investment value is quantity × authoritative last price. Canonical P&L is unrealized all-time value minus quantity × average cost. Manual valuations are provisional; missing cost/value/FX is incomplete. Freshness timestamps are exposed without inventing a universal stale threshold.
+- Linked save-up progress uses the linked canonical account value and does not add contributions. Unlinked save-up uses implicit-AED contributions. Linked debt progress uses AED starting balance minus canonical liability balance; contribution/payment activity is reconciliation evidence and raw negative progress is valid.
+- New/replaced category splits store one original amount/currency and reconcile at two-decimal precision. Cross-currency splits are forbidden. Legacy splits without identity remain visible but incomplete; no history is backfilled.

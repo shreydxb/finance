@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `040` on the SHR-110 branch. Production is verified through `039`; migration `040` remains **NOT APPLIED** pending independent QA and separate approval.
+Status: semantic map of the schema represented by `supabase/schema/001` through `041` on the SHR-111 branch. Production is verified through `040`; migration `041` remains **NOT APPLIED** pending independent QA and separate approval.
 
 ## Reading this document
 
@@ -39,6 +39,8 @@ Account ownership labels are not authorization. Household membership/RLS control
 
 `split_group_id` is deprecated historical structure retained for additive compatibility.
 
+Migration `041` adds nullable `split_original_amount` and `split_original_currency`. The existing split RPC records them on every new/replaced category-split line and rejects cross-currency/sub-cent splits. Legacy split rows remain valid but are explicitly incomplete in canonical reporting when original identity is absent; no guessed backfill is performed.
+
 ### Category and budget — current
 
 `categories` defines reporting labels and Needs/Wants/Savings grouping. `budgets` assigns monthly limits and planning groups. `category_rules` stores merchant/note matching rules. Categories classify facts; changing a category may change reporting but not the stored amount.
@@ -64,6 +66,12 @@ Account ownership labels are not authorization. Household membership/RLS control
 ### Canonical scenario model — planned
 
 V5 intends coherent goals, payoff, FIRE, and life-event scenarios. No new v5 scenario tables or authoritative persisted forecast result are defined by SHR-108.
+
+## Canonical financial read contracts — current in repository, not production
+
+Migration `041` adds security-invoker/read-only views `v_canonical_ledger_aed`, `v_canonical_income_aed`, `v_canonical_accounts_aed`, and `v_canonical_goal_progress`. Read-only security-invoker functions expose canonical period metrics, budget actuals, balance sheet, and investment value/unrealized P&L. They execute with caller privileges and inherit household RLS from their source tables.
+
+The contracts retain amounts and quality as separate facts. Missing required FX/input or unresolved zero placeholders null dependent aggregates and return `incomplete`; nonzero review rows and manual/stale valuations remain available with `provisional` metadata. Current-rate AED and two-decimal Postgres numeric outputs are the Phase A reporting basis. No consumer has been migrated in SHR-111 Phase A.
 
 ## Valuation and history
 
