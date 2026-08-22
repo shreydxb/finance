@@ -3,39 +3,54 @@
 ## Linear issues
 
 - Implementation: SHR-111 — Financial engine: define and test canonical core metrics
-- Independent QA: child issue linked from SHR-111 after the final PR head is available
+- Independent QA: SHR-121 — QA SHR-111 Phase A
 
 ## Status
 
-READY FOR INDEPENDENT QA. Phase A only. Production state: **NOT APPLIED**.
+**DEBT-QUALITY CORRECTION READY FOR INDEPENDENT QA.** Production migration `041` remains applied; additive correction `042` is **NOT APPLIED**.
 
 ## Git
 
 - Repository: `shreydxb/finance`
-- Branch: `shreydxb1/shr-111-financial-engine-define-and-test-canonical-core-metrics`
-- Exact base SHA: `195c47cae47565d36fe4e6f868c2ecc7fce9da21`
-- Exact final PR-head SHA: recorded in the SHR-111 Linear implementation handoff and PR metadata after this file is committed, following the established non-self-referential SHA convention
+- Branch: `shreydxb1/shr-111-debt-quality-correction`
+- Exact base SHA: `9a9ffa9ebd1ca053fbd177bd7144a660ea39e55c`
+- Exact final PR-head SHA: recorded in the SHR-111/SHR-121 Linear handoff and PR metadata after this file is committed, following the established non-self-referential SHA convention
 - Netlify intent: `[skip netlify]`; no preview or production deploy was run; expected credits consumed: 0
 
-## Approved Phase A delivered
+## Confirmed production defect
 
-Migration `041_canonical_financial_metrics_phase_a.sql` is additive and keeps all existing views, APIs, stored history, and consumers unchanged.
+Migration `041` correctly computes all three production pay-down balances and raw progress values, but its goal-quality CASE applies the generic `target_amount <= 0` guard before pay-down-specific checks. All three production pay-down goals use legacy-compatible `target_amount = 0` with valid positive AED starting balances and valid linked liabilities, so they are incorrectly marked incomplete.
 
-- `v_canonical_ledger_aed` classifies every active ledger row as exactly one of `consumption_spend`, `savings_movement`, or `internal_transfer`. Typed transfer metadata wins; legacy exact `Transfer` remains compatible; exact `Savings & Investments` is a savings movement; uncategorised rows are consumption; negative category refunds reduce consumption.
-- `v_canonical_income_aed` exposes posted income separately from recurring expected income.
-- `canonical_period_metrics` keeps `posted_income`, `consumption_spend`, `savings_movement`, `cash_retained`, `savings`, and `cash_flow` distinct. `cash_retained = cash_flow = income - consumption - savings movement`; `savings = income - consumption`. Savings rate is returned only for complete inputs and positive income.
-- `v_canonical_accounts_aed` and `canonical_balance_sheet` implement positive liability magnitudes and exact two-decimal `assets - liabilities = net worth`. Quoted holdings use quantity × last price; manual valuations are explicit and provisional.
-- `canonical_investment_metrics` returns current value, cost basis, and unrealized all-time P&L. Missing basis/price/value/FX is incomplete rather than zero gain. Manual/stale counts and source timestamps remain visible; callers may pass a staleness boundary, but migration `041` invents no universal threshold.
-- `canonical_budget_actuals` is the category decomposition of canonical consumption, includes Uncategorised and budgetless categories, and excludes transfers/savings movements.
-- `v_canonical_goal_progress` uses exactly one basis: linked account for linked save-up, implicit-AED contributions for unlinked save-up, and AED starting balance minus linked-liability balance for debt. Linked contributions/payments remain activity evidence and never double-count progress; raw negative debt progress is preserved.
-- Nonzero `needs_review` rows are included with `provisional` status. Missing FX/input, unresolved zero placeholders, invalid account magnitude/type, missing investment basis, or unreconciled split identity makes dependent outputs `incomplete`/NULL.
-- New/replaced category splits store `split_original_amount` and `split_original_currency`; cross-currency and sub-cent splits are rejected. Legacy split rows are not rewritten and would be reported incomplete when original identity is absent.
-- All canonical views are `security_invoker`; all metric functions are `SECURITY INVOKER`. Anonymous access is revoked, authenticated household access is read/execute only, non-members receive no aggregate row, and service-role read access remains available.
-- `nw_daily` and `nw_snapshots` are untouched.
+The approved contract is kind-specific:
 
-## Compatibility boundaries
+- `save_up` requires a positive target;
+- `pay_down` requires a positive AED starting balance, a valid linked liability, and a linked canonical valuation that is not incomplete;
+- pay-down progress may be negative and must not be clamped;
+- contributions/payments remain reconciliation activity and do not change linked-balance progress.
 
-No Home, Reports, Budget, Forecast/FIRE, Telegram, Accounts/Wealth, Goals, or Debts consumer was migrated. Existing `v_transactions_aed`, frontend helpers, Telegram queries, RPC signatures, and production financial history remain compatible. `replace_category_split` retains its four-argument signature and now stores reconciliation identity on future writes.
+## Correction delivered
+
+Migration `042_fix_canonical_debt_quality.sql` additively recreates only `v_canonical_goal_progress`.
+
+- Positive/non-null `target_amount` is required only when `kind = 'save_up'`.
+- Pay-down quality requires positive/non-null `starting_balance`.
+- Pay-down quality requires a present linked account whose canonical account row exists and is a liability.
+- An incomplete linked canonical valuation makes pay-down quality incomplete; a provisional linked valuation remains provisional.
+- Existing current amount, raw progress amount/percentage, raw remaining, basis, contribution metadata, classification version, columns, and ordering are unchanged.
+- The view remains `security_invoker=true`; authenticated/service SELECT and anon/PUBLIC denial are explicitly re-established.
+- No goal/transaction/account/history row is inserted, updated, deleted, rewritten, normalized, or backfilled.
+- No consumer, function, Edge Function, or application calculation changes.
+
+## Regression coverage
+
+The `042` golden fixture proves:
+
+1. a pay-down goal with `target_amount = 0`, positive starting balance, and valid linked liability is complete;
+2. zero and missing starting balances are incomplete;
+3. missing, non-liability, and incomplete linked accounts are incomplete;
+4. a zero-target save-up goal remains incomplete;
+5. a balance above starting balance returns complete negative raw progress and negative percentage without clamping;
+6. linked save-up remains linked-account basis, unlinked save-up remains contribution basis, and linked contribution activity is not added to progress.
 
 ## Files changed
 
@@ -45,90 +60,47 @@ docs/v5/DATA_MODEL.md
 docs/v5/DECISIONS.md
 docs/v5/FINANCIAL_RULES.md
 docs/v5/HANDOFF.md
-package.json
 supabase/db-test/README.md
-supabase/db-test/canonical-parity.mjs
 supabase/db-test/canonical_metrics.test.mjs
-supabase/db-test/migrations.test.mjs
-supabase/schema/041_canonical_financial_metrics_phase_a.sql
+supabase/schema/042_fix_canonical_debt_quality.sql
 supabase/schema/README.md
 ```
 
 ## Exact validation results
 
-- Lint: PASS, exit 0. Six pre-existing warnings and zero errors (`AuthContext`, `Transactions`, two in `TransactionList`, `PrefsContext`, `Reports`).
-- Complete application/Edge test suite: PASS — 474 tests, 474 passed, 0 failed; 3.483331 s.
-- Production build: PASS — 119 modules transformed in 477 ms. The existing 641.12 kB JavaScript chunk warning remains.
-- Fresh-database application on isolated PostgreSQL 16.15: PASS — 40 repository schema files applied from empty (numeric sequence through `041`, historical `037` absent).
-- Complete database integration suite: PASS — 71 tests, 71 passed, 0 failed; 1.885968 s.
-- Focused canonical golden/invariant suite after final transfer/net-worth assertion: PASS — 17 tests, 17 passed, 0 failed; 2.446747 s.
-- Explicit second application of migration `041`: PASS. The focused canonical + migration catalog suites after rerun passed — 22/22.
-- Supabase CLI 2.115.0 security advisor against the rebuilt test database: PASS with no new SHR-111 findings. Results are only the expected `pending_actions` policy-free INFO and pre-existing `pgcrypto`-in-public WARN.
-- Catalog/access matrix: PASS for four security-invoker views, four invoker functions, anonymous denial, household-member access, outsider empty results, service access, and least-privilege grants.
-- Canonical monetary precision, transfer/card settlement, refunds, soft deletion, review quality, zero placeholders, missing FX, assets/liabilities/net worth, investments, budgets, goals/debts, person buckets, splits, and historical snapshot immutability all have golden database coverage.
-
-## Live production dual-run/parity evidence (read-only)
-
-Production project `our-rokda` (`wrxqgfbolryveivgdjia`) was queried only with SELECT CTEs; migration `041` was not applied.
-
-| Month | Legacy app spend | Canonical consumption raw | Savings movement delta | Legacy Telegram total | Transfer delta | Quality facts |
-|---|---:|---:|---:|---:|---:|---|
-| 2026-02 | 280.39 | 280.39 | 0.00 | 280.39 | 0.00 | complete |
-| 2026-03 | 8,148.58 | 8,148.58 | 0.00 | 22,717.58 | 14,569.00 | 6 provisional review rows |
-| 2026-04 | 6,988.79 | 6,988.79 | 0.00 | 15,544.79 | 8,556.00 | 2 provisional review rows |
-| 2026-05 | 5,498.33 | 5,498.33 | 0.00 | 19,154.33 | 13,656.00 | 18 provisional review rows |
-| 2026-06 | 22,559.69 | 22,559.69 | 0.00 | 34,346.69 | 11,787.00 | 14 provisional review rows |
-| 2026-07 | 10,357.80 | 10,357.80 | 0.00 | 22,449.80 | 12,092.00 | 27 provisional review rows |
-| 2026-08 | 4,454.62 | 4,450.95 | 3.67 | 22,699.22 | 18,248.27 | 8 provisional + 3 zero placeholders |
-
-Every observed period delta is intentional and arithmetically explained:
-
-1. Legacy app spend equals canonical consumption plus exact `Savings & Investments` movement. The only nonzero difference is AED 3.67 in August.
-2. Legacy Telegram total equals canonical consumption plus legacy exact-Transfer movement. Each monthly difference equals the transfer total exactly.
-3. Production has zero typed-transfer rows and 16 legacy exact-Transfer rows, so preserving the legacy classification is required.
-4. Production has zero missing-FX rows. The 75 nonzero review rows make affected periods provisional. Three August zero placeholders make August dependent canonical aggregates incomplete rather than returning the 4,450.95 raw partial as complete.
-5. Current balance parity is exact: legacy and canonical assets AED 452,664.33; liabilities AED 126,524.67. There are zero missing FX, negative values, type mismatches, or quoted-value mismatches.
-6. Three manual investment values intentionally make investment/balance quality provisional; all 41 holdings have cost basis, and quoted holdings reconcile.
-7. All three live pay-down goals have present AED starting balances and valid linked liabilities. All three save-up goals are unlinked contribution-basis goals; one has AED 1,000 activity. No invalid contribution exists.
-8. The only posted income is AED 6,000 dated December 2026. February–August therefore correctly exercise the `nonpositive_income` savings-rate behavior rather than producing a ratio.
-
-No unexplained production parity delta was found.
-
-## Risks and independent-QA focus
-
-1. Migration `041` is not in production. QA must apply and rerun it only in an isolated Supabase/test project, then repeat security advisors and catalog/RLS checks before any production proposal.
-2. Production is PostgreSQL 17.6 while the local scratch database is PostgreSQL 16.15. The features used are supported in both, but isolated PG17/Supabase application remains a reviewer check.
-3. August will intentionally become incomplete until its three unknown zero placeholders are resolved; do not weaken the contract to preserve a plausible legacy number.
-4. Manual investments remain values-with-warning. Reviewer should verify no UI/consumer interprets `provisional` as fresh after later migrations.
-5. Production has no category-split groups. Split reconciliation is therefore proven synthetically, not by live history; no backfill is authorized.
-6. Goal contributions have legacy implicit AED semantics. Non-AED contribution normalization remains future reviewed schema work, not a hidden conversion in `041`.
-7. Text categories and owner/person values remain exact recorded compatibility fields. SHR-115 remains the normalization authority.
-8. The read-only parity tool requires explicit dates and a database URL through environment variables and opens `BEGIN READ ONLY`; reviewers must never pass production credentials on a command line.
-9. Current consumers intentionally continue producing legacy answers until separate migration issues. Phase A QA must review contracts and evidence, not expect UI changes.
+- Supabase current-doc/changelog check: PASS. No current breaking change affects a Postgres 17 security-invoker view replacement; extension-version and self-hosted/runtime notices are unrelated.
+- Lint: PASS, exit 0 — six pre-existing warnings and zero errors.
+- Complete application/Edge test suite: PASS — 474 tests, 474 passed, 0 failed; 9.2141139 s.
+- Production build: PASS — 119 modules transformed in 1.01 s; existing 641.12 kB JavaScript chunk warning only.
+- Fresh-database migration application: PASS — 41 repository schema files applied from empty through `042` on PostgreSQL 16.15.
+- Complete database integration suite: PASS — 72 tests, 72 passed, 0 failed; 2.859439 s.
+- Explicit second application of unchanged `042`: PASS — `BEGIN`, `CREATE VIEW`, `COMMENT`, `REVOKE`, `GRANT`, `COMMIT`.
+- Focused canonical + migration catalog suites after actual rerun: PASS — 24/24; 1.7852621 s.
+- Supabase CLI 2.115.0 security advisor against rebuilt test state: PASS with no new SHR-111/SHR-121 finding. Expected existing results only: service-only `pending_actions` policy-free INFO and `pgcrypto`-in-public WARN.
+- RLS/catalog coverage: PASS — canonical views remain security-invoker/read-only; canonical functions remain invoker; member/service access, outsider isolation, and anon denial remain covered.
 
 ## Production and deployment state
 
-- Existing production baseline: migration `040` and Telegram Edge v42 are live/verified from SHR-110/SHR-120.
-- Supabase production migration `041`: **NOT APPLIED**
-- Production schema/data changed by SHR-111: **NO**
-- Production financial history rewritten/backfilled: **NO**
-- Netlify preview or production deploy: **NOT RUN**
-- Edge Function deploy: **NOT RUN**
-- Merge to `main`: **NOT DONE**
-- SHR-111 marked Done: **NO**
+- GitHub PR #10 / migration `041`: merged and applied as production migration `20260822222316 / 041_canonical_financial_metrics_phase_a`.
+- Migration `042_fix_canonical_debt_quality`: **NOT APPLIED**.
+- Production goal rows changed/backfilled: **NO**.
+- Production transactions, legacy Transfer rows, splits, `nw_daily`, or `nw_snapshots` changed: **NO**.
+- Home, Reports, Budget, Forecast/FIRE, Telegram, Accounts/Wealth, Goals, or Debts consumer migration: **NO**.
+- Netlify preview/production deploy: **NOT RUN**.
+- Edge Function deploy: **NOT RUN**.
+- Merge of correction PR to `main`: **NOT DONE**.
+- SHR-111 Done: **NO**.
+- SHR-121 Done: **NO**.
 
-## Independent reviewer checklist
+## Independent reviewer checks
 
-1. Confirm the PR base is exactly `195c47c…` and scope contains no consumer migration.
-2. Apply all migrations from empty and rerun `041`; verify no data-changing seed/backfill and no `nw_daily` write.
-3. Re-run all canonical golden fixtures and the complete DB/app suites.
-4. Verify all new views/functions use caller privileges and underlying RLS, with member/service access and outsider/anonymous denial.
-5. Recalculate the five cash/savings outputs from the fixture and confirm labels/formulas are not collapsed.
-6. Probe missing transaction/income/account/investment FX and missing cost basis; dependent amounts must be NULL/incomplete.
-7. Verify typed and legacy transfers, card settlement, Savings & Investments, refund, soft delete, provisional review, and zero-placeholder rules.
-8. Verify assets minus liabilities equals net worth at returned precision and invalid negative/type shapes fail visibly.
-9. Verify quoted/manual/stale investment metadata and optional caller-supplied staleness boundary.
-10. Verify budget categories plus Uncategorised reconcile to canonical consumption exactly.
-11. Verify linked/unlinked save-up and linked debt bases, negative raw debt progress, and contribution activity non-double-counting.
-12. Verify new split RPC identity/reconciliation, legacy incomplete behavior, cross-currency rejection, and migration compatibility.
-13. Repeat read-only live parity and stop on any delta not fully decomposed by the documented reasons.
+1. Confirm the correction PR base is exactly `9a9ffa9ebd1ca053fbd177bd7144a660ea39e55c` and only the documented files changed.
+2. Confirm migration `041` is unchanged and `042` contains no DML/backfill or consumer change.
+3. Diff the `041` and `042` goal-view definitions: only the kind-specific quality predicate, explicit missing-link guard, comment, and least-privilege regrant should differ.
+4. Apply all schema files from empty, apply `042` a second time, and rerun the full database suite.
+5. Reproduce the six `042` fixture cases, especially complete zero-target pay-down and complete negative raw progress.
+6. Verify positive target remains mandatory for both linked and unlinked save-up goals.
+7. Verify linked contributions/payments remain activity-only and do not alter raw debt progress.
+8. Verify `v_canonical_goal_progress` remains `security_invoker=true` with member/service access, outsider RLS isolation, and anon/PUBLIC denial.
+9. Run security advisors and confirm no new view/grant/RLS finding.
+10. Before any production proposal, query the three live pay-down goals read-only and predict that only quality changes from incomplete to complete; their current balances and raw progress values must remain byte-for-byte/numerically unchanged.

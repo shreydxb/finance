@@ -1,6 +1,6 @@
 # Our Money v5 architecture
 
-Status: canonical v5 direction, updated for SHR-111 Phase A. Statements labeled **current** describe repository implementation. Production is verified through migration `040`; migration `041` is repository-only and **NOT APPLIED**.
+Status: canonical v5 direction, updated for SHR-111 Phase A. Statements labeled **current** describe repository implementation. Production is verified through migration `041`; additive debt-quality correction `042` is repository-only and **NOT APPLIED** pending independent QA.
 
 ## Product boundary
 
