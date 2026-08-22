@@ -14,7 +14,7 @@ READY FOR INDEPENDENT QA. Production state: **NOT APPLIED**.
 - Repository: `shreydxb/finance`
 - Branch: `shreydxb1/shr-109-security-harden-financial-view-and-security-definer-exposure`
 - Exact base SHA: `6899fae3cc8afbe3c383c39993ec459f662fc627`
-- Exact implementation SHA: `fbe68341812232104f0fbfd2193115b30c33d1d6`
+- Exact implementation SHA: `b8cbcf4b65716b5670917e009be988171e5d7991`
 - Final PR-head SHA: recorded in the SHR-109 Linear handoff comment and PR metadata after this file's handoff commit, per the approved non-self-referential SHA convention
 
 ## Files changed
