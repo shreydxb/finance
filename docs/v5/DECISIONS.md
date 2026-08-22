@@ -87,3 +87,16 @@ Current code distributes some calculations across database views and client help
 Status: accepted — 2026-08-22 — SHR-108
 
 Normal flow is issue contract → implementation → validation → handoff → independent QA → approval → merge/deploy → production verification. Implementation does not authorize Supabase or Netlify production changes.
+
+## ADR-012 — Netlify builds are budgeted and batched
+
+Status: accepted — 2026-08-22 — operational constraint
+
+The connected Netlify site automatically publishes production-branch changes. The current monthly allowance is 285 credits and each deploy costs 15 credits, so builds are a limited resource.
+
+- Documentation-only and non-deployed changes merge with `[skip netlify]` in the final production commit.
+- Deploy Previews and branch deploys are opt-in when their review value justifies the credit cost.
+- Approved site changes are batched into deliberate releases, normally no more than weekly.
+- At least two builds per month are reserved for retries and urgent fixes.
+- Git state and deployed state are tracked separately because skipped commits accumulate into the next deployment.
+
