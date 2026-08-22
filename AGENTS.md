@@ -37,6 +37,17 @@ When sources conflict, report the conflict. Never silently change production beh
 - AI may classify or propose actions, but it must not invent financial facts, perform authoritative financial arithmetic, generate arbitrary SQL, or write without the approved confirmation semantics.
 - Do not deploy, merge, apply production migrations, change production configuration, or alter production data unless explicitly instructed for that task.
 
+## Netlify credit policy
+
+Netlify automatically publishes changes merged to `main`, and each build consumes limited monthly credits.
+
+- Do not trigger Netlify for documentation-only, repository-instruction, test-only, or other changes that do not affect the deployed site. Put `[skip netlify]` in the PR title and in the final commit merged to `main`.
+- Avoid automatic Deploy Previews and branch deploys by default. Use one only when visual or deployment-specific QA materially requires it and the user approves the credit spend.
+- Batch approved site changes into a deliberate release rather than merging every small site-affecting PR directly to `main`.
+- Target no more than one scheduled production release per week and retain at least two monthly builds for retries or urgent fixes, unless the user approves a different budget.
+- A skipped merge remains part of the next non-skipped deployment. Record the last deployed Git SHA and the accumulated undeployed range in `HANDOFF.md`.
+- Before any merge to `main`, state whether it will consume Netlify credits. Never rely on the user to configure or perform the skip manually.
+
 ## Implementation rules
 
 - Reuse the canonical money, date, reporting, grouping, and database primitives. Screens must not define competing versions of core metrics.
@@ -66,4 +77,6 @@ Before finishing:
 3. Overwrite `docs/v5/HANDOFF.md` with the latest session evidence.
 4. Record commands actually run and their exact outcome; never imply validation that did not run.
 5. Record branch/base/head, migrations, production/deployment state, risks, and reviewer checks.
-6. Leave the Linear issue ready for independent QA; do not mark it Done unless explicitly instructed.
+6. Record whether Netlify was skipped, expected to build, or not applicable, plus the deployed/undeployed Git range when known.
+7. Leave the Linear issue ready for independent QA; do not mark it Done unless explicitly instructed.
+
