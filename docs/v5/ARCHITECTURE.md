@@ -1,6 +1,6 @@
 # Our Money v5 architecture
 
-Status: canonical v5 direction, updated for the SHR-110 repository implementation. Statements labeled **current** describe repository implementation. Production is verified through migration `039`; migration `040` remains **NOT APPLIED** pending independent QA and separate approval.
+Status: canonical v5 direction, updated for SHR-111 Phase A. Statements labeled **current** describe repository implementation. Production is verified through migration `040`; migration `041` is repository-only and **NOT APPLIED**.
 
 ## Product boundary
 
@@ -66,7 +66,9 @@ Dependencies should point toward shared domain primitives. Presentation code may
 
 V5 requires one named implementation for each core metric: income, spend, cash flow, savings, savings rate, assets, liabilities, net worth, investment value, goal progress, debt progress, and budget actual.
 
-Today those definitions are partly distributed across Postgres, `src/lib/money.js`, `reports.js`, `fire.js`, `forecast.js`, `snapshots.js`, and screen composition. Consolidation into authoritative primitives is **planned** and must be incremental. Until then, reuse existing helpers and document discrepancies rather than introducing another calculation.
+Migration `041` implements the additive Phase A database foundation: security-invoker canonical ledger, posted-income, account/holding, and goal-progress views plus period, balance-sheet, investment, and budget-actual functions. Every result keeps `consumption_spend`, `savings_movement`, `cash_retained`, `savings`, and `cash_flow` distinct and carries completeness/provisional/missing-input metadata.
+
+Current screens, planning helpers, Telegram queries, and forecasting remain on their existing APIs during Phase A. They are not evidence that the new contracts disagree or are unused; consumer migration is intentionally deferred to smaller reviewed PRs after independent QA and production application of the foundation.
 
 Postgres/database logic remains authoritative for durable money calculations and integrity constraints. AI may route, extract, explain, or propose; it must use closed, reviewed operations and canonical computed results.
 

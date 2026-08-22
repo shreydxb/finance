@@ -18,7 +18,8 @@ test('every public RPC the app calls exists after a clean apply', async () => {
         'create_bulk_transactions', 'apply_pending_income', 'claim_media_group',
         'save_telegram_settings', 'create_pending_action', 'bind_pending_action_prompt',
         'claim_pending_action', 'apply_pending_action', 'cancel_pending_action',
-        'expire_pending_action'
+        'expire_pending_action', 'canonical_period_metrics', 'canonical_balance_sheet',
+        'canonical_investment_metrics', 'canonical_budget_actuals'
       )
     `)
     const found = new Set(rows.map((r) => r.proname))
@@ -36,6 +37,10 @@ test('every public RPC the app calls exists after a clean apply', async () => {
       'apply_pending_action',
       'cancel_pending_action',
       'expire_pending_action',
+      'canonical_period_metrics',
+      'canonical_balance_sheet',
+      'canonical_investment_metrics',
+      'canonical_budget_actuals',
     ]) {
       assert.ok(found.has(name), `${name} should exist after applying all schema files`)
     }

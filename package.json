@@ -11,6 +11,7 @@
     "test": "node --test \"supabase/functions/**/*.test.ts\" \"src/**/*.test.js\"",
     "test:db:setup": "node supabase/db-test/setup-db.mjs",
     "test:db": "npm run test:db:setup && node --test \"supabase/db-test/**/*.test.mjs\"",
+    "parity:canonical": "node supabase/db-test/canonical-parity.mjs",
     "demo:telegram": "node supabase/functions/telegram-intake/demo.ts"
   },
   "dependencies": {

@@ -76,11 +76,11 @@ This supersedes treating the v4 ten-tab layout as the target architecture; it do
 
 ## ADR-010 — One canonical definition per core metric
 
-Status: accepted direction; implementation incomplete — 2026-08-22 — SHR-108
+Status: accepted; Phase A foundation implemented in repository — 2026-08-23 — SHR-108 / SHR-111; production **NOT APPLIED**
 
 Income, spend, cash flow, savings, savings rate, assets, liabilities, net worth, investment value, goal progress, debt progress, and budget actual each require one shared definition and implementation.
 
-Current code distributes some calculations across database views and client helpers. Reconciliation is incremental. Undefined semantics—especially canonical savings/savings rate and historical FX attribution—must be resolved in a future reviewed issue, not guessed.
+Current consumers still distribute calculations across database views and client helpers, so reconciliation remains incremental. SHR-111/ADR-015 resolves the Phase A semantics and implements additive database contracts; consumer migration and historical dated-FX attribution remain separately reviewed work.
 
 ## ADR-011 — Deployment is a separate, explicit stage
 
@@ -110,11 +110,33 @@ For the current implementation, `v_transactions_aed` is `SECURITY INVOKER` and t
 
 ## ADR-014 — Pending actions are server-only guarded state machines
 
-Status: accepted and implemented in repository — 2026-08-23 — SHR-110; production **NOT APPLIED**
+Status: accepted, implemented, and applied to production — 2026-08-23 — SHR-110 / SHR-120
 
 `pending_actions` is operational authorization and audit state owned by the trusted Telegram Edge Function, not shared household application data. Anonymous and authenticated callers need neither table access nor transition-RPC access. The service role has direct read access only.
 
 Every mutation—create, one-time prompt bind, claim, apply, cancel, and expire—uses a narrowly scoped `SECURITY DEFINER` RPC executable only by `service_role`, with an empty pinned `search_path` and fully schema-qualified references. This exception is required because a `SECURITY INVOKER` transition would need direct service-role `UPDATE` grants on guarded state columns, creating a parallel bypass around requester/chat/prompt, expiry, replay, and state predicates.
 
 Proposal identity and payload are immutable after creation; request keys are idempotent and collision-checked. A successful atomic claim is required before the financial handler runs, and a terminal resolution cannot reopen. If a handler's success is uncertain, the action remains claimed and unresolved for audit/manual reconciliation rather than becoming replayable.
+
+## ADR-015 — Canonical financial metrics preserve economic decomposition and quality
+
+Status: accepted and implemented in repository — 2026-08-23 — SHR-111 Phase A; production **NOT APPLIED**
+
+Posted income is separate from recurring expected income. Canonical transaction classification has three mutually exclusive economic classes: `consumption_spend`, `savings_movement`, and `internal_transfer`. Typed transfers and legacy exact `Transfer` rows are internal movements; exact `Savings & Investments` rows are savings movements; all remaining active rows, including uncategorised rows and negative category refunds, are consumption spend.
+
+The period contracts keep five meanings separate:
+
+- `cash_retained = posted_income - consumption_spend - savings_movement`;
+- `cash_flow = cash_retained`;
+- `savings = posted_income - consumption_spend`;
+- `savings_movement` is the explicit allocation component; and
+- savings rate is `100 × savings / posted_income` only for complete inputs and positive income, otherwise NULL with a reason.
+
+Nonzero `needs_review` money is included provisionally. An unresolved zero placeholder or missing required FX/input makes dependent metrics incomplete and NULL, not plausible partial totals. Current-rate AED remains the Phase A compatibility basis and outputs round in Postgres `numeric` to two decimals.
+
+Assets and liabilities use current canonical account values with positive liability magnitudes; net worth is rounded assets minus rounded liabilities. Quoted investment value is quantity × authoritative last price; manual values stay available only as provisional, and missing cost basis makes unrealized all-time P&L incomplete. No universal stale threshold is invented; valuation timestamps are exposed and callers may supply a reviewed threshold.
+
+Linked save-up goals use linked account value and treat contributions as activity only. Unlinked save-up goals use implicit-AED contributions. Pay-down goals use AED starting balance minus authoritative linked-liability value, with raw negative progress preserved. Historical `nw_daily` facts remain unchanged.
+
+Migration `041` implements additive security-invoker views/functions and split-original identity for new/replaced splits. Existing APIs and consumers remain on legacy outputs until separately reviewed consumer migrations; production application is separately gated.
 

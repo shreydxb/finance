@@ -72,6 +72,12 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
 - **`money_view.test.mjs`** — the same access matrix through
   `v_transactions_aed`, plus trusted service-role reporting and the unchanged
   AED/USD/missing-FX/soft-delete/account-metadata semantics from migration 036.
+- **`canonical_metrics.test.mjs`** — SHR-111 Phase A golden fixtures for ledger
+  classification, the five distinct cash/savings concepts, review/missing-input
+  quality, canonical precision, balance sheet, investments, budget actual,
+  goal/debt basis, split reconciliation, RLS, and intentional legacy parity
+  deltas. `canonical-parity.mjs` is a separate read-only pre-migration probe for
+  production-compatible evidence.
 - **`constraints.test.ts`** — the zero-amount pair from 031, `group_kind` /
   `transfer_direction` pairing from 025, and `NULL` handling on
   `save_telegram_settings`'s person slots — bug 1 above.
