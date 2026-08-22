@@ -76,7 +76,7 @@ This supersedes treating the v4 ten-tab layout as the target architecture; it do
 
 ## ADR-010 — One canonical definition per core metric
 
-Status: accepted; Phase A foundation implemented in repository — 2026-08-23 — SHR-108 / SHR-111; production **NOT APPLIED**
+Status: accepted; Phase A foundation applied to production through migration `041` — 2026-08-23 — SHR-108 / SHR-111; debt-quality correction `042` pending independent QA
 
 Income, spend, cash flow, savings, savings rate, assets, liabilities, net worth, investment value, goal progress, debt progress, and budget actual each require one shared definition and implementation.
 
@@ -120,7 +120,7 @@ Proposal identity and payload are immutable after creation; request keys are ide
 
 ## ADR-015 — Canonical financial metrics preserve economic decomposition and quality
 
-Status: accepted and implemented in repository — 2026-08-23 — SHR-111 Phase A; production **NOT APPLIED**
+Status: accepted and applied to production through migration `041` — 2026-08-23 — SHR-111 Phase A; debt-quality correction `042` pending independent QA
 
 Posted income is separate from recurring expected income. Canonical transaction classification has three mutually exclusive economic classes: `consumption_spend`, `savings_movement`, and `internal_transfer`. Typed transfers and legacy exact `Transfer` rows are internal movements; exact `Savings & Investments` rows are savings movements; all remaining active rows, including uncategorised rows and negative category refunds, are consumption spend.
 
@@ -138,5 +138,5 @@ Assets and liabilities use current canonical account values with positive liabil
 
 Linked save-up goals use linked account value and treat contributions as activity only. Unlinked save-up goals use implicit-AED contributions. Pay-down goals use AED starting balance minus authoritative linked-liability value, with raw negative progress preserved. Historical `nw_daily` facts remain unchanged.
 
-Migration `041` implements additive security-invoker views/functions and split-original identity for new/replaced splits. Existing APIs and consumers remain on legacy outputs until separately reviewed consumer migrations; production application is separately gated.
+Migration `041` implements additive security-invoker views/functions and split-original identity for new/replaced splits. Migration `042` corrects the implementation so only save-up goals require a positive target; pay-down quality follows the already-approved starting-balance plus linked-liability authority. Existing APIs and consumers remain on legacy outputs until separately reviewed consumer migrations.
 

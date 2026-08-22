@@ -81,7 +81,7 @@ Relevant work should prove, as applicable:
 
 ## SHR-111 Phase A canonical contracts
 
-Status: accepted and implemented in repository migration `041`; production **NOT APPLIED** and current consumers **NOT MIGRATED**.
+Status: accepted and applied to production through migration `041`; additive debt-quality correction `042` is **NOT APPLIED** pending independent QA, and current consumers are **NOT MIGRATED**.
 
 - `posted_income` is posted `income` rows. Recurring income remains expected/planned.
 - `consumption_spend` excludes typed transfers, legacy exact `Transfer`, and exact `Savings & Investments`. Uncategorised consumption counts; a negative category refund reduces it.
@@ -95,4 +95,5 @@ Status: accepted and implemented in repository migration `041`; production **NOT
 - Current assets and liabilities use canonical account values with positive liability magnitudes. Net worth equals rounded assets minus rounded liabilities exactly.
 - Quoted investment value is quantity × authoritative last price. Canonical P&L is unrealized all-time value minus quantity × average cost. Manual valuations are provisional; missing cost/value/FX is incomplete. Freshness timestamps are exposed without inventing a universal stale threshold.
 - Linked save-up progress uses the linked canonical account value and does not add contributions. Unlinked save-up uses implicit-AED contributions. Linked debt progress uses AED starting balance minus canonical liability balance; contribution/payment activity is reconciliation evidence and raw negative progress is valid.
+- Goal quality is kind-specific: a save-up goal requires positive `target_amount`; a pay-down goal instead requires positive AED `starting_balance`, a valid linked liability, and a linked canonical valuation that is not incomplete. Pay-down completeness never fabricates or depends on `target_amount`.
 - New/replaced category splits store one original amount/currency and reconcile at two-decimal precision. Cross-currency splits are forbidden. Legacy splits without identity remain visible but incomplete; no history is backfilled.

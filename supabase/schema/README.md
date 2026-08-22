@@ -1,9 +1,9 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. Production is verified through `040` as of 23 August 2026. Migration
-`041` is implemented for SHR-111 Phase A but is explicitly **NOT APPLIED**
-pending independent QA and separate production approval.
+order. Production is verified through `041` as of 23 August 2026. Migration
+`042` is the additive SHR-111/SHR-121 debt-quality correction and is explicitly
+**NOT APPLIED** pending independent QA and separate production approval.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
 `supabase migration list`; `008` onward do.
@@ -58,7 +58,8 @@ findings each one closes, and the verification evidence.
 | `038_partner_review_and_goal_link` | `transactions.assigned_to` / `goal_id`, both display-only tags | Taskiv #24 |
 | `039_harden_financial_rls_surfaces` | SECURITY INVOKER money view + non-exposed RLS membership helper | SHR-109 / SHR-119 |
 | `040_harden_pending_actions_authorization` | Reproduces the deployed `037` table on clean databases; service-only guarded pending-action state machine | SHR-110 / SHR-120 |
-| `041_canonical_financial_metrics_phase_a` | Additive canonical ledger/income/account/goal views, period/balance/investment/budget functions, split identity, quality metadata — **NOT APPLIED** | SHR-111 Phase A |
+| `041_canonical_financial_metrics_phase_a` | Additive canonical ledger/income/account/goal views, period/balance/investment/budget functions, split identity, quality metadata — applied; production QA found the debt-quality predicate fixed by `042` | SHR-111 Phase A |
+| `042_fix_canonical_debt_quality` | Recreates only the security-invoker goal-progress view so positive target is save-up-only and pay-down quality uses starting balance + linked liability — **NOT APPLIED** | SHR-111 / SHR-121 |
 
 ## Rules
 
@@ -104,7 +105,10 @@ verified in production.
 `040_harden_pending_actions_authorization` passed SHR-120 and is applied and
 verified in production together with Telegram Edge v42.
 
-`041_canonical_financial_metrics_phase_a` is repository-only. It preserves
-existing views/APIs/consumers and historical `nw_daily`, adds no guessed
-backfill, and must not be applied before SHR-111 independent QA and separate
-production approval.
+`041_canonical_financial_metrics_phase_a` is applied in production. It preserves
+existing views/APIs/consumers and historical `nw_daily` and added no guessed
+backfill. Independent production QA found one goal-quality predicate bug.
+
+`042_fix_canonical_debt_quality` is repository-only pending independent QA. It
+does not alter goal data or arithmetic; it only makes the existing goal-quality
+predicate follow the approved save-up/pay-down bases.

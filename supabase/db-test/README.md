@@ -76,8 +76,10 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   classification, the five distinct cash/savings concepts, review/missing-input
   quality, canonical precision, balance sheet, investments, budget actual,
   goal/debt basis, split reconciliation, RLS, and intentional legacy parity
-  deltas. `canonical-parity.mjs` is a separate read-only pre-migration probe for
-  production-compatible evidence.
+  deltas. The `042` regression fixture proves zero-target pay-down quality,
+  starting-balance/link failures, unchanged save-up bases, and unclamped negative
+  raw debt progress. `canonical-parity.mjs` is a separate read-only pre-migration
+  probe for production-compatible evidence.
 - **`constraints.test.ts`** — the zero-amount pair from 031, `group_kind` /
   `transfer_direction` pairing from 025, and `NULL` handling on
   `save_telegram_settings`'s person slots — bug 1 above.

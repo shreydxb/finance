@@ -355,6 +355,85 @@ test('041 goal and debt progress use one authoritative basis and keep linked act
   })
 })
 
+test('042 debt quality uses starting balance and linked liability while save-up still requires a positive target', async () => {
+  await withTx(async (client) => {
+    await asMember(client)
+    const linkedSavings = await account(client, { name: 'Linked savings', value: 800 })
+    const validLiability = await account(client, {
+      name: 'Valid loan', type: 'loan', isLiability: true, value: 1200,
+    })
+    const incompleteLiability = await account(client, {
+      name: 'Missing FX loan', type: 'loan', isLiability: true, currency: 'GBP', value: 100,
+    })
+    const nonLiability = await account(client, { name: 'Not a liability', value: 100 })
+
+    const { rows: goals } = await client.query(`
+      insert into goals (name, kind, target_amount, linked_account_id, starting_balance)
+      values
+        ('Valid zero-target debt', 'pay_down', 0, $1, 1000),
+        ('Zero-start debt', 'pay_down', 0, $1, 0),
+        ('Missing-start debt', 'pay_down', 0, $1, null),
+        ('Missing-link debt', 'pay_down', 0, null, 1000),
+        ('Non-liability debt', 'pay_down', 0, $2, 1000),
+        ('Incomplete-link debt', 'pay_down', 0, $3, 1000),
+        ('Zero-target save', 'save_up', 0, null, null),
+        ('Linked save unchanged', 'save_up', 1000, $4, null),
+        ('Unlinked save unchanged', 'save_up', 1000, null, null)
+      returning id, name
+    `, [validLiability, nonLiability, incompleteLiability, linkedSavings])
+    const byName = Object.fromEntries(goals.map((goal) => [goal.name, goal.id]))
+
+    await client.query(
+      `insert into goal_contributions (goal_id, amount, date) values
+       ($1,250,$5),($2,50,$5),($3,100,$5),($4,300,$5)`,
+      [
+        byName['Valid zero-target debt'],
+        byName['Zero-target save'],
+        byName['Linked save unchanged'],
+        byName['Unlinked save unchanged'],
+        START,
+      ]
+    )
+
+    const { rows } = await client.query(`
+      select name, progress_basis, current_amount_aed, raw_progress_aed,
+             raw_progress_percent, contribution_activity_aed, quality_status
+      from v_canonical_goal_progress
+      order by name
+    `)
+    const result = Object.fromEntries(rows.map((row) => [row.name, row]))
+
+    assert.equal(result['Valid zero-target debt'].quality_status, 'complete')
+    assert.equal(Number(result['Valid zero-target debt'].current_amount_aed), 1200)
+    assert.equal(Number(result['Valid zero-target debt'].raw_progress_aed), -200)
+    assert.equal(Number(result['Valid zero-target debt'].raw_progress_percent), -20)
+    assert.equal(Number(result['Valid zero-target debt'].contribution_activity_aed), 250)
+    assert.equal(result['Valid zero-target debt'].progress_basis, 'linked_liability_balance')
+
+    for (const name of [
+      'Zero-start debt',
+      'Missing-start debt',
+      'Missing-link debt',
+      'Non-liability debt',
+      'Incomplete-link debt',
+    ]) {
+      assert.equal(result[name].quality_status, 'incomplete', `${name} must fail closed`)
+    }
+
+    assert.equal(result['Zero-target save'].quality_status, 'incomplete')
+    assert.equal(Number(result['Zero-target save'].raw_progress_aed), 50)
+
+    assert.equal(result['Linked save unchanged'].quality_status, 'complete')
+    assert.equal(result['Linked save unchanged'].progress_basis, 'linked_account')
+    assert.equal(Number(result['Linked save unchanged'].raw_progress_aed), 800)
+    assert.equal(Number(result['Linked save unchanged'].contribution_activity_aed), 100)
+
+    assert.equal(result['Unlinked save unchanged'].quality_status, 'complete')
+    assert.equal(result['Unlinked save unchanged'].progress_basis, 'contributions_implicit_aed')
+    assert.equal(Number(result['Unlinked save unchanged'].raw_progress_aed), 300)
+  })
+})
+
 test('041 savings rate is NULL with a reason for zero/negative income and remains signed for negative savings', async () => {
   await withTx(async (client) => {
     await asMember(client)
