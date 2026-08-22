@@ -27,6 +27,7 @@ Establish the repository-side Codex/ChatGPT handoff protocol and canonical v5 do
 - Added a semantic current/planned data-model map.
 - Added a decision log that preserves and supersedes v4 decisions explicitly.
 - Added this overwrite-per-session handoff record.
+- Added the confirmed Netlify credit policy: skip non-site builds, make previews opt-in, batch site releases, and preserve an emergency reserve.
 
 ## Files changed
 
@@ -60,7 +61,9 @@ docs/v5/HANDOFF.md
 - Local database changed: NO
 - Supabase production changed: NO
 - Netlify production changed: NO
-- GitHub merged/deployed: NO; branch publication is recorded in the final task report
+- GitHub merged/deployed: NO at handoff creation; this documentation change must merge with `[skip netlify]`
+- Netlify build expected for this change: NO
+- Netlify credits expected: 0
 - Financial data changed: NO
 
 ## Behavior changes
@@ -78,3 +81,4 @@ None. Repository instructions and documentation only.
 ## Codex assessment
 
 Ready for independent QA. Do not mark SHR-108 Done solely from this handoff; inspect the actual diff first.
+
