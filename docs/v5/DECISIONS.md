@@ -100,3 +100,11 @@ The connected Netlify site automatically publishes production-branch changes. Th
 - At least two builds per month are reserved for retries and urgent fixes.
 - Git state and deployed state are tracked separately because skipped commits accumulate into the next deployment.
 
+## ADR-013 — RLS helpers stay outside the exposed API surface
+
+Status: accepted and implemented in repository — 2026-08-22 — SHR-109; production **NOT APPLIED**
+
+Household reporting views execute with caller privileges so underlying RLS remains authoritative. A helper that genuinely requires `SECURITY DEFINER` for policy evaluation stays in a non-exposed schema with a pinned search path and only the grants needed by the policy role.
+
+For the current implementation, `v_transactions_aed` is `SECURITY INVOKER` and the existing membership-helper function object moves from `public` to `private`. Moving the object preserves policy dependencies while removing the unnecessary PostgREST RPC surface. The `private` schema must never be configured as a Supabase Data API exposed schema.
+

@@ -1,8 +1,9 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. **Every file here is applied to production** as of 12 August 2026,
-verified against the live database rather than assumed.
+order. Production is verified through `038` as of 22 August 2026. Migration
+`039` is implemented for SHR-109 but is explicitly **NOT APPLIED** pending
+independent QA and separate production approval.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
 `supabase migration list`; `008` onward do.
@@ -55,6 +56,7 @@ findings each one closes, and the verification evidence.
 | `036_money_view` | `v_transactions_aed` FX view (applied via `claude/money-v4-open-items-mdw27c`) | Bot expansion Sprint 2 |
 | `037_pending_actions` | Propose-then-tap plumbing table (applied via `claude/money-v4-open-items-mdw27c`) | Taskiv #60 |
 | `038_partner_review_and_goal_link` | `transactions.assigned_to` / `goal_id`, both display-only tags | Taskiv #24 |
+| `039_harden_financial_rls_surfaces` | SECURITY INVOKER money view + non-exposed RLS membership helper — **NOT APPLIED** | SHR-109 |
 
 ## Rules
 
@@ -65,10 +67,10 @@ findings each one closes, and the verification evidence.
 - **Run `npm run test:db` before applying.** It builds a scratch database from empty, applies every file in this directory in order, and exercises every RPC, RLS policy and constraint — see `supabase/db-test/README.md`. It found `034`'s bug on the first run.
 - **Probe new functions against the real schema before trusting them.** `save_telegram_settings` looked correct and failed on every one-person setup, because an unconfigured slot arrives as SQL `NULL` and `settings.value` is `NOT NULL`.
 
-## Two policies that look wrong and are not
+## RLS primitives that look unusual and are deliberate
 
-- **`is_household_member()` is `SECURITY DEFINER`.** It has to be: the policy on `household_members` calls it, so a function subject to RLS would consult the policy that called it and recurse. `search_path` is pinned for the same reason any definer function should pin it.
-- **`authenticated` keeps EXECUTE on it**, which the advisor flags. Revoking it would make every policy on every table fail to evaluate — locking both members out entirely. The function takes no arguments and discloses only whether the caller is themselves a member.
+- **`private.is_household_member()` remains `SECURITY DEFINER`.** It has to be: the policy on `household_members` calls it, so a function subject to RLS would consult the policy that called it and recurse. Migration `039` moves the existing function object out of `public`, pins an empty `search_path`, and leaves only the authenticated `USAGE`/`EXECUTE` privileges required to evaluate RLS. The `private` schema must never be exposed through the Data API.
+- **`v_transactions_aed` remains in `public` but is `SECURITY INVOKER`.** Authenticated callers need the reporting view, while its underlying `transactions`, `accounts`, and `settings` reads must obey the caller's household policies. Anonymous access is revoked.
 
 ## Not applied, despite appearing in design docs
 
@@ -92,3 +94,7 @@ database — verified via `list_migrations` before adding `038` on top).
 comment). `forecast_events` was already applied (in `001_init`/`002_rls`) but
 unused until this branch's forecasting feature (Taskiv #24) started reading
 and writing it.
+
+`039_harden_financial_rls_surfaces` is repository-only until SHR-119 independent
+QA passes and a separate production migration approval is given. Its advisor
+fixes must not be reported as live before that application and verification.

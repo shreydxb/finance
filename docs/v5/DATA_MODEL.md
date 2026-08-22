@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `038` on repository `main` at `0c0432b`. It is not a claim that every migration is currently deployed; verify live Supabase separately.
+Status: semantic map of the schema represented by `supabase/schema/001` through `039` on the SHR-109 branch. Migration `039` remains **NOT APPLIED** to production pending independent QA; verify live Supabase separately.
 
 ## Reading this document
 
@@ -82,7 +82,7 @@ V5 plans a trustworthy history with freshness and attribution. The repository do
 
 ### Household member — current
 
-`household_members` is the allow-list used by `is_household_member()` and RLS. The current product is one shared household: authorized members can access shared rows; textual `owner` fields do not partition access.
+`household_members` is the allow-list used by `private.is_household_member()` and RLS. The helper remains `SECURITY DEFINER` to avoid policy recursion but is outside the exposed API schema; authenticated has only the privileges required for policy evaluation. The current product is one shared household: authorized members can access shared rows; textual `owner` fields do not partition access.
 
 ### Setting — current
 
@@ -99,7 +99,7 @@ The repository currently embeds known person names and Joint labels in several p
 - `media_groups` and `media_group_files`: album/file aggregation; the old array representation is superseded.
 - `pending_income`: proposed income/cashback awaiting controlled application.
 - `pending_actions`: propose-then-confirm actions with requester, expiry, and resolution metadata.
-- `v_transactions_aed`: soft-delete-filtered, FX-normalized transaction view; NULL conversion means missing FX and must be detected by aggregates.
+- `v_transactions_aed`: `SECURITY INVOKER`, soft-delete-filtered, FX-normalized transaction view; underlying household RLS applies to its caller, and NULL conversion means missing FX and must be detected by aggregates.
 
 Atomic functions include media-group claiming, transfer creation, bulk transaction creation, pending-income application, category-split replacement, goal contribution, and Telegram settings updates.
 
