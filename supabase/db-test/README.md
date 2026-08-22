@@ -45,9 +45,12 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
 
 ## What's covered
 
-- **`migrations.test.ts`** — the apply-from-empty run itself is the test:
+- **`migrations.test.mjs`** — the apply-from-empty run itself is the test:
   `setup-db.mjs` exits non-zero on the first failing statement. This file
-  additionally asserts the objects the later suites depend on exist.
+  additionally asserts the objects the later suites depend on exist. SHR-109
+  coverage verifies the money view's `security_invoker` option and read-only
+  grants, the private helper's schema/attributes/ACL, absence of its public RPC
+  target, and every policy dependency following the moved function object.
 - **`rpc.test.ts`** — every RPC added in 026/027/030/032 against the real
   schema: `replace_category_split`, `create_goal_contribution`,
   `create_transfer`, `create_bulk_transactions`, `apply_pending_income`,
@@ -56,10 +59,13 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   PostgREST actually issues it (`on conflict (idempotency_key) do nothing`,
   no predicate) as well as raw SQL — bug 2 above only reproduces under the
   first form.
-- **`rls.test.ts`** — the access matrix from `QA_QC_AUDIT_AND_REMEDIATION.md`
+- **`rls.test.mjs`** — the access matrix from `QA_QC_AUDIT_AND_REMEDIATION.md`
   (anon / authenticated-non-member / household-member), replayed against
   `transactions` and one other table per policy shape (`nw_daily`'s
   split read/insert/update, no delete).
+- **`money_view.test.mjs`** — the same access matrix through
+  `v_transactions_aed`, plus trusted service-role reporting and the unchanged
+  AED/USD/missing-FX/soft-delete/account-metadata semantics from migration 036.
 - **`constraints.test.ts`** — the zero-amount pair from 031, `group_kind` /
   `transfer_direction` pairing from 025, and `NULL` handling on
   `save_telegram_settings`'s person slots — bug 1 above.

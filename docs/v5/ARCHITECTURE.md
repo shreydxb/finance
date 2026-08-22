@@ -1,6 +1,6 @@
 # Our Money v5 architecture
 
-Status: canonical v5 direction, reconciled with repository `main` at `0c0432b` for SHR-108. Statements labeled **current** describe repository implementation. **Planned** statements are not claims about deployed behavior.
+Status: canonical v5 direction, updated for the SHR-109 repository implementation. Statements labeled **current** describe repository implementation. Migration `039` remains **NOT APPLIED** to production pending SHR-119 independent QA and separate approval.
 
 ## Product boundary
 
@@ -73,7 +73,8 @@ Postgres/database logic remains authoritative for durable money calculations and
 ## Security and operational architecture
 
 - RLS is enabled on application tables and household membership is the access boundary.
-- `is_household_member()` is a security-definer primitive with a pinned search path because membership-policy recursion otherwise occurs. Any change requires dedicated RLS tests and review.
+- `private.is_household_member()` is a non-exposed security-definer primitive with an empty pinned search path because membership-policy recursion otherwise occurs. Authenticated receives only schema usage and function execution needed by RLS; the schema must not be exposed through the Data API.
+- Public reporting views over household data, including `v_transactions_aed`, use caller privileges with `security_invoker` so their underlying table RLS remains authoritative.
 - The service role belongs only in trusted server/Edge Function code.
 - Multi-row financial writes use atomic database functions where implemented.
 - Production migrations and deployments are explicit gated actions, not automatic consequences of implementation.

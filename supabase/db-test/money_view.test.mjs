@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { actAs, SHREY_ID, withTx } from './helpers.mjs'
+import { actAs, OUTSIDER_ID, SHREY_ID, withTx } from './helpers.mjs'
 
 async function asMember(client) {
   await actAs(client, 'authenticated', SHREY_ID)
@@ -18,6 +18,62 @@ async function seedAccount(client, currency = 'AED') {
   )
   return rows[0].id
 }
+
+async function seedViewRowAsService(client) {
+  await actAs(client, 'service_role')
+  const accountId = await seedAccount(client, 'AED')
+  const { rows } = await client.query(
+    `insert into transactions (date, amount, currency, account_id)
+     values (current_date, 84, 'AED', $1) returning id`,
+    [accountId]
+  )
+  return rows[0].id
+}
+
+test('039: an authenticated household member can read the security-invoker view', async () => {
+  await withTx(async (client) => {
+    const transactionId = await seedViewRowAsService(client)
+    await asMember(client)
+    const { rows } = await client.query(
+      `select amount_aed from v_transactions_aed where id = $1`,
+      [transactionId]
+    )
+    assert.equal(rows.length, 1)
+    assert.equal(Number(rows[0].amount_aed), 84)
+  })
+})
+
+test('039: an authenticated non-member cannot read through the security-invoker view', async () => {
+  await withTx(async (client) => {
+    const transactionId = await seedViewRowAsService(client)
+    await actAs(client, 'authenticated', OUTSIDER_ID)
+    const { rows } = await client.query(
+      `select amount_aed from v_transactions_aed where id = $1`,
+      [transactionId]
+    )
+    assert.deepEqual(rows, [])
+  })
+})
+
+test('039: an anonymous caller has no access to the financial view', async () => {
+  await withTx(async (client) => {
+    await seedViewRowAsService(client)
+    await actAs(client, 'anon')
+    await assert.rejects(() => client.query(`select * from v_transactions_aed`), /permission denied/i)
+  })
+})
+
+test('039: trusted service-role reporting retains read access', async () => {
+  await withTx(async (client) => {
+    const transactionId = await seedViewRowAsService(client)
+    const { rows } = await client.query(
+      `select amount_aed from v_transactions_aed where id = $1`,
+      [transactionId]
+    )
+    assert.equal(rows.length, 1)
+    assert.equal(Number(rows[0].amount_aed), 84)
+  })
+})
 
 test('036: AED converts to itself (fx_rates seeds AED: 1)', async () => {
   await withTx(async (client) => {

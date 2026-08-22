@@ -102,12 +102,11 @@ test('nw_daily: member can select/insert/update, but nobody can delete (no delet
   })
 })
 
-test('is_household_member() is not callable by anon (024)', async () => {
+test('039 removes public.is_household_member() from the exposed RPC schema', async () => {
   await withTx(async (client) => {
-    await actAs(client, 'anon')
-    await assert.rejects(
-      () => client.query('select is_household_member()'),
-      /permission denied/i
+    const { rows } = await client.query(
+      `select to_regprocedure('public.is_household_member()') is null as absent`
     )
+    assert.equal(rows[0].absent, true)
   })
 })
