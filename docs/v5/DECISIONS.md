@@ -102,9 +102,19 @@ The connected Netlify site automatically publishes production-branch changes. Th
 
 ## ADR-013 — RLS helpers stay outside the exposed API surface
 
-Status: accepted and implemented in repository — 2026-08-22 — SHR-109; production **NOT APPLIED**
+Status: accepted and applied to production — 2026-08-22 — SHR-109 / SHR-119
 
 Household reporting views execute with caller privileges so underlying RLS remains authoritative. A helper that genuinely requires `SECURITY DEFINER` for policy evaluation stays in a non-exposed schema with a pinned search path and only the grants needed by the policy role.
 
 For the current implementation, `v_transactions_aed` is `SECURITY INVOKER` and the existing membership-helper function object moves from `public` to `private`. Moving the object preserves policy dependencies while removing the unnecessary PostgREST RPC surface. The `private` schema must never be configured as a Supabase Data API exposed schema.
+
+## ADR-014 — Pending actions are server-only guarded state machines
+
+Status: accepted and implemented in repository — 2026-08-23 — SHR-110; production **NOT APPLIED**
+
+`pending_actions` is operational authorization and audit state owned by the trusted Telegram Edge Function, not shared household application data. Anonymous and authenticated callers need neither table access nor transition-RPC access. The service role has direct read access only.
+
+Every mutation—create, one-time prompt bind, claim, apply, cancel, and expire—uses a narrowly scoped `SECURITY DEFINER` RPC executable only by `service_role`, with an empty pinned `search_path` and fully schema-qualified references. This exception is required because a `SECURITY INVOKER` transition would need direct service-role `UPDATE` grants on guarded state columns, creating a parallel bypass around requester/chat/prompt, expiry, replay, and state predicates.
+
+Proposal identity and payload are immutable after creation; request keys are idempotent and collision-checked. A successful atomic claim is required before the financial handler runs, and a terminal resolution cannot reopen. If a handler's success is uncertain, the action remains claimed and unresolved for audit/manual reconciliation rather than becoming replayable.
 

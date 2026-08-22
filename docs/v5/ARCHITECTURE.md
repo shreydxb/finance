@@ -1,6 +1,6 @@
 # Our Money v5 architecture
 
-Status: canonical v5 direction, updated for the SHR-109 repository implementation. Statements labeled **current** describe repository implementation. Migration `039` remains **NOT APPLIED** to production pending SHR-119 independent QA and separate approval.
+Status: canonical v5 direction, updated for the SHR-110 repository implementation. Statements labeled **current** describe repository implementation. Production is verified through migration `039`; migration `040` remains **NOT APPLIED** pending independent QA and separate approval.
 
 ## Product boundary
 
@@ -76,6 +76,7 @@ Postgres/database logic remains authoritative for durable money calculations and
 - `private.is_household_member()` is a non-exposed security-definer primitive with an empty pinned search path because membership-policy recursion otherwise occurs. Authenticated receives only schema usage and function execution needed by RLS; the schema must not be exposed through the Data API.
 - Public reporting views over household data, including `v_transactions_aed`, use caller privileges with `security_invoker` so their underlying table RLS remains authoritative.
 - The service role belongs only in trusted server/Edge Function code.
+- `pending_actions` is trusted Telegram coordination and audit state, not household browser data. It is policy-free with RLS enabled, grants no table or RPC access to anonymous/authenticated callers, and grants the service role direct `SELECT` only. Proposal creation, one-time prompt binding, claim, apply, cancel, and expiry are six service-role-only `SECURITY DEFINER` RPCs with an empty pinned `search_path` and fully qualified references. Their atomic predicates preserve requester + chat + prompt binding, database-time expiry, immutable proposal identity, and non-reopenable terminal state without granting the Edge Function direct state-column updates.
 - Multi-row financial writes use atomic database functions where implemented.
 - Production migrations and deployments are explicit gated actions, not automatic consequences of implementation.
 - Schema evolution remains additive by default because production contains real financial history.

@@ -18,6 +18,7 @@ import {
 } from './fixtures/updates.ts'
 import { errorHint, handleUpdate, matchAccount, matchAccountTies } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
+import { UNDO_KIND, undoHandler } from './actions/undo.ts'
 
 function json(fields: Record<string, unknown>): string {
   return JSON.stringify({
@@ -83,6 +84,7 @@ function harness(
       messenger,
       model,
       classifierModel,
+      pendingActionHandlers: { [UNDO_KIND]: undoHandler },
       transcriber: opts.withTranscriber === false ? null : transcriber,
       defaultCurrency: 'AED',
       now: () => new Date(`${TODAY}T09:00:00Z`),
@@ -1310,4 +1312,51 @@ test('a reply-correction is resolved before the router ever runs, even if it rea
 
   assert.equal(h.classifierModel.calls.length, classifierCallsBefore, 'a threaded reply is a correction, never routed as a question')
   assert.equal(h.store.only().id, id, 'still the same row, updated in place')
+})
+
+test('/undo proposes the latest bot row once and only its requester can apply it from the bound prompt', async () => {
+  const h = harness([CLEAN, CLEAN])
+  await handleUpdate(textUpdate('84 lunch'), h.deps)
+  await handleUpdate(textUpdate('84 dinner'), h.deps)
+  const rows = Array.from(h.store.rows.values())
+  const latest = rows[1]
+
+  const undoUpdate = textUpdate('/undo', SHREY_ID)
+  await handleUpdate(undoUpdate, h.deps)
+  await handleUpdate(undoUpdate, h.deps)
+
+  assert.equal(h.store.pendingActions.size, 1)
+  const pending = Array.from(h.store.pendingActions.values())[0]
+  assert.deepEqual(pending.payload, { transactionId: latest.id })
+  assert.equal(h.messenger.sent.filter((sent) => sent.opts?.inlineKeyboard?.[0]?.[0]?.callback_data.startsWith('apply:')).length, 1)
+
+  const forbidden = await handleUpdate(callbackUpdate('apply', pending.id, TARIKA_ID, pending.promptMsgId!), h.deps)
+  assert.match(forbidden.reason ?? '', /forbidden/)
+  assert.equal(h.store.rows.get(latest.id)?.deleted_at, null)
+
+  const applied = await handleUpdate(callbackUpdate('apply', pending.id, SHREY_ID, pending.promptMsgId!), h.deps)
+  assert.match(applied.reason ?? '', /applied/)
+  assert.ok(h.store.rows.get(latest.id)?.deleted_at)
+  assert.equal(h.store.rows.get(rows[0].id)?.deleted_at, null, 'only the latest bot row is removed')
+
+  const replay = await handleUpdate(callbackUpdate('apply', pending.id, SHREY_ID, pending.promptMsgId!), h.deps)
+  assert.match(replay.reason ?? '', /already_resolved/)
+})
+
+test('/undo rejects callbacks copied to another chat or prompt message', async () => {
+  const h = harness()
+  await handleUpdate(textUpdate('84 lunch'), h.deps)
+  await handleUpdate(textUpdate('/undo', SHREY_ID), h.deps)
+  const pending = Array.from(h.store.pendingActions.values())[0]
+
+  const wrongPrompt = await handleUpdate(callbackUpdate('apply', pending.id, SHREY_ID, pending.promptMsgId! + 1), h.deps)
+  assert.match(wrongPrompt.reason ?? '', /forbidden/)
+
+  const wrongChatUpdate = callbackUpdate('apply', pending.id, SHREY_ID, pending.promptMsgId!)
+  wrongChatUpdate.callback_query!.message!.chat.id = CHAT_ID - 1
+  const wrongChat = await handleUpdate(wrongChatUpdate, h.deps)
+  assert.match(wrongChat.reason ?? '', /forbidden/)
+
+  assert.equal(h.store.only().deleted_at, null)
+  assert.equal(h.store.pendingActions.get(pending.id)?.claimedAt, null)
 })
