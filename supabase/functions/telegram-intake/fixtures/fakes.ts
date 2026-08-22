@@ -15,6 +15,7 @@ import type {
   MediaGroupState,
   Messenger,
   ModelClient,
+  PendingAction,
   PendingIncome,
   PossibleDuplicate,
   SendOptions,
@@ -66,6 +67,7 @@ export class FakeStore implements IntakeStore {
   private sequence = 0
   // Separate from `sequence` so group ids don't shift transaction ids.
   private groupSequence = 0
+  pendingNow = () => new Date('2026-08-19T12:00:00Z')
 
   constructor(context: HouseholdContext = household()) {
     this.context = context
@@ -146,6 +148,14 @@ export class FakeStore implements IntakeStore {
       }
     }
     return Promise.resolve(null)
+  }
+
+  findLastBotTransaction(chatId: number): Promise<TransactionRow | null> {
+    const rows = Array.from(this.rows.values()).filter(
+      (row) => row.source === 'telegram' && row.telegram_chat_id === chatId && !row.deleted_at
+    )
+    if (rows.length === 0) return Promise.resolve(null)
+    return Promise.resolve(rows.reduce((latest, row) => (rowSequence(row.id) > rowSequence(latest.id) ? row : latest)))
   }
 
   getSetting(key: string): Promise<unknown | null> {
@@ -330,6 +340,151 @@ export class FakeStore implements IntakeStore {
   insertIncome(row: IncomeInsert): Promise<void> {
     this.income.push(row)
     return Promise.resolve()
+  }
+
+  pendingActions = new Map<string, PendingAction>()
+  private pendingActionSequence = 0
+
+  createPendingAction(
+    kind: string,
+    payload: unknown,
+    chatId: number,
+    requestedBy: number,
+    requestKey: string
+  ): Promise<PendingAction> {
+    const existing = Array.from(this.pendingActions.values()).find((row) => row.requestKey === requestKey)
+    if (existing) {
+      if (
+        existing.kind !== kind ||
+        JSON.stringify(existing.payload) !== JSON.stringify(payload) ||
+        existing.chatId !== chatId ||
+        existing.requestedBy !== requestedBy
+      ) {
+        return Promise.reject(new Error('pending action request key already belongs to a different proposal'))
+      }
+      return Promise.resolve(existing)
+    }
+
+    const now = this.pendingNow()
+    const row: PendingAction = {
+      id: `action-${++this.pendingActionSequence}`,
+      kind,
+      payload,
+      chatId,
+      promptMsgId: null,
+      requestedBy,
+      requestKey,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+      claimedAt: null,
+      claimedBy: null,
+      resolvedAt: null,
+      resolution: null,
+    }
+    this.pendingActions.set(row.id, row)
+    return Promise.resolve(row)
+  }
+
+  bindPendingActionPrompt(
+    id: string,
+    requestedBy: number,
+    chatId: number,
+    promptMsgId: number
+  ): Promise<PendingAction | null> {
+    const row = this.pendingActions.get(id)
+    if (!row || !this.pendingIdentityMatches(row, requestedBy, chatId, null) || row.promptMsgId !== null) {
+      return Promise.resolve(null)
+    }
+    if (row.claimedAt || row.resolvedAt || this.pendingNow().getTime() >= new Date(row.expiresAt).getTime()) {
+      return Promise.resolve(null)
+    }
+    const bound = { ...row, promptMsgId }
+    this.pendingActions.set(id, bound)
+    return Promise.resolve(bound)
+  }
+
+  getPendingAction(id: string): Promise<PendingAction | null> {
+    return Promise.resolve(this.pendingActions.get(id) ?? null)
+  }
+
+  claimPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    const row = this.pendingActions.get(id)
+    if (
+      !row ||
+      !this.pendingIdentityMatches(row, requestedBy, chatId, promptMsgId) ||
+      row.claimedAt ||
+      row.resolvedAt ||
+      this.pendingNow().getTime() >= new Date(row.expiresAt).getTime()
+    ) {
+      return Promise.resolve(null)
+    }
+    const claimed = { ...row, claimedAt: this.pendingNow().toISOString(), claimedBy: requestedBy }
+    this.pendingActions.set(id, claimed)
+    return Promise.resolve(claimed)
+  }
+
+  applyPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    const row = this.pendingActions.get(id)
+    if (
+      !row ||
+      !this.pendingIdentityMatches(row, requestedBy, chatId, promptMsgId) ||
+      !row.claimedAt ||
+      row.claimedBy !== requestedBy ||
+      row.resolvedAt
+    ) {
+      return Promise.resolve(null)
+    }
+    return Promise.resolve(this.resolvePendingActionRow(row, 'applied'))
+  }
+
+  cancelPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    const row = this.pendingActions.get(id)
+    if (
+      !row ||
+      !this.pendingIdentityMatches(row, requestedBy, chatId, promptMsgId) ||
+      row.claimedAt ||
+      row.resolvedAt ||
+      this.pendingNow().getTime() >= new Date(row.expiresAt).getTime()
+    ) {
+      return Promise.resolve(null)
+    }
+    return Promise.resolve(this.resolvePendingActionRow(row, 'cancelled'))
+  }
+
+  expirePendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    const row = this.pendingActions.get(id)
+    if (
+      !row ||
+      !this.pendingIdentityMatches(row, requestedBy, chatId, promptMsgId) ||
+      row.claimedAt ||
+      row.resolvedAt ||
+      this.pendingNow().getTime() < new Date(row.expiresAt).getTime()
+    ) {
+      return Promise.resolve(null)
+    }
+    return Promise.resolve(this.resolvePendingActionRow(row, 'expired'))
+  }
+
+  private pendingIdentityMatches(
+    row: PendingAction,
+    requestedBy: number,
+    chatId: number,
+    promptMsgId: number | null
+  ): boolean {
+    return (
+      row.requestedBy === requestedBy &&
+      row.chatId === chatId &&
+      (promptMsgId === null || row.promptMsgId === promptMsgId)
+    )
+  }
+
+  private resolvePendingActionRow(
+    row: PendingAction,
+    resolution: 'applied' | 'cancelled' | 'expired'
+  ): PendingAction {
+    const resolved = { ...row, resolvedAt: this.pendingNow().toISOString(), resolution }
+    this.pendingActions.set(row.id, resolved)
+    return resolved
   }
 
   only(): TransactionRow {

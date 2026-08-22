@@ -16,7 +16,9 @@ test('every public RPC the app calls exists after a clean apply', async () => {
       and proname in (
         'replace_category_split', 'create_goal_contribution', 'create_transfer',
         'create_bulk_transactions', 'apply_pending_income', 'claim_media_group',
-        'save_telegram_settings'
+        'save_telegram_settings', 'create_pending_action', 'bind_pending_action_prompt',
+        'claim_pending_action', 'apply_pending_action', 'cancel_pending_action',
+        'expire_pending_action'
       )
     `)
     const found = new Set(rows.map((r) => r.proname))
@@ -28,6 +30,12 @@ test('every public RPC the app calls exists after a clean apply', async () => {
       'apply_pending_income',
       'claim_media_group',
       'save_telegram_settings',
+      'create_pending_action',
+      'bind_pending_action_prompt',
+      'claim_pending_action',
+      'apply_pending_action',
+      'cancel_pending_action',
+      'expire_pending_action',
     ]) {
       assert.ok(found.has(name), `${name} should exist after applying all schema files`)
     }
@@ -139,11 +147,12 @@ test('the idempotency index is a single, non-partial unique index', async () => 
   })
 })
 
-test('every data-writing RPC is SECURITY INVOKER, not DEFINER', async () => {
+test('every household-client data-writing RPC is SECURITY INVOKER, not DEFINER', async () => {
   // A SECURITY DEFINER data-writing RPC would hand every caller a route
   // around the membership RLS that 023 added. is_household_member() is the
-  // one deliberate exception (it has to be, to avoid recursing through its
-  // own policy) and is excluded here.
+  // one deliberate RLS exception. SHR-110's pending-action functions are a
+  // separate, service-only SECURITY DEFINER surface and are catalog-tested in
+  // pending_actions.test.mjs, so they are intentionally excluded here.
   await withTx(async (client) => {
     const { rows } = await client.query(`
       select proname, prosecdef from pg_proc

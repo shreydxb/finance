@@ -19,6 +19,7 @@ import type {
   IntakeLogEntry,
   IntakeStore,
   MediaGroupState,
+  PendingAction,
   PendingIncome,
   PossibleDuplicate,
   TransactionRow,
@@ -174,6 +175,13 @@ export class PostgrestStore implements IntakeStore {
     const filter = `or=(telegram_msg_id.eq.${messageId},telegram_prompt_msg_id.eq.${messageId})`
     const rows = await this.request<TransactionRow[]>(
       `/transactions?telegram_chat_id=eq.${chatId}&${filter}&order=created_at.desc&limit=1`
+    )
+    return rows[0] ?? null
+  }
+
+  async findLastBotTransaction(chatId: number): Promise<TransactionRow | null> {
+    const rows = await this.request<TransactionRow[]>(
+      `/transactions?source=eq.telegram&telegram_chat_id=eq.${chatId}&deleted_at=is.null&order=created_at.desc&limit=1`
     )
     return rows[0] ?? null
   }
@@ -373,6 +381,70 @@ export class PostgrestStore implements IntakeStore {
       body: JSON.stringify(row),
     })
   }
+
+  async createPendingAction(
+    kind: string,
+    payload: unknown,
+    chatId: number,
+    requestedBy: number,
+    requestKey: string
+  ): Promise<PendingAction> {
+    const rows = await this.rpc<PendingActionRow[]>('create_pending_action', {
+      p_kind: kind,
+      p_payload: payload,
+      p_chat_id: chatId,
+      p_requested_by: requestedBy,
+      p_request_key: requestKey,
+    })
+    if (!rows[0]) throw new Error('create_pending_action returned no row')
+    return fromPendingActionRow(rows[0])
+  }
+
+  async getPendingAction(id: string): Promise<PendingAction | null> {
+    const rows = await this.request<PendingActionRow[]>(`/pending_actions?id=eq.${encodeURIComponent(id)}&limit=1`)
+    return rows[0] ? fromPendingActionRow(rows[0]) : null
+  }
+
+  bindPendingActionPrompt(
+    id: string,
+    requestedBy: number,
+    chatId: number,
+    promptMsgId: number
+  ): Promise<PendingAction | null> {
+    return this.pendingActionRpc('bind_pending_action_prompt', id, requestedBy, chatId, promptMsgId)
+  }
+
+  claimPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    return this.pendingActionRpc('claim_pending_action', id, requestedBy, chatId, promptMsgId)
+  }
+
+  applyPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    return this.pendingActionRpc('apply_pending_action', id, requestedBy, chatId, promptMsgId)
+  }
+
+  cancelPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    return this.pendingActionRpc('cancel_pending_action', id, requestedBy, chatId, promptMsgId)
+  }
+
+  expirePendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null> {
+    return this.pendingActionRpc('expire_pending_action', id, requestedBy, chatId, promptMsgId)
+  }
+
+  private async pendingActionRpc(
+    fn: string,
+    id: string,
+    requestedBy: number,
+    chatId: number,
+    promptMsgId: number
+  ): Promise<PendingAction | null> {
+    const rows = await this.rpc<PendingActionRow[]>(fn, {
+      p_id: id,
+      p_requested_by: requestedBy,
+      p_chat_id: chatId,
+      p_prompt_msg_id: promptMsgId,
+    })
+    return rows[0] ? fromPendingActionRow(rows[0]) : null
+  }
 }
 
 interface PendingIncomeRow {
@@ -394,6 +466,40 @@ function fromPendingIncomeRow(row: PendingIncomeRow): PendingIncome {
     amount: row.amount === null ? null : Number(row.amount),
     currency: row.currency,
     date: row.date,
+  }
+}
+
+interface PendingActionRow {
+  id: string
+  kind: string
+  payload: unknown
+  chat_id: number
+  prompt_msg_id: number | null
+  requested_by: number
+  request_key: string
+  created_at: string
+  expires_at: string
+  claimed_at: string | null
+  claimed_by: number | null
+  resolved_at: string | null
+  resolution: 'applied' | 'cancelled' | 'expired' | null
+}
+
+function fromPendingActionRow(row: PendingActionRow): PendingAction {
+  return {
+    id: row.id,
+    kind: row.kind,
+    payload: row.payload,
+    chatId: Number(row.chat_id),
+    promptMsgId: row.prompt_msg_id === null ? null : Number(row.prompt_msg_id),
+    requestedBy: Number(row.requested_by),
+    requestKey: row.request_key,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    claimedAt: row.claimed_at,
+    claimedBy: row.claimed_by === null ? null : Number(row.claimed_by),
+    resolvedAt: row.resolved_at,
+    resolution: row.resolution,
   }
 }
 

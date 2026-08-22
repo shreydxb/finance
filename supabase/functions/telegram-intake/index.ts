@@ -17,6 +17,7 @@ import { authorizeWebhook } from './gate.ts'
 import { OpenRouterClient } from './extract.ts'
 import { handleUpdate } from './intake.ts'
 import type { IntakeDeps } from './intake.ts'
+import { UNDO_KIND, undoHandler } from './actions/undo.ts'
 import { PostgrestStore } from '../_shared/store.ts'
 import { PostgrestQueryStore } from './query/store.ts'
 import { TelegramClient } from '../_shared/telegram.ts'
@@ -76,6 +77,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     messenger: new LoggingMessenger(recorder ?? telegram, store),
     model,
     classifierModel: model,
+    pendingActionHandlers: { [UNDO_KIND]: undoHandler },
     transcriber: config.groqApiKey ? new GroqWhisper(config.groqApiKey, config.groqWhisperModel) : null,
     defaultCurrency: config.defaultCurrency,
     log: (message, data) => console.log(message, data ?? ''),

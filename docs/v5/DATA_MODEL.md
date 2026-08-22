@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `039` on the SHR-109 branch. Migration `039` remains **NOT APPLIED** to production pending independent QA; verify live Supabase separately.
+Status: semantic map of the schema represented by `supabase/schema/001` through `040` on the SHR-110 branch. Production is verified through `039`; migration `040` remains **NOT APPLIED** pending independent QA and separate approval.
 
 ## Reading this document
 
@@ -98,10 +98,10 @@ The repository currently embeds known person names and Joint labels in several p
 - `intake_logs`: Telegram intake observability.
 - `media_groups` and `media_group_files`: album/file aggregation; the old array representation is superseded.
 - `pending_income`: proposed income/cashback awaiting controlled application.
-- `pending_actions`: propose-then-confirm actions with requester, expiry, and resolution metadata.
+- `pending_actions`: service-only propose-then-confirm coordination and audit state. `request_key` is the immutable idempotency identity for one proposal; `requested_by`, `chat_id`, and one-time-bound `prompt_msg_id` are Telegram identities supplied only by the trusted intake service and checked together on every transition. `claimed_at`/`claimed_by` form the atomic replay barrier before a handler runs. `resolved_at`/`resolution` record exactly one terminal outcome (`applied`, `cancelled`, or `expired`); terminal rows cannot reopen. Expiry uses database time and the half-open interval `[created_at, expires_at)`. Browser/API identities have no direct table or transition-RPC access; service role reads directly and writes only through the six guarded RPCs.
 - `v_transactions_aed`: `SECURITY INVOKER`, soft-delete-filtered, FX-normalized transaction view; underlying household RLS applies to its caller, and NULL conversion means missing FX and must be detected by aggregates.
 
-Atomic functions include media-group claiming, transfer creation, bulk transaction creation, pending-income application, category-split replacement, goal contribution, and Telegram settings updates.
+Atomic functions include media-group claiming, transfer creation, bulk transaction creation, pending-income application, pending-action creation/binding/transitions, category-split replacement, goal contribution, and Telegram settings updates.
 
 ## Deprecated or historical structures
 

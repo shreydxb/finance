@@ -181,6 +181,26 @@ export interface PendingIncome {
   date: string
 }
 
+/**
+ * A service-only Telegram proposal retained for confirmation audit and replay
+ * resistance. Telegram bigint identities are distinct from Supabase auth UUIDs.
+ */
+export interface PendingAction {
+  id: string
+  kind: string
+  payload: unknown
+  chatId: number
+  promptMsgId: number | null
+  requestedBy: number
+  requestKey: string
+  createdAt: string
+  expiresAt: string
+  claimedAt: string | null
+  claimedBy: number | null
+  resolvedAt: string | null
+  resolution: 'applied' | 'cancelled' | 'expired' | null
+}
+
 export interface IncomeInsert {
   person: string
   source: string | null
@@ -210,6 +230,8 @@ export interface IntakeStore {
   getTransaction(id: string): Promise<TransactionRow | null>
   /** Matches either the user's original message or the bot's follow-up prompt. */
   findTransactionByMessage(chatId: number, messageId: number): Promise<TransactionRow | null>
+  /** Most recent live Telegram-sourced transaction in this chat; /undo never targets manual rows. */
+  findLastBotTransaction(chatId: number): Promise<TransactionRow | null>
   getSetting(key: string): Promise<unknown | null>
   /** Upsert. Used sparingly — e.g. capturing tg_chat_id once, not per-message config. */
   putSetting(key: string, value: unknown): Promise<void>
@@ -249,6 +271,20 @@ export interface IntakeStore {
   createBulkTransactions(rows: BulkRow[], chatId: number, idempotencyBase: string): Promise<TransactionRow[]>
   /** BOT-01: income + proposal removal in one transaction. Null when already applied. */
   applyPendingIncome(pendingId: string): Promise<unknown | null>
+  /** SHR-110: every mutation below is a service-only guarded RPC, never a direct table PATCH. */
+  createPendingAction(
+    kind: string,
+    payload: unknown,
+    chatId: number,
+    requestedBy: number,
+    requestKey: string
+  ): Promise<PendingAction>
+  getPendingAction(id: string): Promise<PendingAction | null>
+  bindPendingActionPrompt(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null>
+  claimPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null>
+  applyPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null>
+  cancelPendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null>
+  expirePendingAction(id: string, requestedBy: number, chatId: number, promptMsgId: number): Promise<PendingAction | null>
 }
 
 /** A photo album in progress — see media_groups and intake.ts's extractFromAlbumPhoto. */

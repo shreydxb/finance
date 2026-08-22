@@ -1,8 +1,8 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. Production is verified through `038` as of 22 August 2026. Migration
-`039` is implemented for SHR-109 but is explicitly **NOT APPLIED** pending
+order. Production is verified through `039` as of 23 August 2026. Migration
+`040` is implemented for SHR-110 but is explicitly **NOT APPLIED** pending
 independent QA and separate production approval.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
@@ -56,7 +56,8 @@ findings each one closes, and the verification evidence.
 | `036_money_view` | `v_transactions_aed` FX view (applied via `claude/money-v4-open-items-mdw27c`) | Bot expansion Sprint 2 |
 | `037_pending_actions` | Propose-then-tap plumbing table (applied via `claude/money-v4-open-items-mdw27c`) | Taskiv #60 |
 | `038_partner_review_and_goal_link` | `transactions.assigned_to` / `goal_id`, both display-only tags | Taskiv #24 |
-| `039_harden_financial_rls_surfaces` | SECURITY INVOKER money view + non-exposed RLS membership helper — **NOT APPLIED** | SHR-109 |
+| `039_harden_financial_rls_surfaces` | SECURITY INVOKER money view + non-exposed RLS membership helper | SHR-109 / SHR-119 |
+| `040_harden_pending_actions_authorization` | Reproduces the deployed `037` table on clean databases; service-only guarded pending-action state machine — **NOT APPLIED** | SHR-110 |
 
 ## Rules
 
@@ -71,6 +72,7 @@ findings each one closes, and the verification evidence.
 
 - **`private.is_household_member()` remains `SECURITY DEFINER`.** It has to be: the policy on `household_members` calls it, so a function subject to RLS would consult the policy that called it and recurse. Migration `039` moves the existing function object out of `public`, pins an empty `search_path`, and leaves only the authenticated `USAGE`/`EXECUTE` privileges required to evaluate RLS. The `private` schema must never be exposed through the Data API.
 - **`v_transactions_aed` remains in `public` but is `SECURITY INVOKER`.** Authenticated callers need the reporting view, while its underlying `transactions`, `accounts`, and `settings` reads must obey the caller's household policies. Anonymous access is revoked.
+- **`pending_actions` deliberately has RLS enabled with no policies.** It is not browser data. `anon` and `authenticated` have no table or transition-RPC privileges; `service_role` has direct `SELECT` only. Six `SECURITY DEFINER` RPCs, executable only by `service_role`, own creation, one-time prompt binding, claim, application, cancellation, and expiry. Each pins an empty `search_path` and fully qualifies its references. The advisor's `rls_enabled_no_policy` information finding is therefore expected default-deny evidence, not a missing policy.
 
 ## Not applied, despite appearing in design docs
 
@@ -95,6 +97,11 @@ comment). `forecast_events` was already applied (in `001_init`/`002_rls`) but
 unused until this branch's forecasting feature (Taskiv #24) started reading
 and writing it.
 
-`039_harden_financial_rls_surfaces` is repository-only until SHR-119 independent
-QA passes and a separate production migration approval is given. Its advisor
-fixes must not be reported as live before that application and verification.
+`039_harden_financial_rls_surfaces` passed SHR-119 and is now applied and
+verified in production.
+
+`040_harden_pending_actions_authorization` is repository-only until SHR-110's
+independent QA passes and a separate production migration/Edge deployment is
+approved. It intentionally fails before changing existing rows if any deployed
+`pending_actions` row cannot satisfy the new idempotency and state invariants;
+production was empty during the read-only SHR-110 baseline inspection.

@@ -85,6 +85,56 @@ test('PostgREST calls are shaped the way Supabase expects', async () => {
   assert.deepEqual(JSON.parse(String(calls[2].init.body)), { key: 'tg_chat_id', value: { chat_id: -100 } })
 })
 
+test('pending-action writes use guarded RPCs and never a direct table PATCH', async () => {
+  const calls: { url: string; init: RequestInit }[] = []
+  const row = {
+    id: '11111111-1111-1111-1111-111111111111',
+    kind: 'undo_transaction',
+    payload: { transactionId: 'tx-1' },
+    chat_id: -100,
+    prompt_msg_id: 5001,
+    requested_by: 111,
+    request_key: 'telegram:-100:10:111:undo_transaction',
+    created_at: '2026-08-19T12:00:00Z',
+    expires_at: '2026-08-19T13:00:00Z',
+    claimed_at: null,
+    claimed_by: null,
+    resolved_at: null,
+    resolution: null,
+  }
+  const store = new PostgrestStore({
+    supabaseUrl: 'https://project.supabase.co',
+    serviceKey: 'service-key',
+    fetchImpl: ((url: string, init: RequestInit = {}) => {
+      calls.push({ url, init })
+      return Promise.resolve(new Response(JSON.stringify([row]), { status: 200 }))
+    }) as unknown as typeof fetch,
+  })
+
+  await store.createPendingAction(row.kind, row.payload, row.chat_id, row.requested_by, row.request_key)
+  await store.bindPendingActionPrompt(row.id, row.requested_by, row.chat_id, row.prompt_msg_id)
+  await store.claimPendingAction(row.id, row.requested_by, row.chat_id, row.prompt_msg_id)
+  await store.applyPendingAction(row.id, row.requested_by, row.chat_id, row.prompt_msg_id)
+  await store.cancelPendingAction(row.id, row.requested_by, row.chat_id, row.prompt_msg_id)
+  await store.expirePendingAction(row.id, row.requested_by, row.chat_id, row.prompt_msg_id)
+  await store.getPendingAction(row.id)
+
+  assert.deepEqual(
+    calls.slice(0, 6).map((call) => call.url.split('/rpc/')[1]),
+    [
+      'create_pending_action',
+      'bind_pending_action_prompt',
+      'claim_pending_action',
+      'apply_pending_action',
+      'cancel_pending_action',
+      'expire_pending_action',
+    ]
+  )
+  assert.ok(calls.slice(0, 6).every((call) => call.init.method === 'POST'))
+  assert.match(calls[6].url, /\/pending_actions\?id=eq\./)
+  assert.ok(calls.every((call) => call.init.method !== 'PATCH'))
+})
+
 test('loadHouseholdContext only fetches payable account types, not debt/asset trackers', async () => {
   const calls: { url: string }[] = []
   const store = new PostgrestStore({

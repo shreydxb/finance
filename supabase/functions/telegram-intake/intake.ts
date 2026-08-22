@@ -22,6 +22,10 @@ import type { TransferExtraction } from './transfer.ts'
 import { confirmFixKeyboard, largestPhoto, parseCallbackData, toBase64 } from '../_shared/telegram.ts'
 import { GuardedMessenger, allowedChatIds } from '../_shared/guardedMessenger.ts'
 import { routeMessage } from './route.ts'
+import { handlePendingActionCallback, proposeAction } from './actions/pending.ts'
+import type { PendingActionHandlers } from './actions/pending.ts'
+import { UNDO_KIND } from './actions/undo.ts'
+import type { UndoPayload } from './actions/undo.ts'
 import type { QueryStore } from './query/types.ts'
 import { matchAccount, matchAccountTies } from './accountMatch.ts'
 export { matchAccount, matchAccountTies } from './accountMatch.ts'
@@ -61,6 +65,8 @@ export interface IntakeDeps {
    * point at the same real client, which has no such queue to desync.
    */
   classifierModel: ModelClient
+  /** Closed registry of sensitive action handlers. */
+  pendingActionHandlers: PendingActionHandlers
   /** null when GROQ_API_KEY isn't set: voice notes are then answered with a nudge. */
   transcriber: Transcriber | null
   defaultCurrency: string
@@ -100,6 +106,7 @@ const HELP_TEXT = [
   '',
   '⚙️ Commands',
   '  /help — this message',
+  '  /undo — propose removing the latest transaction this bot logged in this chat',
   '',
   "If I'm not sure, I'll show you what I got with Confirm / Fix buttons.",
   'Anything unconfirmed shows up as “Needs review” in the app.',
@@ -151,6 +158,10 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
   if (text === '/start' || text === '/help') {
     await deps.messenger.sendMessage(message.chat.id, HELP_TEXT, { replyToMessageId: message.message_id })
     return { status: 'ignored', reason: 'help' }
+  }
+
+  if (text === '/undo') {
+    return handleUndo(message, household, deps)
   }
 
   const ctx = promptContextFrom(household, today(deps), deps.defaultCurrency)
@@ -243,6 +254,33 @@ async function handleMessage(message: TelegramMessage, deps: IntakeDeps): Promis
  * guess. The exact refusal wording is Taskiv #59's job (Sprint 3); this is a
  * deliberately plain placeholder until then.
  */
+async function handleUndo(message: TelegramMessage, household: HouseholdContext, deps: IntakeDeps): Promise<IntakeOutcome> {
+  const senderId = message.from?.id ?? 0
+  const row = await deps.store.findLastBotTransaction(message.chat.id)
+  if (!row) {
+    await deps.messenger.sendMessage(message.chat.id, 'Nothing of mine to undo in this chat.', {
+      replyToMessageId: message.message_id,
+    })
+    return { status: 'ignored', reason: 'nothing to undo' }
+  }
+
+  const summary = ['Remove this?', describeRow(row, household), formatDate(row.date)].join('\n')
+  const payload: UndoPayload = { transactionId: row.id }
+  const requestKey = `telegram:${message.chat.id}:${message.message_id}:${senderId}:${UNDO_KIND}`
+  const pending = await proposeAction(
+    UNDO_KIND,
+    payload,
+    message.chat.id,
+    senderId,
+    requestKey,
+    summary,
+    deps.store,
+    deps.messenger,
+    { apply: '🗑 Remove', cancel: '✖️ Keep' }
+  )
+  return { status: 'ignored', reason: `undo proposed: ${pending.id}` }
+}
+
 async function handleQuestion(
   text: string,
   message: TelegramMessage,
@@ -563,6 +601,63 @@ async function handleCashbackCallback(
   }
   await logCallback(deps, query, chatId, 'cashback_apply', { success: true })
   return { status: 'cashback_applied', pendingId }
+}
+
+async function handlePendingCallback(
+  action: 'apply' | 'cancel',
+  pendingId: string,
+  chatId: number,
+  query: TelegramCallbackQuery,
+  household: HouseholdContext,
+  deps: IntakeDeps
+): Promise<IntakeOutcome> {
+  const promptMsgId = query.message?.message_id
+  if (!promptMsgId) {
+    await deps.messenger.answerCallbackQuery(query.id)
+    return { status: 'ignored', reason: 'pending callback without prompt message' }
+  }
+
+  const outcome = await handlePendingActionCallback(
+    action,
+    pendingId,
+    query.from.id,
+    chatId,
+    promptMsgId,
+    new Set(household.people.keys()),
+    deps.store,
+    deps.pendingActionHandlers,
+    { store: deps.store, messenger: deps.messenger }
+  )
+  const baseText = query.message?.text ?? ''
+  switch (outcome.status) {
+    case 'not_found':
+      await deps.messenger.answerCallbackQuery(query.id, 'That proposal is gone.')
+      break
+    case 'already_resolved':
+      await deps.messenger.answerCallbackQuery(query.id, 'Already handled.')
+      break
+    case 'forbidden':
+      await deps.messenger.answerCallbackQuery(query.id)
+      break
+    case 'expired':
+      await deps.messenger.answerCallbackQuery(query.id, 'That one expired')
+      await deps.messenger.editMessageText(chatId, promptMsgId, `${baseText}\n\nExpired — nothing was applied.`)
+      break
+    case 'cancelled':
+      await deps.messenger.answerCallbackQuery(query.id, 'Cancelled')
+      await deps.messenger.editMessageText(chatId, promptMsgId, `${baseText}\n\nCancelled.`)
+      break
+    case 'applied':
+      await deps.messenger.answerCallbackQuery(query.id, 'Applied')
+      await deps.messenger.editMessageText(chatId, promptMsgId, outcome.message)
+      break
+  }
+  await logCallback(deps, query, chatId, `pending_${action}`, {
+    success: outcome.status === 'applied' || outcome.status === 'cancelled',
+    error: outcome.status === 'applied' || outcome.status === 'cancelled' ? undefined : outcome.status,
+    transactionId: pendingId,
+  })
+  return { status: 'ignored', reason: `pending action ${action}: ${outcome.status}` }
 }
 
 function describeCashback(pending: PendingIncome): string {
@@ -1051,6 +1146,10 @@ async function handleCallback(query: TelegramCallbackQuery, deps: IntakeDeps): P
 
   if (parsed.action === 'cashback_apply' || parsed.action === 'cashback_cancel') {
     return handleCashbackCallback(parsed.action, parsed.transactionId, chatId, query, deps)
+  }
+
+  if (parsed.action === 'apply' || parsed.action === 'cancel') {
+    return handlePendingCallback(parsed.action, parsed.transactionId, chatId, query, household, deps)
   }
 
   const row = await deps.store.getTransaction(parsed.transactionId)

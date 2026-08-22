@@ -51,6 +51,12 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   coverage verifies the money view's `security_invoker` option and read-only
   grants, the private helper's schema/attributes/ACL, absence of its public RPC
   target, and every policy dependency following the moved function object.
+- **`pending_actions.test.mjs`** — SHR-110 catalog and state-machine coverage:
+  exact API-role table ACLs, policy-free default deny, service-only pinned
+  `SECURITY DEFINER` RPC execution, anonymous/member/outsider denial,
+  idempotent creation, one-time prompt binding, requester/chat/prompt isolation,
+  database-time expiry, non-reopenable terminal states, contradictory-row
+  constraints, and a real two-connection claim race with exactly one winner.
 - **`rpc.test.ts`** — every RPC added in 026/027/030/032 against the real
   schema: `replace_category_split`, `create_goal_contribution`,
   `create_transfer`, `create_bulk_transactions`, `apply_pending_income`,
