@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { todayLocal } from './dates.js'
+import { currentQuarter, currentYear, currentYearMonth } from './period.js'
 
 test('00:30 in Dubai on 13 Aug is 13 Aug, though UTC still says 12 Aug', () => {
   // 2026-08-12T20:30:00Z is 2026-08-13T00:30 in Asia/Dubai (UTC+4).
@@ -52,4 +53,11 @@ test('the output is always a zero-padded YYYY-MM-DD', () => {
 test('Dubai has no DST, so January and July behave identically', () => {
   assert.equal(todayLocal(new Date('2026-01-15T20:30:00Z')), '2026-01-16')
   assert.equal(todayLocal(new Date('2026-07-15T20:30:00Z')), '2026-07-16')
+})
+
+test('Home and Reports defaults use the Dubai calendar year/month/quarter', () => {
+  const boundary = new Date('2026-12-31T21:00:00.000Z')
+  assert.deepEqual(currentYearMonth(boundary), { year: 2027, month: 1 })
+  assert.deepEqual(currentQuarter(boundary), { year: 2027, quarter: 1 })
+  assert.equal(currentYear(boundary), 2027)
 })

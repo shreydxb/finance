@@ -1,3 +1,5 @@
+import { todayLocal } from './dates.js'
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -7,9 +9,9 @@ function pad(n) {
   return String(n).padStart(2, '0')
 }
 
-export function currentYearMonth() {
-  const now = new Date()
-  return { year: now.getFullYear(), month: now.getMonth() + 1 }
+export function currentYearMonth(now = new Date()) {
+  const [year, month] = todayLocal(now).split('-').map(Number)
+  return { year, month }
 }
 
 export function monthRange(year, month) {
@@ -46,9 +48,13 @@ export function shiftQuarter(year, quarter, delta) {
   return { year: Math.floor(total / 4), quarter: (total % 4) + 1 }
 }
 
-export function currentQuarter() {
-  const now = new Date()
-  return { year: now.getFullYear(), quarter: Math.floor(now.getMonth() / 3) + 1 }
+export function currentQuarter(now = new Date()) {
+  const { year, month } = currentYearMonth(now)
+  return { year, quarter: Math.floor((month - 1) / 3) + 1 }
+}
+
+export function currentYear(now = new Date()) {
+  return currentYearMonth(now).year
 }
 
 export function yearRange(year) {

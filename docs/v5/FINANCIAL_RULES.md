@@ -34,12 +34,12 @@ Status: canonical invariants and current known semantics for SHR-108. An item ma
 
 ## Income, spend, cash flow, and savings
 
-- **Legacy current-consumer spend:** non-deleted transactions whose category is not `Transfer`, converted to AED using the shared FX helper. Uncategorised transactions are still spend. Migration `041` adds the approved canonical classification below without migrating these consumers.
+- **Legacy non-migrated-consumer spend:** non-deleted transactions whose category is not `Transfer`, converted to AED using the shared FX helper. Uncategorised transactions are still spend. Home and Reports no longer use this approximation on SHR-122; non-migrated consumers may still do so until separately reviewed.
 - **Current income:** rows in the `income` table for the selected period, converted using the same FX rules.
-- **Legacy current-consumer cash flow:** income minus legacy spend for the same period and reporting basis.
+- **Legacy non-migrated-consumer cash flow:** income minus legacy spend for the same period and reporting basis.
 - Internal transfers are excluded from both spend and income.
 - Recurring rows describe obligations/expectations and must not be added to ledger actuals without an explicit metric definition; doing so can double count.
-- Existing screens still derive legacy savings approximations. SHR-111 resolves the canonical Phase A definitions below; consumer migration remains separately reviewed work.
+- Non-migrated screens may still derive legacy savings approximations. Home and Reports use the canonical Phase A definitions below on SHR-122; remaining consumer migration is separately reviewed work.
 
 ## Accounts, liabilities, and net worth
 
@@ -81,7 +81,7 @@ Relevant work should prove, as applicable:
 
 ## SHR-111 Phase A canonical contracts
 
-Status: accepted and applied to production through migration `041`; additive debt-quality correction `042` is **NOT APPLIED** pending independent QA, and current consumers are **NOT MIGRATED**.
+Status: accepted and applied to production through migration `042`. Home and Reports canonical consumer migration is implemented on SHR-122 pending independent code and preview QA; other consumers remain separately gated.
 
 - `posted_income` is posted `income` rows. Recurring income remains expected/planned.
 - `consumption_spend` excludes typed transfers, legacy exact `Transfer`, and exact `Savings & Investments`. Uncategorised consumption counts; a negative category refund reduces it.
