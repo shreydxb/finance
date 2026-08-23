@@ -63,10 +63,20 @@ function normalizeBoolean(value, label) {
 }
 
 function normalizeTextArray(value, label) {
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
     throw contractError(`${label} must be text[]`)
   }
   return [...value]
+}
+
+function sameMoney(left, right) {
+  if (left === null || right === null) return left === right
+  return Math.round(left * 100) === Math.round(right * 100)
+}
+
+function roundToCents(value) {
+  const roundedMagnitude = Math.round(Math.abs(value) * 100 + 1e-9) / 100
+  return value < 0 ? -roundedMagnitude : roundedMagnitude
 }
 
 export function normalizeCanonicalQuality(value, label = 'quality_status') {
@@ -87,15 +97,13 @@ function normalizeQualityMetadata(value) {
   if (metadata.classification_version !== 'shr-111-phase-a-v1') {
     throw contractError('quality_metadata.classification_version is unknown')
   }
-  if (metadata.fx_updated_at !== null && typeof metadata.fx_updated_at !== 'string') {
+  if (metadata.fx_updated_at !== null
+    && (typeof metadata.fx_updated_at !== 'string' || !Number.isFinite(Date.parse(metadata.fx_updated_at)))) {
     throw contractError('quality_metadata.fx_updated_at must be a timestamp or null')
-  }
-  if (!Array.isArray(metadata.missing_fx_currencies) || metadata.missing_fx_currencies.some((c) => typeof c !== 'string')) {
-    throw contractError('quality_metadata.missing_fx_currencies must be text[]')
   }
   return {
     ...metadata,
-    missing_fx_currencies: [...new Set(metadata.missing_fx_currencies)],
+    missing_fx_currencies: normalizeTextArray(metadata.missing_fx_currencies, 'quality_metadata.missing_fx_currencies'),
     income_incomplete_count: normalizeCount(metadata.income_incomplete_count, 'income_incomplete_count'),
     consumption_incomplete_count: normalizeCount(metadata.consumption_incomplete_count, 'consumption_incomplete_count'),
     savings_movement_incomplete_count: normalizeCount(
@@ -163,6 +171,98 @@ export function normalizeCanonicalPeriodResponse(data, expected) {
     && normalized.consumption_spend_aed !== null) {
     throw contractError('incomplete_inputs reason requires a missing canonical input')
   }
+
+  const metadata = normalized.quality_metadata
+  const incompleteCount = metadata.income_incomplete_count
+    + metadata.consumption_incomplete_count
+    + metadata.savings_movement_incomplete_count
+  const hasMissingFx = normalized.missing_fx_count > 0
+  const hasMissingFxCurrencies = metadata.missing_fx_currencies.length > 0
+  const hasIncompleteEvidence = incompleteCount > 0
+    || normalized.zero_placeholder_count > 0
+    || hasMissingFx
+  const hasProvisionalEvidence = metadata.provisional_transaction_count > 0
+
+  if (normalized.zero_placeholder_count !== metadata.zero_placeholder_count) {
+    throw contractError('top-level and metadata zero placeholder counts disagree')
+  }
+  if (hasMissingFx !== hasMissingFxCurrencies) {
+    throw contractError('top-level missing FX count and metadata currencies disagree')
+  }
+  if (metadata.missing_fx_currencies.length > normalized.missing_fx_count) {
+    throw contractError('metadata missing FX currencies exceed the top-level missing FX count')
+  }
+  if (metadata.provisional_transaction_count > normalized.needs_review_count) {
+    throw contractError('provisional transaction count exceeds review count')
+  }
+  if (normalized.zero_placeholder_count > normalized.needs_review_count) {
+    throw contractError('zero placeholder count exceeds review count')
+  }
+  if (metadata.provisional_transaction_count + normalized.zero_placeholder_count > normalized.needs_review_count) {
+    throw contractError('provisional and zero-placeholder evidence exceeds review count')
+  }
+
+  if (normalized.quality_status === 'complete'
+    && (normalized.needs_review_count > 0 || hasProvisionalEvidence || hasIncompleteEvidence)) {
+    throw contractError('complete quality contradicts review, provisional, or incomplete evidence')
+  }
+  if (normalized.quality_status === 'provisional') {
+    if (!hasProvisionalEvidence || normalized.needs_review_count === 0) {
+      throw contractError('provisional quality requires matching review and provisional evidence')
+    }
+    if (hasIncompleteEvidence || incompleteCount > 0) {
+      throw contractError('provisional quality contradicts incomplete evidence')
+    }
+  }
+  if (normalized.quality_status === 'incomplete' && !hasIncompleteEvidence) {
+    throw contractError('incomplete quality requires matching incomplete evidence')
+  }
+
+  const expectedNullability = [
+    ['posted_income_aed', metadata.income_incomplete_count > 0],
+    ['consumption_spend_aed', metadata.consumption_incomplete_count > 0],
+    ['savings_movement_aed', metadata.savings_movement_incomplete_count > 0],
+  ]
+  for (const [field, mustBeNull] of expectedNullability) {
+    if ((normalized[field] === null) !== mustBeNull) {
+      throw contractError(`${field} and its incomplete count disagree`)
+    }
+  }
+
+  const canCalculateSavings = normalized.posted_income_aed !== null && normalized.consumption_spend_aed !== null
+  const canCalculateCash = canCalculateSavings && normalized.savings_movement_aed !== null
+  if ((normalized.savings_aed !== null) !== canCalculateSavings) {
+    throw contractError('savings_aed nullability disagrees with its canonical inputs')
+  }
+  if ((normalized.cash_retained_aed !== null) !== canCalculateCash
+    || (normalized.cash_flow_aed !== null) !== canCalculateCash) {
+    throw contractError('cash fields nullability disagrees with their canonical inputs')
+  }
+  if (canCalculateSavings
+    && !sameMoney(normalized.savings_aed, roundToCents(normalized.posted_income_aed - normalized.consumption_spend_aed))) {
+    throw contractError('savings_aed disagrees with canonical inputs')
+  }
+  if (canCalculateCash) {
+    const expectedCash = roundToCents(
+      normalized.posted_income_aed - normalized.consumption_spend_aed - normalized.savings_movement_aed
+    )
+    if (!sameMoney(normalized.cash_retained_aed, expectedCash) || !sameMoney(normalized.cash_flow_aed, expectedCash)) {
+      throw contractError('cash fields disagree with canonical inputs')
+    }
+  }
+  if (canCalculateSavings && normalized.posted_income_aed > 0) {
+    const expectedRate = roundToCents(100 * normalized.savings_aed / normalized.posted_income_aed)
+    if (normalized.savings_rate_reason !== null || !sameMoney(normalized.savings_rate_percent, expectedRate)) {
+      throw contractError('savings rate disagrees with positive-income canonical inputs')
+    }
+  } else if (canCalculateSavings) {
+    if (normalized.savings_rate_percent !== null || normalized.savings_rate_reason !== 'nonpositive_income') {
+      throw contractError('nonpositive posted income requires the canonical savings-rate reason')
+    }
+  } else if (normalized.savings_rate_percent !== null || normalized.savings_rate_reason !== 'incomplete_inputs') {
+    throw contractError('incomplete savings-rate inputs require the canonical reason')
+  }
+
   if (normalized.quality_status !== 'incomplete') {
     for (const field of [
       'posted_income_aed',
@@ -175,21 +275,7 @@ export function normalizeCanonicalPeriodResponse(data, expected) {
       if (normalized[field] === null) throw contractError(`${field} cannot be null for ${normalized.quality_status} quality`)
     }
   }
-  if (normalized.quality_status === 'incomplete'
-    && normalized.missing_fx_count === 0
-    && normalized.zero_placeholder_count === 0
-    && normalized.quality_metadata.income_incomplete_count === 0
-    && normalized.quality_metadata.consumption_incomplete_count === 0
-    && normalized.quality_metadata.savings_movement_incomplete_count === 0) {
-    throw contractError('incomplete quality requires an incomplete canonical input')
-  }
-  if (normalized.quality_metadata.zero_placeholder_count !== normalized.zero_placeholder_count) {
-    throw contractError('zero placeholder counts disagree')
-  }
-  if (normalized.quality_metadata.provisional_transaction_count > normalized.needs_review_count) {
-    throw contractError('provisional transaction count exceeds review count')
-  }
-  if (normalized.cash_retained_aed !== normalized.cash_flow_aed) {
+  if (!sameMoney(normalized.cash_retained_aed, normalized.cash_flow_aed)) {
     throw contractError('cash_retained_aed and cash_flow_aed disagree')
   }
   return Object.freeze(normalized)
@@ -238,6 +324,63 @@ function normalizeCanonicalLedgerRow(value, index) {
   }
   if (normalized.transfer_direction !== null && !['in', 'out'].includes(normalized.transfer_direction)) {
     throw contractError(`ledger row ${index} has unknown transfer_direction ${normalized.transfer_direction}`)
+  }
+  if ((normalized.transaction_group_id === null) !== (normalized.group_kind === null)) {
+    throw contractError(`ledger row ${index} transaction group id and kind disagree`)
+  }
+  if ((normalized.group_kind === 'transfer') !== (normalized.transfer_direction !== null)) {
+    throw contractError(`ledger row ${index} transfer group and direction disagree`)
+  }
+
+  const classificationByReason = {
+    typed_transfer: 'internal_transfer',
+    legacy_exact_transfer_category: 'internal_transfer',
+    legacy_exact_savings_category: 'savings_movement',
+    uncategorised_consumption: 'consumption_spend',
+    categorised_consumption: 'consumption_spend',
+  }
+  if (classificationByReason[reason] !== economic) {
+    throw contractError(`ledger row ${index} classification reason and economic classification disagree`)
+  }
+  if (reason === 'typed_transfer' && normalized.group_kind !== 'transfer') {
+    throw contractError(`ledger row ${index} typed transfer requires a transfer group`)
+  }
+  if (reason !== 'typed_transfer' && normalized.group_kind === 'transfer') {
+    throw contractError(`ledger row ${index} transfer group requires typed-transfer classification`)
+  }
+  if (reason === 'legacy_exact_transfer_category'
+    && (normalized.group_kind === 'transfer' || normalized.category !== 'Transfer')) {
+    throw contractError(`ledger row ${index} legacy transfer reason requires the exact Transfer category`)
+  }
+  if (reason === 'legacy_exact_savings_category'
+    && (normalized.group_kind === 'transfer' || normalized.category !== 'Savings & Investments')) {
+    throw contractError(`ledger row ${index} legacy savings reason requires the exact Savings & Investments category`)
+  }
+  if (reason === 'uncategorised_consumption'
+    && (normalized.group_kind === 'transfer' || normalized.category !== null)) {
+    throw contractError(`ledger row ${index} uncategorised reason requires a null category`)
+  }
+  if (reason === 'categorised_consumption'
+    && (normalized.group_kind === 'transfer'
+      || normalized.category === null
+      || normalized.category === 'Transfer'
+      || normalized.category === 'Savings & Investments')) {
+    throw contractError(`ledger row ${index} categorised reason contradicts category precedence`)
+  }
+
+  if (normalized.quality_status === 'complete'
+    && (normalized.needs_review || normalized.amount_aed === null)) {
+    throw contractError(`ledger row ${index} complete quality contradicts review or incomplete evidence`)
+  }
+  if (normalized.quality_status === 'provisional'
+    && (!normalized.needs_review || normalized.amount === 0 || normalized.amount_aed === null)) {
+    throw contractError(`ledger row ${index} provisional quality requires nonzero review evidence and AED money`)
+  }
+  if (normalized.quality_status === 'incomplete'
+    && normalized.amount_aed !== null
+    && !(normalized.needs_review && normalized.amount === 0)
+    && normalized.group_kind !== 'category_split') {
+    throw contractError(`ledger row ${index} incomplete quality lacks matching incomplete evidence`)
   }
   if (economic === 'consumption_spend') {
     if (normalized.savings_movement_aed !== null || normalized.consumption_spend_aed !== normalized.amount_aed) {
@@ -308,6 +451,23 @@ function normalizeCanonicalBudgetRow(value, index) {
   }
   if (normalized.quality_status === 'incomplete' && normalized.actual_aed !== null) {
     throw contractError(`budget actual row ${index} has a monetary actual for incomplete quality`)
+  }
+  if (normalized.needs_review_count > normalized.transaction_count
+    || normalized.zero_placeholder_count > normalized.needs_review_count
+    || normalized.missing_fx_count > normalized.transaction_count) {
+    throw contractError(`budget actual row ${index} counts exceed their canonical population`)
+  }
+  if (normalized.quality_status === 'complete'
+    && (normalized.needs_review_count > 0 || normalized.zero_placeholder_count > 0 || normalized.missing_fx_count > 0)) {
+    throw contractError(`budget actual row ${index} complete quality contradicts review or incomplete evidence`)
+  }
+  if (normalized.quality_status === 'provisional'
+    && (normalized.needs_review_count === 0 || normalized.zero_placeholder_count > 0 || normalized.missing_fx_count > 0)) {
+    throw contractError(`budget actual row ${index} provisional quality lacks matching review evidence or has incomplete evidence`)
+  }
+  if (normalized.quality_status !== 'incomplete'
+    && (normalized.zero_placeholder_count > 0 || normalized.missing_fx_count > 0)) {
+    throw contractError(`budget actual row ${index} incomplete evidence contradicts quality`)
   }
   return Object.freeze(normalized)
 }

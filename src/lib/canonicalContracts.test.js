@@ -84,6 +84,7 @@ test('provisional nonzero review fixture remains monetary but never complete', (
 test('zero-placeholder and missing-FX fixtures preserve canonical NULL', () => {
   for (const fixture of [
     {
+      needs_review_count: 1,
       zero_placeholder_count: 1,
       quality_metadata: metadata({ consumption_incomplete_count: 1, zero_placeholder_count: 1 }),
     },
@@ -137,13 +138,128 @@ test('canonical response validation fails closed on zero, duplicate, malformed a
   assert.throws(() => normalizeCanonicalPeriodResponse(response({ quality_metadata: metadata({ classification_version: 'future' }) }), expected), /classification_version is unknown/)
 })
 
-test('duplicate canonical fact identities fail closed', () => {
-  const ledger = {
+test('period quality rejects contradictory known-enum evidence', () => {
+  const contradictory = [
+    response({ needs_review_count: 1 }),
+    response({ needs_review_count: 1, quality_metadata: metadata({ provisional_transaction_count: 1 }) }),
+    response({ missing_fx_count: 1, quality_metadata: metadata({ missing_fx_currencies: ['USD'] }) }),
+    response({ quality_metadata: metadata({ consumption_incomplete_count: 1 }) }),
+    response({ quality_status: 'provisional', needs_review_count: 1 }),
+    response({
+      quality_status: 'provisional',
+      needs_review_count: 2,
+      zero_placeholder_count: 1,
+      quality_metadata: metadata({ provisional_transaction_count: 1, consumption_incomplete_count: 1, zero_placeholder_count: 1 }),
+    }),
+    response({ quality_status: 'incomplete' }),
+  ]
+  for (const payload of contradictory) {
+    assert.throws(() => normalizeCanonicalPeriodResponse(payload, expected), /Canonical contract error/)
+  }
+})
+
+test('period top-level counts and currencies must reconcile with quality metadata', () => {
+  const contradictory = [
+    response({ zero_placeholder_count: 1 }),
+    response({ missing_fx_count: 1 }),
+    response({ quality_metadata: metadata({ missing_fx_currencies: ['USD'] }) }),
+    response({ missing_fx_count: 1, quality_metadata: metadata({ missing_fx_currencies: ['USD', 'EUR'] }) }),
+    response({ needs_review_count: 1, quality_metadata: metadata({ provisional_transaction_count: 2 }) }),
+  ]
+  for (const payload of contradictory) {
+    assert.throws(() => normalizeCanonicalPeriodResponse(payload, expected), /Canonical contract error/)
+  }
+})
+
+test('period monetary dependencies and savings-rate reason fail closed when contradictory', () => {
+  const contradictory = [
+    response({ savings_aed: '5999.99' }),
+    response({ cash_retained_aed: '4999.99', cash_flow_aed: '4999.99' }),
+    response({ savings_rate_percent: '59.99' }),
+    response({ savings_rate_percent: null, savings_rate_reason: 'nonpositive_income' }),
+    response({
+      quality_status: 'incomplete',
+      quality_metadata: metadata({ consumption_incomplete_count: 1 }),
+      savings_rate_percent: null,
+      savings_rate_reason: 'incomplete_inputs',
+    }),
+  ]
+  for (const payload of contradictory) {
+    assert.throws(() => normalizeCanonicalPeriodResponse(payload, expected), /Canonical contract error/)
+  }
+})
+
+function ledgerRow(overrides = {}) {
+  return {
     id: 'a', date: '2026-07-01', amount: '1', currency: 'AED', category: 'Groceries', owner: 'Shrey', note: null,
     tags: [], account_id: null, needs_review: false, transaction_group_id: null, group_kind: null, transfer_direction: null,
     amount_aed: '1', consumption_spend_aed: '1', savings_movement_aed: null,
     economic_classification: 'consumption_spend', classification_reason: 'categorised_consumption', quality_status: 'complete',
+    ...overrides,
   }
+}
+
+test('ledger reason and economic classification combinations follow canonical precedence', () => {
+  const valid = [
+    ledgerRow({
+      id: 'typed', transaction_group_id: 'group', group_kind: 'transfer', transfer_direction: 'out', category: 'Transfer',
+      economic_classification: 'internal_transfer', classification_reason: 'typed_transfer',
+      consumption_spend_aed: null,
+    }),
+    ledgerRow({ id: 'legacy-transfer', category: 'Transfer', economic_classification: 'internal_transfer', classification_reason: 'legacy_exact_transfer_category', consumption_spend_aed: null }),
+    ledgerRow({ id: 'savings', category: 'Savings & Investments', economic_classification: 'savings_movement', classification_reason: 'legacy_exact_savings_category', consumption_spend_aed: null, savings_movement_aed: '1' }),
+    ledgerRow({ id: 'uncategorised', category: null, classification_reason: 'uncategorised_consumption' }),
+    ledgerRow({ id: 'categorised' }),
+  ]
+  assert.equal(normalizeCanonicalLedgerRows(valid).length, 5)
+
+  const contradictory = [
+    ledgerRow({ economic_classification: 'internal_transfer', classification_reason: 'categorised_consumption', amount_aed: null, consumption_spend_aed: null }),
+    ledgerRow({ economic_classification: 'savings_movement', classification_reason: 'typed_transfer', consumption_spend_aed: null, savings_movement_aed: '1' }),
+    ledgerRow({ economic_classification: 'consumption_spend', classification_reason: 'legacy_exact_transfer_category' }),
+    ledgerRow({ economic_classification: 'internal_transfer', classification_reason: 'legacy_exact_savings_category', consumption_spend_aed: null }),
+    ledgerRow({ economic_classification: 'savings_movement', classification_reason: 'uncategorised_consumption', consumption_spend_aed: null, savings_movement_aed: '1' }),
+  ]
+  for (const payload of contradictory) {
+    assert.throws(() => normalizeCanonicalLedgerRows([payload]), /classification reason and economic classification disagree/)
+  }
+})
+
+test('ledger grouping, transfer direction, category precedence and row quality invariants fail closed', () => {
+  const contradictory = [
+    ledgerRow({ transaction_group_id: 'group' }),
+    ledgerRow({ transaction_group_id: 'group', group_kind: 'bulk_batch', transfer_direction: 'in' }),
+    ledgerRow({ transaction_group_id: 'group', group_kind: 'transfer', economic_classification: 'internal_transfer', classification_reason: 'typed_transfer', consumption_spend_aed: null }),
+    ledgerRow({ category: 'Food', economic_classification: 'internal_transfer', classification_reason: 'legacy_exact_transfer_category', consumption_spend_aed: null }),
+    ledgerRow({ category: 'Food', economic_classification: 'savings_movement', classification_reason: 'legacy_exact_savings_category', consumption_spend_aed: null, savings_movement_aed: '1' }),
+    ledgerRow({ category: 'Food', classification_reason: 'uncategorised_consumption' }),
+    ledgerRow({ category: 'Transfer' }),
+    ledgerRow({ needs_review: true }),
+    ledgerRow({ quality_status: 'provisional', needs_review: false }),
+    ledgerRow({ quality_status: 'provisional', needs_review: true, amount: '0' }),
+    ledgerRow({ quality_status: 'incomplete' }),
+  ]
+  for (const payload of contradictory) {
+    assert.throws(() => normalizeCanonicalLedgerRows([payload]), /Canonical contract error/)
+  }
+})
+
+test('budget quality and count combinations fail closed', () => {
+  const base = { category: 'Groceries', actual_aed: '1', quality_status: 'complete', transaction_count: 1, needs_review_count: 0, zero_placeholder_count: 0, missing_fx_count: 0 }
+  const contradictory = [
+    { ...base, needs_review_count: 1 },
+    { ...base, quality_status: 'provisional' },
+    { ...base, quality_status: 'provisional', needs_review_count: 1, zero_placeholder_count: 1 },
+    { ...base, quality_status: 'provisional', needs_review_count: 1, missing_fx_count: 1 },
+    { ...base, transaction_count: 0, needs_review_count: 1 },
+  ]
+  for (const payload of contradictory) {
+    assert.throws(() => normalizeCanonicalBudgetRows([payload]), /Canonical contract error/)
+  }
+})
+
+test('duplicate canonical fact identities fail closed', () => {
+  const ledger = ledgerRow()
   assert.throws(() => normalizeCanonicalLedgerRows([ledger, ledger]), /duplicate ids/)
   const budget = { category: 'Groceries', actual_aed: '1', quality_status: 'complete', transaction_count: 1, needs_review_count: 0, zero_placeholder_count: 0, missing_fx_count: 0 }
   assert.throws(() => normalizeCanonicalBudgetRows([budget, budget]), /duplicate categories/)

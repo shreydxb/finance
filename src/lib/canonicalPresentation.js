@@ -26,23 +26,47 @@ export function canonicalHeadline(metrics) {
   })
 }
 
+function countCopy(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
+function fxDetail(metrics) {
+  const timestamp = metrics.quality_metadata?.fx_updated_at
+  if (!timestamp) return 'Current-rate AED basis; no FX timestamp was provided.'
+  const formatted = new Date(timestamp).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC')
+  return `Current-rate AED basis; FX updated ${formatted}.`
+}
+
 export function qualityCopy(metrics) {
   if (metrics.quality_status === 'complete') {
-    return { label: 'Complete', detail: 'All required canonical inputs are complete.' }
+    return {
+      label: 'Complete',
+      detail: `All required canonical inputs are complete. ${fxDetail(metrics)}`,
+    }
   }
   if (metrics.quality_status === 'provisional') {
-    const count = metrics.needs_review_count
+    const reviewCount = metrics.needs_review_count
+    const provisionalCount = metrics.quality_metadata.provisional_transaction_count
     return {
       label: 'Provisional',
-      detail: `${count} nonzero ${count === 1 ? 'transaction needs' : 'transactions need'} review; totals may change.`,
+      detail: `${countCopy(reviewCount, 'needs_review transaction')}; ${countCopy(provisionalCount, 'provisional canonical transaction')}. Totals may change. ${fxDetail(metrics)}`,
     }
   }
   const reasons = []
-  if (metrics.zero_placeholder_count) reasons.push(`${metrics.zero_placeholder_count} unresolved zero ${metrics.zero_placeholder_count === 1 ? 'placeholder' : 'placeholders'}`)
-  if (metrics.missing_fx_count) reasons.push(`${metrics.missing_fx_count} ${metrics.missing_fx_count === 1 ? 'entry is' : 'entries are'} missing required FX`)
+  const metadata = metrics.quality_metadata
+  if (metrics.zero_placeholder_count) reasons.push(countCopy(metrics.zero_placeholder_count, 'unresolved zero placeholder'))
+  if (metrics.missing_fx_count) {
+    const currencies = metadata.missing_fx_currencies.length
+      ? ` (${metadata.missing_fx_currencies.join(', ')})`
+      : ''
+    reasons.push(`${countCopy(metrics.missing_fx_count, 'entry', 'entries')} missing required FX${currencies}`)
+  }
+  if (metadata.income_incomplete_count) reasons.push(countCopy(metadata.income_incomplete_count, 'incomplete posted-income input'))
+  if (metadata.consumption_incomplete_count) reasons.push(countCopy(metadata.consumption_incomplete_count, 'incomplete consumption input'))
+  if (metadata.savings_movement_incomplete_count) reasons.push(countCopy(metadata.savings_movement_incomplete_count, 'incomplete savings-movement input'))
   return {
     label: 'Incomplete',
-    detail: reasons.length ? `${reasons.join(' and ')}. Canonical monetary totals are unavailable.` : 'Required canonical inputs are incomplete; monetary totals are unavailable.',
+    detail: `${reasons.length ? `${reasons.join('; ')}. ` : 'Required canonical inputs are incomplete. '}Affected canonical monetary totals are unavailable. ${fxDetail(metrics)}`,
   }
 }
 

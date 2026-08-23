@@ -7,6 +7,7 @@ import {
   categoryConsumptionGroups,
   incomeGroups,
   ledgerConsumptionGroups,
+  qualityCopy,
 } from './canonicalPresentation.js'
 
 function metrics(overrides = {}) {
@@ -20,9 +21,53 @@ function metrics(overrides = {}) {
     savings_rate_percent: 50,
     savings_rate_reason: null,
     quality_status: 'complete',
+    missing_fx_count: 0,
+    needs_review_count: 0,
+    zero_placeholder_count: 0,
+    quality_metadata: {
+      fx_basis: 'current_rate_aed',
+      fx_updated_at: '2026-07-31T12:00:00Z',
+      missing_fx_currencies: [],
+      income_incomplete_count: 0,
+      consumption_incomplete_count: 0,
+      savings_movement_incomplete_count: 0,
+      provisional_transaction_count: 0,
+      zero_placeholder_count: 0,
+    },
     ...overrides,
   }
 }
+
+test('quality detail exposes AED basis, FX timestamp, and status-specific evidence', () => {
+  assert.match(qualityCopy(metrics()).detail, /Current-rate AED basis; FX updated 2026-07-31 12:00:00 UTC/)
+
+  const provisional = qualityCopy(metrics({
+    quality_status: 'provisional',
+    needs_review_count: 3,
+    quality_metadata: { ...metrics().quality_metadata, provisional_transaction_count: 2 },
+  })).detail
+  assert.match(provisional, /3 needs_review transactions/)
+  assert.match(provisional, /2 provisional canonical transactions/)
+
+  const incomplete = qualityCopy(metrics({
+    quality_status: 'incomplete',
+    missing_fx_count: 2,
+    zero_placeholder_count: 1,
+    quality_metadata: {
+      ...metrics().quality_metadata,
+      missing_fx_currencies: ['USD'],
+      income_incomplete_count: 1,
+      consumption_incomplete_count: 2,
+      savings_movement_incomplete_count: 1,
+      zero_placeholder_count: 1,
+    },
+  })).detail
+  assert.match(incomplete, /1 unresolved zero placeholder/)
+  assert.match(incomplete, /2 entries missing required FX \(USD\)/)
+  assert.match(incomplete, /1 incomplete posted-income input/)
+  assert.match(incomplete, /2 incomplete consumption inputs/)
+  assert.match(incomplete, /1 incomplete savings-movement input/)
+})
 
 const budgetRows = [
   { category: 'Groceries', actual_aed: 550, quality_status: 'complete' },

@@ -6,7 +6,7 @@ Branch: `shreydxb1/shr-122-shr-111-phase-b-migrate-home-and-reports-to-canonical
 
 Baseline: `main` at `33a7d09b8fd9bf85b101bb20795e4f9cc9356781`
 
-Status: **IMPLEMENTED; READY FOR INDEPENDENT CODE + EXACT-HEAD DEPLOY-PREVIEW QA. DO NOT MERGE OR DEPLOY PRODUCTION.**
+Status: **QA BLOCKERS FIXED; READY FOR INDEPENDENT RE-QA ON THE NEW EXACT-HEAD DEPLOY PREVIEW. DO NOT MERGE OR DEPLOY PRODUCTION.**
 
 ## Scope delivered
 
@@ -14,7 +14,7 @@ Status: **IMPLEMENTED; READY FOR INDEPENDENT CODE + EXACT-HEAD DEPLOY-PREVIEW QA
 - Migrated Reports headlines to direct canonical fields: posted income, consumption spend, savings movement, cash retained, cash flow, savings, and savings rate.
 - Migrated category actuals to `canonical_budget_actuals`; merchant, recorded-owner, source, and recorded-person presentation groupings use only canonical AED facts from `v_canonical_ledger_aed` and `v_canonical_income_aed`.
 - Replaced misleading Spent/Expenses/Spending labels with Consumption wherever the value is canonical `consumption_spend`.
-- Added one strict runtime contract layer that fails closed on missing/duplicate/malformed/unknown rows, enum values, quality states, and contract versions.
+- Added one strict runtime contract layer that fails closed on missing/duplicate/malformed/unknown rows, enum values, quality states, contract versions, contradictory quality evidence, mismatched metadata counts/currencies, invalid classification pairs, and invalid transfer/group/direction combinations.
 - Added one shared deterministic quality model: `complete < provisional < incomplete`.
 - Realtime events only invalidate/refetch canonical data; no realtime payload mutates financial totals.
 - Fixed Home/Reports period defaults and comparison boundaries to `Asia/Dubai`.
@@ -45,7 +45,7 @@ No database migration, Supabase write, production deploy, or merge is part of SH
 - `src/screens/Home.jsx` — canonical current-month KPIs and quality indicator.
 - `src/screens/Reports.jsx` — canonical headlines, flows, breakdowns, trends, comparisons, and exact recorded-person presentation.
 - `src/lib/spendingComparison.js` — Dubai-local periods and reconciled canonical-ledger comparisons.
-- `src/components/CanonicalQualityIndicator.jsx` — subtle Complete/Provisional/Incomplete status treatment.
+- `src/components/CanonicalQualityIndicator.js` — subtle, keyboard-focusable Complete/Provisional/Incomplete disclosure with rendered accessible detail, current-rate AED basis, FX timestamp, and status-specific evidence counts.
 
 ## Regression coverage
 
@@ -60,11 +60,13 @@ No database migration, Supabase write, production deploy, or merge is part of SH
 - Dubai midnight, month, quarter, year, and comparison boundaries.
 - Sankey cents reconciliation/nonnegative gate and fallback conditions.
 - Source-discipline checks proving migrated screen code does not import or call legacy total/group/FX financial arithmetic.
+- Negative contract fixtures for contradictory Complete/Provisional/Incomplete evidence, top-level/metadata mismatches, monetary dependencies, every classification-reason family, and group/transfer/direction invariants.
+- Rendered component coverage for keyboard focus, accessible disclosure detail, AED/FX provenance, provisional counts, and incomplete reason counts.
 
 ## Validation evidence
 
 - `pnpm run lint`: PASS (pre-existing fast-refresh/exhaustive-deps warnings only).
-- `pnpm test`: PASS — 485 tests.
+- `pnpm test`: PASS — 494 tests.
 - `pnpm run build`: PASS.
 - Complete database integration suite: required `db-integration` GitHub CI job; run from empty through schema `042` against PostgreSQL before QA handoff acceptance.
 - Read-only production-intent probes re-run against `our-rokda` (`wrxqgfbolryveivgdjia`):
@@ -74,11 +76,21 @@ No database migration, Supabase write, production deploy, or merge is part of SH
   - December 2026 Complete positive-income fixture: income/cash retained/cash flow/savings AED 6,000.00; consumption/movement AED 0.00; savings rate 100.00%.
   - Live canonical ledger and income field shapes match the strict browser contracts.
 
+## SHR-123 blocker resolution
+
+- Reproduced and rejected the QA payload where a `complete` period carried one top-level `needs_review` row and one metadata provisional row.
+- Reproduced and rejected the QA payload pairing `categorised_consumption` with `internal_transfer` and null canonical monetary fields.
+- Quality validation now requires evidence appropriate to the known enum: Complete has no review/provisional/incomplete evidence; Provisional has matching nonzero review/provisional evidence and no incomplete evidence; Incomplete has matching incomplete evidence.
+- Top-level zero-placeholder counts match metadata exactly; missing-FX counts and currency metadata must agree; provisional/zero-placeholder counts cannot exceed review counts.
+- Canonical classification precedence and transaction-group/transfer-direction constraints are validated before facts reach presentation code. Contradictory payloads throw a canonical contract error and never trigger legacy fallback arithmetic.
+- The quality indicator is now a native keyboard disclosure. Its rendered, `aria-describedby` detail remains subtle while exposing current-rate AED basis, FX timestamp, provisional/review counts, and incomplete reason counts/currencies.
+- The approved production-intent probes were re-run read-only on 2026-08-23 after the fixes; February, July, August, and December results remain exactly as recorded above. Production Supabase was not modified.
+
 ## Independent QA gate
 
 The PR and exactly one Netlify Deploy Preview must be created from the final commit containing this handoff. Record the immutable PR head SHA, preview URL, Netlify build/deploy identifier, and verified preview `commit_ref` in the structured Linear SHR-122 implementation comment. Do not change code after that preview; any change creates a new preview/review gate.
 
-Independent QA should verify:
+Independent re-QA should verify:
 
 1. GitHub `check` and `db-integration` jobs pass at the exact PR head.
 2. Preview build SHA exactly equals the PR head SHA.
@@ -90,5 +102,7 @@ Independent QA should verify:
 8. Dubai-local defaults and comparison boundaries are correct around 00:00–03:59 local time.
 9. Display-currency changes convert canonical AED presentation without changing canonical meaning or quality.
 10. CSV output remains compatible and out-of-scope Home widgets remain unchanged.
+11. Malformed-but-known quality/classification/transfer combinations fail closed, including the two payloads recorded in SHR-123.
+12. Every quality pill can receive keyboard focus and exposes rendered status detail without depending on a native `title` tooltip.
 
 SHR-122 remains open pending independent QA. Do not merge to `main`, deploy production, or modify production Supabase without explicit approval.
