@@ -47,8 +47,13 @@ Status: canonical invariants and current known semantics for SHR-108. An item ma
 - Assets and liabilities are distinguished by `is_liability`/account type. Liability magnitudes reduce net worth once; do not double-apply a negative sign.
 - **Net worth = total converted assets - total converted liabilities.**
 - Internal transfers and credit-card payments do not change household net worth by themselves.
-- `nw_daily` and `nw_snapshots` are historical records. Do not rewrite or fabricate them to make a chart look complete.
-- Current `nw_daily` recording is an application-triggered daily upsert. Scheduled authoritative snapshots, recomputation rules, and attribution are **planned**.
+- `nw_daily` is the daily history authority. Existing rows with null run provenance are immutable legacy facts; do not backfill, reconstruct, or rewrite them to make a chart continuous.
+- `nw_snapshots` is deprecated and remains unpopulated by SHR-113. Monthly views must derive from qualified `nw_daily` points without inventing missing days.
+- A Phase-A authoritative point is a Dubai reporting-date valuation close with its actual `snapshot_at`; it does not claim every source fact existed by Dubai 23:59:59.
+- Missing/invalid canonical monetary input publishes no `nw_daily` row. The logical run records `skipped_incomplete`; a plausible partial balance sheet is forbidden.
+- SHR-113 publication policy v1 alone requires FX fetched within six hours; quoted investments are Complete at a trustworthy provider quote/session age up to 36 hours, Provisional over 36 and through 96 hours after an evidenced failed refresh, and Incomplete beyond 96 hours or without a trustworthy provider timestamp. These thresholds do not alter SHR-111 canonical views.
+- Manual investments and valid older manual bank/liability balances are Provisional with age/reason evidence. Daily user reconfirmation is not required. Provider fetch time and provider quote/session time remain distinct facts.
+- One point may be published per Dubai day. Duplicate/concurrent execution is idempotent; an existing daily point is never automatically replaced. Phase A manual recovery may fill only a missing past day and does not promote/revise a published day.
 
 ## Budgets and recurring commitments
 

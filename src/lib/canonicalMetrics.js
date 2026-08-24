@@ -1,7 +1,10 @@
 import { supabase } from './supabaseClient'
 import {
   normalizeCanonicalBudgetRows,
+  normalizeCanonicalAccountRows,
+  normalizeCanonicalBalanceSheet,
   normalizeCanonicalIncomeRows,
+  normalizeCanonicalInvestmentMetrics,
   normalizeCanonicalLedgerRows,
   normalizeCanonicalPeriodResponse,
 } from './canonicalContracts'
@@ -16,6 +19,11 @@ const LEDGER_COLUMNS = [
 const INCOME_COLUMNS = [
   'id', 'date', 'amount', 'currency', 'person', 'source', 'kind',
   'amount_aed', 'quality_status',
+].join(',')
+
+const ACCOUNT_COLUMNS = [
+  'id', 'owner', 'type', 'is_liability', 'currency', 'canonical_value_aed',
+  'quality_status', 'valuation_method', 'valuation_as_of', 'fx_rate_to_aed', 'fx_updated_at',
 ].join(',')
 
 function canonicalRequest({ from, to, scope = 'household', person = null }) {
@@ -99,4 +107,43 @@ export async function loadCanonicalReportPeriod(input) {
     listCanonicalIncomeRows(request),
   ])
   return Object.freeze({ metrics, budgetActuals, ledgerRows, incomeRows })
+}
+
+export async function getCanonicalBalanceSheet() {
+  const { data, error } = await supabase.rpc('canonical_balance_sheet', {
+    p_scope: 'household',
+    p_person: null,
+  })
+  if (error) throw error
+  return normalizeCanonicalBalanceSheet(data)
+}
+
+export async function getCanonicalInvestmentMetrics() {
+  // SHR-113 freshness thresholds are intentionally absent here. This remains
+  // the generic SHR-111 current investment contract.
+  const { data, error } = await supabase.rpc('canonical_investment_metrics', {
+    p_scope: 'household',
+    p_person: null,
+    p_stale_before: null,
+  })
+  if (error) throw error
+  return normalizeCanonicalInvestmentMetrics(data)
+}
+
+export async function listCanonicalAccounts() {
+  const { data, error } = await supabase
+    .from('v_canonical_accounts_aed')
+    .select(ACCOUNT_COLUMNS)
+    .order('id', { ascending: true })
+  if (error) throw error
+  return normalizeCanonicalAccountRows(data)
+}
+
+export async function loadCanonicalWealth() {
+  const [balance, investments, accounts] = await Promise.all([
+    getCanonicalBalanceSheet(),
+    getCanonicalInvestmentMetrics(),
+    listCanonicalAccounts(),
+  ])
+  return Object.freeze({ balance, investments, accounts })
 }

@@ -1,9 +1,10 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. Production is verified through `041` as of 23 August 2026. Migration
-`042` is the additive SHR-111/SHR-121 debt-quality correction and is explicitly
-**NOT APPLIED** pending independent QA and separate production approval.
+order. Production is verified through `042` as of 24 August 2026. Migration
+`043` is the additive SHR-113 authoritative snapshot foundation and is
+explicitly **NOT APPLIED** pending independent QA and separate production
+approval. Its scheduler is **INACTIVE / not installed**.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
 `supabase migration list`; `008` onward do.
@@ -59,7 +60,8 @@ findings each one closes, and the verification evidence.
 | `039_harden_financial_rls_surfaces` | SECURITY INVOKER money view + non-exposed RLS membership helper | SHR-109 / SHR-119 |
 | `040_harden_pending_actions_authorization` | Reproduces the deployed `037` table on clean databases; service-only guarded pending-action state machine | SHR-110 / SHR-120 |
 | `041_canonical_financial_metrics_phase_a` | Additive canonical ledger/income/account/goal views, period/balance/investment/budget functions, split identity, quality metadata — applied; production QA found the debt-quality predicate fixed by `042` | SHR-111 Phase A |
-| `042_fix_canonical_debt_quality` | Recreates only the security-invoker goal-progress view so positive target is save-up-only and pay-down quality uses starting balance + linked liability — **NOT APPLIED** | SHR-111 / SHR-121 |
+| `042_fix_canonical_debt_quality` | Recreates only the security-invoker goal-progress view so positive target is save-up-only and pay-down quality uses starting balance + linked liability — applied | SHR-111 / SHR-121 |
+| `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — **NOT APPLIED** | SHR-113 Phase A |
 
 ## Rules
 
@@ -109,6 +111,11 @@ verified in production together with Telegram Edge v42.
 existing views/APIs/consumers and historical `nw_daily` and added no guessed
 backfill. Independent production QA found one goal-quality predicate bug.
 
-`042_fix_canonical_debt_quality` is repository-only pending independent QA. It
-does not alter goal data or arithmetic; it only makes the existing goal-quality
+`042_fix_canonical_debt_quality` is applied and verified in production. It does
+not alter goal data or arithmetic; it only makes the existing goal-quality
 predicate follow the approved save-up/pay-down bases.
+
+`043_authoritative_net_worth_snapshots` is repository-only pending independent
+QA. It does not backfill, reconstruct, or update any existing `nw_daily` row;
+`nw_snapshots` remains untouched/deprecated. No pg_cron/pg_net job is installed
+by the migration or this phase.

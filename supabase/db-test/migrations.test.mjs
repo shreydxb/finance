@@ -5,6 +5,7 @@
 // apply that swallowed an error somewhere fails loudly here too.
 
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { withTx } from './helpers.mjs'
 
@@ -19,7 +20,9 @@ test('every public RPC the app calls exists after a clean apply', async () => {
         'save_telegram_settings', 'create_pending_action', 'bind_pending_action_prompt',
         'claim_pending_action', 'apply_pending_action', 'cancel_pending_action',
         'expire_pending_action', 'canonical_period_metrics', 'canonical_balance_sheet',
-        'canonical_investment_metrics', 'canonical_budget_actuals'
+        'canonical_investment_metrics', 'canonical_budget_actuals',
+        'claim_nw_snapshot_run', 'record_nw_snapshot_attempt_event',
+        'capture_nw_snapshot_v1', 'evaluate_nw_snapshot_policy_v1'
       )
     `)
     const found = new Set(rows.map((r) => r.proname))
@@ -41,9 +44,75 @@ test('every public RPC the app calls exists after a clean apply', async () => {
       'canonical_balance_sheet',
       'canonical_investment_metrics',
       'canonical_budget_actuals',
+      'claim_nw_snapshot_run',
+      'record_nw_snapshot_attempt_event',
+      'capture_nw_snapshot_v1',
+      'evaluate_nw_snapshot_policy_v1',
     ]) {
       assert.ok(found.has(name), `${name} should exist after applying all schema files`)
     }
+  })
+})
+
+test('043 is rerunnable and preserves legacy nw_daily content and physical tuple identity', async () => {
+  await withTx(async (client) => {
+    await client.query(`
+      insert into nw_daily(id,day,total_aed,assets_aed,liabilities_aed,by_owner,by_type,created_at)
+      values('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','2026-07-01',123.456,200,76.544,
+        '{"Shrey":123.456}','{"cash":123.456}','2026-07-01T12:34:56Z')
+    `)
+    const before = await client.query(`
+      select ctid, jsonb_build_object(
+        'id',id,'day',day,'total_aed',total_aed,'assets_aed',assets_aed,
+        'liabilities_aed',liabilities_aed,'by_owner',by_owner,'by_type',by_type,'created_at',created_at
+      ) as content from nw_daily where id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+    `)
+    const sql = readFileSync(new URL('../schema/043_authoritative_net_worth_snapshots.sql', import.meta.url), 'utf8')
+    // setup-db validates the exact transaction-wrapped file from empty. Strip
+    // only its outer transaction here so the rerun remains isolated and the
+    // legacy fixture is rolled back with this test instead of leaking globally.
+    const rerunSql = sql
+      .replace(/(^|\r?\n)begin;\r?\n/i, '$1')
+      .replace(/(\r?\n)commit;\r?\n/i, '$1')
+    await client.query(rerunSql)
+    const after = await client.query(`
+      select ctid,run_id,snapshot_at,published_at,quality_status,investment_value_aed,
+        source_version,quality_evidence,input_digest,
+        jsonb_build_object(
+          'id',id,'day',day,'total_aed',total_aed,'assets_aed',assets_aed,
+          'liabilities_aed',liabilities_aed,'by_owner',by_owner,'by_type',by_type,'created_at',created_at
+        ) as content from nw_daily where id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+    `)
+    assert.deepEqual(after.rows[0].content, before.rows[0].content)
+    assert.equal(after.rows[0].ctid, before.rows[0].ctid, 'nullable additions/rerun must not rewrite the legacy tuple')
+    for (const field of ['run_id','snapshot_at','published_at','quality_status','investment_value_aed','source_version','quality_evidence','input_digest']) {
+      assert.equal(after.rows[0][field], null, `${field} must remain null on legacy history`)
+    }
+  })
+})
+
+test('043 resolves pgcrypto digest from the hosted Supabase extensions schema', async () => {
+  const sql = readFileSync(new URL('../schema/043_authoritative_net_worth_snapshots.sql', import.meta.url), 'utf8')
+
+  assert.match(sql, /\bextensions\.digest\s*\(/, '043 must qualify digest through the hosted extensions schema')
+  assert.doesNotMatch(sql, /\bpublic\.digest\s*\(/, '043 must never depend on pgcrypto being installed in public')
+
+  await withTx(async (client) => {
+    const { rows } = await client.query(`
+      select
+        e.extnamespace = 'extensions'::regnamespace as pgcrypto_is_hosted_layout,
+        to_regprocedure('extensions.digest(bytea,text)') is not null as extensions_digest_exists,
+        to_regprocedure('public.digest(bytea,text)') is null as public_digest_absent,
+        has_schema_privilege('service_role', 'extensions', 'usage') as service_role_has_usage
+      from pg_extension e
+      where e.extname = 'pgcrypto'
+    `)
+
+    assert.equal(rows.length, 1, 'pgcrypto must be installed in the clean hosted-compatible fixture')
+    assert.equal(rows[0].pgcrypto_is_hosted_layout, true)
+    assert.equal(rows[0].extensions_digest_exists, true)
+    assert.equal(rows[0].public_digest_absent, true)
+    assert.equal(rows[0].service_role_has_usage, true)
   })
 })
 

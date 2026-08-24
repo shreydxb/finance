@@ -28,6 +28,9 @@ export const BACKUP_TABLES = [
   { name: 'goal_contributions', financial: true, dependsOn: ['goals'] },
   // History and operational tables.
   { name: 'nw_snapshots', financial: true },
+  { name: 'nw_snapshot_runs', financial: true },
+  { name: 'nw_snapshot_attempt_events', financial: true },
+  { name: 'nw_snapshot_items', financial: true },
   { name: 'nw_daily', financial: true },
   { name: 'forecast_events', financial: false },
   { name: 'category_rules', financial: false },

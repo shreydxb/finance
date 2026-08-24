@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `042`. Production is verified through migrations `041` and `042`.
+Status: semantic map of the schema represented by `supabase/schema/001` through repository-only `043`. Production is verified through migration `042`; `043` is not applied.
 
 ## Reading this document
 
@@ -77,16 +77,18 @@ Migration `042`, now production-applied, additively corrects only goal-quality c
 
 ## Valuation and history
 
-### Net-worth snapshots — current
+### Net-worth snapshots — SHR-113 Phase A repository contract
 
-- `nw_daily`: one daily AED snapshot with assets, liabilities, and owner/type breakdowns.
-- `nw_snapshots`: monthly/historical aggregate structure retained from the initial model.
+- `nw_daily` remains the daily AED history authority. Migration `043` adds only nullable provenance (`run_id`, actual `snapshot_at`/`published_at`, quality, investment value, source version, evidence, digest). Existing rows remain byte/content-identical and classify as legacy because provenance is null.
+- `nw_snapshot_runs` has one logical run/idempotency identity per Dubai target day. It records trigger, policy, lifecycle, final quality/evidence, digest, and publication identity.
+- `nw_snapshot_attempt_events` is append-only phase/failure evidence. Retries create new attempt numbers; prior failures are never overwritten.
+- `nw_snapshot_items` is the immutable per-published-run account valuation manifest: native/canonical values, FX and price bases, source as-of/fetch timestamps, method, quality, and reason evidence.
+- `accounts.price_quote_at` stores provider quote/session as-of separately from existing `price_updated_at` fetch/write time.
+- `nw_snapshots` remains the deprecated monthly structure and is untouched/unpopulated.
 
-Snapshots are records, not source transactions. Current code calculates from account values and upserts `nw_daily` when the relevant application path runs.
+Published runs/items/authoritative daily points are immutable. Authenticated household members have RLS-governed read-only access; anonymous and outsiders cannot read, and browser identities cannot mutate or invoke capture contracts. Service-only SECURITY INVOKER contracts claim, append attempt evidence, apply SHR-113 policy v1, and atomically publish or record a skipped-incomplete run. The Edge orchestrator refreshes and records evidence only; Postgres canonical account contracts remain the money engine.
 
-### Authoritative valuation history and attribution — planned
-
-V5 plans a trustworthy history with freshness and attribution. The repository does not yet contain a canonical event-sourced valuation ledger, dated FX history, or a complete contributions-versus-market-movement attribution model.
+This is snapshot provenance, not an event-sourced valuation ledger or contributions-versus-market attribution model. No dated historical FX/quote/account ledger is introduced and no history is reconstructed.
 
 ## Household, settings, and access
 

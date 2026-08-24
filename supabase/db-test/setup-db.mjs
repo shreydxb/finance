@@ -63,6 +63,21 @@ grant authenticated to current_user;
 grant service_role to current_user;
 
 create schema if not exists auth;
+create schema if not exists extensions;
+
+-- Hosted Supabase installs relocatable extensions in the extensions
+-- schema. Keep the clean-database harness faithful to that layout so schema-
+-- qualified extension calls cannot pass locally and fail only when hosted.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pgcrypto') then
+    alter extension pgcrypto set schema extensions;
+  else
+    create extension pgcrypto with schema extensions;
+  end if;
+end $$;
+
+grant usage on schema extensions to anon, authenticated, service_role;
 
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),

@@ -1,6 +1,6 @@
 # Our Money v5 architecture
 
-Status: canonical v5 direction, updated for SHR-111 Phase A and SHR-122 Phase B. Statements labeled **current** describe repository implementation. Production is verified through migrations `041` and `042`.
+Status: canonical v5 direction, updated for SHR-113 Phase A. Statements labeled **current** describe repository implementation. Production is verified through migration `042`; repository-only migration `043` and its Edge source are not applied or deployed.
 
 ## Product boundary
 
@@ -70,6 +70,8 @@ Migration `041` implements the additive Phase A database foundation: security-in
 
 Home and Reports consume the canonical Phase A contracts on the SHR-122 branch: period headlines come directly from `canonical_period_metrics`, category actuals from `canonical_budget_actuals`, and presentation groupings from canonical AED ledger/income facts. Realtime payloads only invalidate and refetch those contracts. Planning helpers, Telegram queries, forecasting, and other consumers remain on their existing APIs until separately reviewed migrations.
 
+Accounts now consumes `canonical_balance_sheet`, `canonical_investment_metrics`, and `v_canonical_accounts_aed` for current wealth values. It reads `nw_daily` history and never creates a historical point on mount/open. Repository-only SHR-113 Phase A adds one trusted orchestration Edge Function: it refreshes FX and investment prices through shared provider modules, records provider evidence, and asks service-only Postgres contracts to claim/evaluate/capture. The Edge Function never calculates authoritative money. No scheduler is installed or active in Phase A.
+
 Postgres/database logic remains authoritative for durable money calculations and integrity constraints. AI may route, extract, explain, or propose; it must use closed, reviewed operations and canonical computed results.
 
 ## Security and operational architecture
@@ -87,7 +89,8 @@ Postgres/database logic remains authoritative for durable money calculations and
 
 - The current UI has ten top-level screens; v5 consolidation is not implemented.
 - FX settings are current-rate values, not a historical FX ledger. Historical reporting therefore uses the current repository convention unless a future issue introduces dated valuation.
-- `nw_daily` is a stored daily snapshot created by application behavior; authoritative scheduled snapshots and attribution are planned.
+- Existing `nw_daily` rows are preserved legacy facts with null provenance. Migration `043` can publish qualified Complete/Provisional daily valuation closes through service-only contracts, but it is not production-applied and no scheduler is active.
+- `nw_snapshots` remains deprecated and is not populated. Gaps and skipped-incomplete days remain visible gaps; historical FX/quotes/account values are not invented.
 - Investment positions and transaction cash flows are separate concepts. Typed chat investment purchases currently record cash outflow, not authoritative holding quantity/cost.
 - The codebase supports two known people plus Joint labels, while access is enforced by authenticated household membership rather than row-level owner isolation.
 - Repository comments and historical docs may state a migration was live on a past date. Treat that as evidence from that date, not a substitute for checking current live state.

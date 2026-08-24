@@ -29,9 +29,10 @@ npm run test:db
 
 - drops and recreates a scratch database (`our_money_test` by default —
   override with `TEST_DB_NAME`)
-- creates a minimal stand-in for the two Supabase-managed pieces the schema
-  depends on: an `auth.users` table and `auth.uid()`, and the `anon` /
-  `authenticated` / `service_role` roles. Nothing else about Supabase is
+- creates a minimal stand-in for the Supabase-managed pieces the schema
+  depends on: an `auth.users` table and `auth.uid()`, the `anon` /
+  `authenticated` / `service_role` roles, and pgcrypto installed in the hosted
+  `extensions` schema rather than `public`. Nothing else about Supabase is
   emulated — no PostgREST, no Storage, no Realtime server. `is_household_member()`
   and every `to authenticated` policy behave identically to production because
   they only ever call `auth.uid()`.
@@ -47,7 +48,10 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
 
 - **`migrations.test.mjs`** — the apply-from-empty run itself is the test:
   `setup-db.mjs` exits non-zero on the first failing statement. This file
-  additionally asserts the objects the later suites depend on exist. SHR-109
+  asserts migration 043 resolves pgcrypto through `extensions.digest` while
+  `public.digest` is absent, preventing a plain-Postgres layout from masking a
+  hosted-Supabase failure. It also asserts the objects the later suites depend
+  on exist. SHR-109
   coverage verifies the money view's `security_invoker` option and read-only
   grants, the private helper's schema/attributes/ACL, absence of its public RPC
   target, and every policy dependency following the moved function object.
