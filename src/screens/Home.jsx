@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { countNeedsReview, listTransactions } from '../lib/transactions'
-import { listIncome } from '../lib/income'
 import { listBudgets } from '../lib/budgets'
 import { listRecurring, nextDueDate, daysUntil } from '../lib/recurring'
 import { listGoals, listAllContributions } from '../lib/goals'
@@ -9,8 +8,12 @@ import { getSetting } from '../lib/settings'
 import { toAED } from '../lib/money'
 import { currentYearMonth, monthLabel, monthRange } from '../lib/period'
 import { usePrefs } from '../lib/PrefsContext'
-import { totalAED } from '../lib/reports'
+import { getCanonicalPeriodMetrics } from '../lib/canonicalMetrics'
+import { canonicalHeadline, savingsRateCopy } from '../lib/canonicalPresentation'
+import { useRealtimeRefresh } from '../lib/useRealtime'
+import { REALTIME_TABLES } from '../lib/realtime'
 import NetWorthHero from '../components/NetWorthHero'
+import CanonicalQualityIndicator from '../components/CanonicalQualityIndicator'
 
 const DUE_SOON_DAYS = 14
 const RECENT_LIMIT = 5
@@ -32,50 +35,49 @@ export default function Home({ onNavigate }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
+  const { year, month } = currentYearMonth()
+  const { from, to } = monthRange(year, month)
+
+  async function load() {
+    setError('')
+    try {
+      const [accounts, recent, metrics, budgets, recurring, goals, contributions, fxRates, reviewCount] =
+        await Promise.all([
+          listAccounts(),
+          listTransactions({}),
+          getCanonicalPeriodMetrics({ from, to }),
+          listBudgets(),
+          listRecurring(),
+          listGoals(),
+          listAllContributions(),
+          getSetting('fx_rates'),
+          countNeedsReview(),
+        ])
+      setData({
+        accounts,
+        recent: recent.slice(0, RECENT_LIMIT),
+        metrics,
+        budgets,
+        recurring,
+        goals,
+        contributions,
+        fxRates: fxRates || { AED: 1 },
+        reviewCount,
+        label: monthLabel(year, month),
+      })
+    } catch {
+      setError('Could not load your dashboard. Check your connection and try again.')
+    }
+  }
+
   useEffect(() => {
-    let cancelled = false
-    const { year, month } = currentYearMonth()
-    const { from, to } = monthRange(year, month)
-
-    async function load() {
-      try {
-        const [accounts, monthTxns, recent, income, budgets, recurring, goals, contributions, fxRates, reviewCount] =
-          await Promise.all([
-            listAccounts(),
-            listTransactions({ dateFrom: from, dateTo: to }),
-            listTransactions({}),
-            listIncome({ dateFrom: from, dateTo: to }),
-            listBudgets(),
-            listRecurring(),
-            listGoals(),
-            listAllContributions(),
-            getSetting('fx_rates'),
-            countNeedsReview(),
-          ])
-        if (cancelled) return
-        setData({
-          accounts,
-          monthTxns,
-          recent: recent.slice(0, RECENT_LIMIT),
-          income,
-          budgets,
-          recurring,
-          goals,
-          contributions,
-          fxRates: fxRates || { AED: 1 },
-          reviewCount,
-          label: monthLabel(year, month),
-        })
-      } catch {
-        if (!cancelled) setError('Could not load your dashboard. Check your connection and try again.')
-      }
-    }
-
     load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to])
+
+  // Realtime payloads are invalidation signals only: every financial value is
+  // refetched from the canonical database contract.
+  useRealtimeRefresh(REALTIME_TABLES.home, load)
 
   if (error) {
     return (
@@ -92,12 +94,7 @@ export default function Home({ onNavigate }) {
   }
 
   const { fxRates } = data
-  // Same function Cash Flow uses (excludes Transfer-category rows — a fund
-  // transfer between the household's own accounts isn't a spend), so the two
-  // screens can never disagree.
-  const spent = totalAED(data.monthTxns, fxRates)
-  const earned = data.income.reduce((sum, i) => sum + toAED(Number(i.amount) || 0, i.currency, fxRates), 0)
-  const savingsRate = earned > 0 ? ((earned - spent) / earned) * 100 : null
+  const headline = canonicalHeadline(data.metrics)
   const budgeted = data.budgets.reduce((sum, b) => sum + (Number(b.monthly_limit) || 0), 0)
 
   const dueSoon = data.recurring
@@ -154,14 +151,15 @@ export default function Home({ onNavigate }) {
           </button>
         )}
 
-        <Section title={data.label} action="Reports" onAction={() => onNavigate?.('Reports')}>
+        <Section title={data.label} action="Reports" onAction={() => onNavigate?.('Reports')}
+          indicator={<CanonicalQualityIndicator metrics={data.metrics} />}>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Spent" value={fmt(spent)} />
+            <StatCard label="Consumption" value={headline.consumption === null ? '—' : fmt(headline.consumption)} />
             <StatCard label="Budget" value={budgeted > 0 ? fmt(budgeted) : '—'}
-              hint={budgeted > 0 ? `${fmt(Math.max(0, budgeted - spent))} left` : 'not set'} />
-            <StatCard label="Savings rate" value={savingsRate === null ? '—' : `${savingsRate.toFixed(0)}%`}
-              hint={earned > 0 ? `of ${fmt(earned)}` : 'no income logged'}
-              tone={savingsRate !== null && savingsRate < 0 ? 'bad' : 'plain'} />
+              hint={budgeted <= 0 ? 'not set' : headline.consumption === null ? 'consumption unavailable' : `${fmt(Math.max(0, budgeted - headline.consumption))} left`} />
+            <StatCard label="Savings rate" value={headline.savingsRate === null ? '—' : `${headline.savingsRate.toFixed(0)}%`}
+              hint={headline.savingsRate === null ? savingsRateCopy(headline) : `of ${fmt(headline.income)} posted income`}
+              tone={headline.savingsRate !== null && headline.savingsRate < 0 ? 'bad' : 'plain'} />
             <StatCard label="Investments" value={fmt(investmentsTotal)} hint={`${investmentCount} holdings`} />
           </div>
         </Section>
@@ -219,11 +217,14 @@ export default function Home({ onNavigate }) {
   )
 }
 
-function Section({ title, action, onAction, children, inGrid }) {
+function Section({ title, action, onAction, children, inGrid, indicator }) {
   return (
     <section className={inGrid ? '' : 'mt-6'}>
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">{title}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">{title}</h2>
+          {indicator}
+        </div>
         {action && (
           <button
             type="button"

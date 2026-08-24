@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `042` on the SHR-111 correction branch. Production is verified through `041`; migration `042` remains **NOT APPLIED** pending independent QA and separate approval.
+Status: semantic map of the schema represented by `supabase/schema/001` through `042`. Production is verified through migrations `041` and `042`.
 
 ## Reading this document
 
@@ -71,9 +71,9 @@ V5 intends coherent goals, payoff, FIRE, and life-event scenarios. No new v5 sce
 
 Migration `041` adds security-invoker/read-only views `v_canonical_ledger_aed`, `v_canonical_income_aed`, `v_canonical_accounts_aed`, and `v_canonical_goal_progress`. Read-only security-invoker functions expose canonical period metrics, budget actuals, balance sheet, and investment value/unrealized P&L. They execute with caller privileges and inherit household RLS from their source tables.
 
-The contracts retain amounts and quality as separate facts. Missing required FX/input or unresolved zero placeholders null dependent aggregates and return `incomplete`; nonzero review rows and manual/stale valuations remain available with `provisional` metadata. Current-rate AED and two-decimal Postgres numeric outputs are the Phase A reporting basis. No consumer has been migrated in SHR-111 Phase A.
+The contracts retain amounts and quality as separate facts. Missing required FX/input or unresolved zero placeholders null dependent aggregates and return `incomplete`; nonzero review rows and manual/stale valuations remain available with `provisional` metadata. Current-rate AED and two-decimal Postgres numeric outputs are the Phase A reporting basis. SHR-122 migrates Home and Reports to these period, ledger, income, and budget-actual contracts; other consumers remain separately gated.
 
-Migration `042` additively corrects only goal-quality classification: positive `target_amount` is required for `save_up`, while `pay_down` completeness depends on a positive AED `starting_balance` and a valid non-incomplete linked canonical liability. It does not alter goal rows, progress arithmetic, contribution activity, or access control and is not yet in production.
+Migration `042`, now production-applied, additively corrects only goal-quality classification: positive `target_amount` is required for `save_up`, while `pay_down` completeness depends on a positive AED `starting_balance` and a valid non-incomplete linked canonical liability. It does not alter goal rows, progress arithmetic, contribution activity, or access control.
 
 ## Valuation and history
 

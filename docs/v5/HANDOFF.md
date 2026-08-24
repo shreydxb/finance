@@ -1,106 +1,108 @@
-# Our Money v5 implementation handoff
+# Our Money v5 handoff — SHR-122
 
-## Linear issues
+Date: 2026-08-23 (Asia/Dubai)
 
-- Implementation: SHR-111 — Financial engine: define and test canonical core metrics
-- Independent QA: SHR-121 — QA SHR-111 Phase A
+Branch: `shreydxb1/shr-122-shr-111-phase-b-migrate-home-and-reports-to-canonical`
 
-## Status
+Baseline: `main` at `33a7d09b8fd9bf85b101bb20795e4f9cc9356781`
 
-**DEBT-QUALITY CORRECTION READY FOR INDEPENDENT QA.** Production migration `041` remains applied; additive correction `042` is **NOT APPLIED**.
+Status: **QA BLOCKERS FIXED; READY FOR INDEPENDENT RE-QA ON THE NEW EXACT-HEAD DEPLOY PREVIEW. DO NOT MERGE OR DEPLOY PRODUCTION.**
 
-## Git
+## Scope delivered
 
-- Repository: `shreydxb/finance`
-- Branch: `shreydxb1/shr-111-debt-quality-correction`
-- Exact base SHA: `9a9ffa9ebd1ca053fbd177bd7144a660ea39e55c`
-- Exact final PR-head SHA: recorded in the SHR-111/SHR-121 Linear handoff and PR metadata after this file is committed, following the established non-self-referential SHA convention
-- Netlify intent: `[skip netlify]`; no preview or production deploy was run; expected credits consumed: 0
+- Migrated Home's current-month Consumption and Savings rate cards from raw transaction/income arithmetic to `canonical_period_metrics`.
+- Migrated Reports headlines to direct canonical fields: posted income, consumption spend, savings movement, cash retained, cash flow, savings, and savings rate.
+- Migrated category actuals to `canonical_budget_actuals`; merchant, recorded-owner, source, and recorded-person presentation groupings use only canonical AED facts from `v_canonical_ledger_aed` and `v_canonical_income_aed`.
+- Replaced misleading Spent/Expenses/Spending labels with Consumption wherever the value is canonical `consumption_spend`.
+- Added one strict runtime contract layer that fails closed on missing/duplicate/malformed/unknown rows, enum values, quality states, contract versions, contradictory quality evidence, mismatched metadata counts/currencies, invalid classification pairs, and invalid transfer/group/direction combinations.
+- Added one shared deterministic quality model: `complete < provisional < incomplete`.
+- Realtime events only invalidate/refetch canonical data; no realtime payload mutates financial totals.
+- Fixed Home/Reports period defaults and comparison boundaries to `Asia/Dubai`.
+- Preserved the existing transaction CSV contract. Net Worth, Investments, Goals, Budget planning, recurring items, recent transactions, and other out-of-scope Home consumers remain unchanged.
+- Corrected v5 documentation: production is verified through migrations `041` and `042`.
 
-## Confirmed production defect
+No database migration, Supabase write, production deploy, or merge is part of SHR-122.
 
-Migration `041` correctly computes all three production pay-down balances and raw progress values, but its goal-quality CASE applies the generic `target_amount <= 0` guard before pay-down-specific checks. All three production pay-down goals use legacy-compatible `target_amount = 0` with valid positive AED starting balances and valid linked liabilities, so they are incorrectly marked incomplete.
+## Canonical behavior
 
-The approved contract is kind-specific:
+- Canonical monetary truth stays in AED. `fmt` converts canonical AED for display only.
+- Canonical `NULL` is rendered unavailable and never replaced with zero or a legacy calculation.
+- Nonzero `needs_review` periods remain monetary and surface as Provisional.
+- Missing required FX, unresolved zero placeholders, and other required incomplete inputs surface as Incomplete; affected period values, breakdowns, trends, comparisons, and flows do not show plausible partial authority.
+- Savings rate remains `NULL` for nonpositive posted income and displays the canonical `nonpositive_income` reason.
+- Internal transfers and legacy exact `Transfer` rows remain outside consumption.
+- `Savings & Investments` remains `savings_movement`, separate from consumption.
+- Refunds remain signed canonical consumption facts.
+- Shrey, Tarika, Joint, and Unassigned remain exact recorded buckets. The 69/31 target is presentation guidance only.
+- Category/merchant/source/person groups render only after their canonical AED facts reconcile to the authoritative period total at two-decimal precision.
+- Sankey renders only when all required flows are nonnegative and both source and destination sides reconcile exactly at cents. Otherwise Reports shows the signed canonical-bars fallback (or unavailable values for Incomplete periods).
 
-- `save_up` requires a positive target;
-- `pay_down` requires a positive AED starting balance, a valid linked liability, and a linked canonical valuation that is not incomplete;
-- pay-down progress may be negative and must not be clamped;
-- contributions/payments remain reconciliation activity and do not change linked-balance progress.
+## Main implementation files
 
-## Correction delivered
-
-Migration `042_fix_canonical_debt_quality.sql` additively recreates only `v_canonical_goal_progress`.
-
-- Positive/non-null `target_amount` is required only when `kind = 'save_up'`.
-- Pay-down quality requires positive/non-null `starting_balance`.
-- Pay-down quality requires a present linked account whose canonical account row exists and is a liability.
-- An incomplete linked canonical valuation makes pay-down quality incomplete; a provisional linked valuation remains provisional.
-- Existing current amount, raw progress amount/percentage, raw remaining, basis, contribution metadata, classification version, columns, and ordering are unchanged.
-- The view remains `security_invoker=true`; authenticated/service SELECT and anon/PUBLIC denial are explicitly re-established.
-- No goal/transaction/account/history row is inserted, updated, deleted, rewritten, normalized, or backfilled.
-- No consumer, function, Edge Function, or application calculation changes.
+- `src/lib/canonicalContracts.js` — strict runtime response validation and quality ordering.
+- `src/lib/canonicalMetrics.js` — canonical RPC/view reads and person/household scope application.
+- `src/lib/canonicalPresentation.js` — presentation-only grouping, reconciliation, headline mapping, quality copy, and Sankey gate.
+- `src/screens/Home.jsx` — canonical current-month KPIs and quality indicator.
+- `src/screens/Reports.jsx` — canonical headlines, flows, breakdowns, trends, comparisons, and exact recorded-person presentation.
+- `src/lib/spendingComparison.js` — Dubai-local periods and reconciled canonical-ledger comparisons.
+- `src/components/CanonicalQualityIndicator.js` — subtle, keyboard-focusable Complete/Provisional/Incomplete disclosure with rendered accessible detail, current-rate AED basis, FX timestamp, and status-specific evidence counts.
 
 ## Regression coverage
 
-The `042` golden fixture proves:
+- Home/Reports equality for the same canonical response.
+- Complete, provisional, zero-placeholder incomplete, and missing-FX incomplete fixtures.
+- Positive, zero, and negative posted-income savings-rate behavior.
+- Transfer/card-settlement exclusion.
+- Savings & Investments decomposition.
+- Signed refunds.
+- Exact recorded person buckets.
+- Category reconciliation and fail-closed mismatch behavior.
+- Dubai midnight, month, quarter, year, and comparison boundaries.
+- Sankey cents reconciliation/nonnegative gate and fallback conditions.
+- Source-discipline checks proving migrated screen code does not import or call legacy total/group/FX financial arithmetic.
+- Negative contract fixtures for contradictory Complete/Provisional/Incomplete evidence, top-level/metadata mismatches, monetary dependencies, every classification-reason family, and group/transfer/direction invariants.
+- Rendered component coverage for keyboard focus, accessible disclosure detail, AED/FX provenance, provisional counts, and incomplete reason counts.
 
-1. a pay-down goal with `target_amount = 0`, positive starting balance, and valid linked liability is complete;
-2. zero and missing starting balances are incomplete;
-3. missing, non-liability, and incomplete linked accounts are incomplete;
-4. a zero-target save-up goal remains incomplete;
-5. a balance above starting balance returns complete negative raw progress and negative percentage without clamping;
-6. linked save-up remains linked-account basis, unlinked save-up remains contribution basis, and linked contribution activity is not added to progress.
+## Validation evidence
 
-## Files changed
+- `pnpm run lint`: PASS (pre-existing fast-refresh/exhaustive-deps warnings only).
+- `pnpm test`: PASS — 494 tests.
+- `pnpm run build`: PASS.
+- Complete database integration suite: required `db-integration` GitHub CI job; run from empty through schema `042` against PostgreSQL before QA handoff acceptance.
+- Read-only production-intent probes re-run against `our-rokda` (`wrxqgfbolryveivgdjia`):
+  - February 2026 Complete: income AED 0.00; consumption AED 280.39; savings movement AED 0.00; cash retained/cash flow/savings AED -280.39; savings rate `NULL` / `nonpositive_income`; category actuals reconcile to AED 280.39.
+  - July 2026 Provisional: income AED 0.00; consumption AED 10,357.80; 27 review rows; category actuals reconcile to AED 10,357.80.
+  - August 2026 intentionally Incomplete: income AED 0.00; all dependent consumption/movement/cash/savings/rate values `NULL`; reason `incomplete_inputs`; 11 review rows; 3 zero placeholders. The unaffected partial category sum AED 4,130.97 is deliberately not promoted.
+  - December 2026 Complete positive-income fixture: income/cash retained/cash flow/savings AED 6,000.00; consumption/movement AED 0.00; savings rate 100.00%.
+  - Live canonical ledger and income field shapes match the strict browser contracts.
 
-```text
-docs/v5/ARCHITECTURE.md
-docs/v5/DATA_MODEL.md
-docs/v5/DECISIONS.md
-docs/v5/FINANCIAL_RULES.md
-docs/v5/HANDOFF.md
-supabase/db-test/README.md
-supabase/db-test/canonical_metrics.test.mjs
-supabase/schema/042_fix_canonical_debt_quality.sql
-supabase/schema/README.md
-```
+## SHR-123 blocker resolution
 
-## Exact validation results
+- Reproduced and rejected the QA payload where a `complete` period carried one top-level `needs_review` row and one metadata provisional row.
+- Reproduced and rejected the QA payload pairing `categorised_consumption` with `internal_transfer` and null canonical monetary fields.
+- Quality validation now requires evidence appropriate to the known enum: Complete has no review/provisional/incomplete evidence; Provisional has matching nonzero review/provisional evidence and no incomplete evidence; Incomplete has matching incomplete evidence.
+- Top-level zero-placeholder counts match metadata exactly; missing-FX counts and currency metadata must agree; provisional/zero-placeholder counts cannot exceed review counts.
+- Canonical classification precedence and transaction-group/transfer-direction constraints are validated before facts reach presentation code. Contradictory payloads throw a canonical contract error and never trigger legacy fallback arithmetic.
+- The quality indicator is now a native keyboard disclosure. Its rendered, `aria-describedby` detail remains subtle while exposing current-rate AED basis, FX timestamp, provisional/review counts, and incomplete reason counts/currencies.
+- The approved production-intent probes were re-run read-only on 2026-08-23 after the fixes; February, July, August, and December results remain exactly as recorded above. Production Supabase was not modified.
 
-- Supabase current-doc/changelog check: PASS. No current breaking change affects a Postgres 17 security-invoker view replacement; extension-version and self-hosted/runtime notices are unrelated.
-- Lint: PASS, exit 0 — six pre-existing warnings and zero errors.
-- Complete application/Edge test suite: PASS — 474 tests, 474 passed, 0 failed; 9.2141139 s.
-- Production build: PASS — 119 modules transformed in 1.01 s; existing 641.12 kB JavaScript chunk warning only.
-- Fresh-database migration application: PASS — 41 repository schema files applied from empty through `042` on PostgreSQL 16.15.
-- Complete database integration suite: PASS — 72 tests, 72 passed, 0 failed; 2.859439 s.
-- Explicit second application of unchanged `042`: PASS — `BEGIN`, `CREATE VIEW`, `COMMENT`, `REVOKE`, `GRANT`, `COMMIT`.
-- Focused canonical + migration catalog suites after actual rerun: PASS — 24/24; 1.7852621 s.
-- Supabase CLI 2.115.0 security advisor against rebuilt test state: PASS with no new SHR-111/SHR-121 finding. Expected existing results only: service-only `pending_actions` policy-free INFO and `pgcrypto`-in-public WARN.
-- RLS/catalog coverage: PASS — canonical views remain security-invoker/read-only; canonical functions remain invoker; member/service access, outsider isolation, and anon denial remain covered.
+## Independent QA gate
 
-## Production and deployment state
+The PR and exactly one Netlify Deploy Preview must be created from the final commit containing this handoff. Record the immutable PR head SHA, preview URL, Netlify build/deploy identifier, and verified preview `commit_ref` in the structured Linear SHR-122 implementation comment. Do not change code after that preview; any change creates a new preview/review gate.
 
-- GitHub PR #10 / migration `041`: merged and applied as production migration `20260822222316 / 041_canonical_financial_metrics_phase_a`.
-- Migration `042_fix_canonical_debt_quality`: **NOT APPLIED**.
-- Production goal rows changed/backfilled: **NO**.
-- Production transactions, legacy Transfer rows, splits, `nw_daily`, or `nw_snapshots` changed: **NO**.
-- Home, Reports, Budget, Forecast/FIRE, Telegram, Accounts/Wealth, Goals, or Debts consumer migration: **NO**.
-- Netlify preview/production deploy: **NOT RUN**.
-- Edge Function deploy: **NOT RUN**.
-- Merge of correction PR to `main`: **NOT DONE**.
-- SHR-111 Done: **NO**.
-- SHR-121 Done: **NO**.
+Independent re-QA should verify:
 
-## Independent reviewer checks
+1. GitHub `check` and `db-integration` jobs pass at the exact PR head.
+2. Preview build SHA exactly equals the PR head SHA.
+3. Home and Reports show equal canonical household figures for the same month, including July Provisional and August Incomplete.
+4. August displays unavailable canonical monetary values and never AED 4,130.97 as authoritative consumption.
+5. February/July/December meanings and savings-rate reasons match the production probes above.
+6. Category and merchant breakdowns reconcile; refunds remain signed; Transfer/card settlements are absent; Savings & Investments remains separate.
+7. Sankey appears only for exact, nonnegative reconciled flows and otherwise uses the signed-bars/unavailable fallback.
+8. Dubai-local defaults and comparison boundaries are correct around 00:00–03:59 local time.
+9. Display-currency changes convert canonical AED presentation without changing canonical meaning or quality.
+10. CSV output remains compatible and out-of-scope Home widgets remain unchanged.
+11. Malformed-but-known quality/classification/transfer combinations fail closed, including the two payloads recorded in SHR-123.
+12. Every quality pill can receive keyboard focus and exposes rendered status detail without depending on a native `title` tooltip.
 
-1. Confirm the correction PR base is exactly `9a9ffa9ebd1ca053fbd177bd7144a660ea39e55c` and only the documented files changed.
-2. Confirm migration `041` is unchanged and `042` contains no DML/backfill or consumer change.
-3. Diff the `041` and `042` goal-view definitions: only the kind-specific quality predicate, explicit missing-link guard, comment, and least-privilege regrant should differ.
-4. Apply all schema files from empty, apply `042` a second time, and rerun the full database suite.
-5. Reproduce the six `042` fixture cases, especially complete zero-target pay-down and complete negative raw progress.
-6. Verify positive target remains mandatory for both linked and unlinked save-up goals.
-7. Verify linked contributions/payments remain activity-only and do not alter raw debt progress.
-8. Verify `v_canonical_goal_progress` remains `security_invoker=true` with member/service access, outsider RLS isolation, and anon/PUBLIC denial.
-9. Run security advisors and confirm no new view/grant/RLS finding.
-10. Before any production proposal, query the three live pay-down goals read-only and predict that only quality changes from incomplete to complete; their current balances and raw progress values must remain byte-for-byte/numerically unchanged.
+SHR-122 remains open pending independent QA. Do not merge to `main`, deploy production, or modify production Supabase without explicit approval.
