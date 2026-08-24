@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { deleteAccount, updateAccount } from '../lib/accounts'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { supabase } from '../lib/supabaseClient'
@@ -7,6 +7,10 @@ import { usePrefs } from '../lib/PrefsContext'
 import { formatMoney, toAED } from '../lib/money'
 import AccountForm from '../components/AccountForm'
 import BreakdownBars from '../components/BreakdownBars'
+import { useRouteQueryState } from '../lib/useRouteQueryState'
+
+const ROUTE_DEFAULTS = { ownerFilter: 'combined', groupMode: 'holding', allocationShape: 'donut' }
+const ROUTE_SCHEMA = { ownerFilter: 'owner', groupMode: 'group', allocationShape: 'shape' }
 
 function formatRelativeTime(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -27,13 +31,15 @@ function formatRelativeTime(isoString) {
  * transaction was logged against it. Keeping it out of Accounts/Transactions
  * is what stops 41 stock rows drowning the 4 accounts you actually spend from.
  */
-export default function Investments() {
+export default function Investments({ routeQuery, onRouteQueryChange, detailId, onOpenDetail, onCloseDetail }) {
   const { accounts, fxRates, loading, error, refresh } = useAccountsAndFx()
   const { fmt } = usePrefs()
 
-  const [ownerFilter, setOwnerFilter] = useState('combined')
-  const [groupMode, setGroupMode] = useState('holding') // holding | owner | currency
-  const [allocationShape, setAllocationShape] = useState('donut')
+  const [routeState, setRouteState] = useRouteQueryState(ROUTE_DEFAULTS, ROUTE_SCHEMA, routeQuery, onRouteQueryChange)
+  const { ownerFilter, groupMode, allocationShape } = routeState
+  const setOwnerFilter = (value) => setRouteState((state) => ({ ...state, ownerFilter: value }))
+  const setGroupMode = (value) => setRouteState((state) => ({ ...state, groupMode: value }))
+  const setAllocationShape = (value) => setRouteState((state) => ({ ...state, allocationShape: value }))
   const [editing, setEditing] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshResult, setRefreshResult] = useState(null)
@@ -52,6 +58,29 @@ export default function Investments() {
     null
   )
 
+  useEffect(() => {
+    if (!detailId) {
+      if (editing) setEditing(null)
+      return
+    }
+    const holding = allHoldings.find((account) => account.id === detailId)
+    if (holding) setEditing(holding)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, detailId])
+
+  function openHolding(account) {
+    if (onOpenDetail?.('investment', account.id)) return
+    setEditing(account)
+  }
+
+  function closeHolding(options) {
+    if (detailId) {
+      if (onCloseDetail?.(options)) setEditing(null)
+      return
+    }
+    setEditing(null)
+  }
+
   async function handleRefreshPrices() {
     setRefreshing(true)
     setRefreshResult(null)
@@ -69,7 +98,7 @@ export default function Investments() {
 
   async function handleSave(values) {
     await updateAccount(editing.id, values)
-    setEditing(null)
+    closeHolding({ force: true })
     await refresh()
   }
 
@@ -91,7 +120,7 @@ export default function Investments() {
     setDeleteError('')
     try {
       await deleteAccount(editing.id)
-      setEditing(null)
+      closeHolding({ force: true })
       await refresh()
     } catch (error) {
       setDeleteError(
@@ -273,7 +302,7 @@ export default function Investments() {
               <button
                 key={r.account.id}
                 type="button"
-                onClick={() => setEditing(r.account)}
+                onClick={() => openHolding(r.account)}
                 className="grid w-full min-w-[820px] grid-cols-[1.6fr_0.8fr_1fr_1fr_1fr_1fr_1fr] items-center gap-3 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 transition-colors hover:bg-ink-50"
               >
                 <span className="min-w-0">
@@ -347,7 +376,7 @@ export default function Investments() {
       )}
 
       {editing && (
-        <AccountForm account={editing} onSave={handleSave} onCancel={() => setEditing(null)} onDelete={handleDelete} />
+        <AccountForm account={editing} onSave={handleSave} onCancel={() => closeHolding()} onDelete={handleDelete} />
       )}
 
       {deleteError && (

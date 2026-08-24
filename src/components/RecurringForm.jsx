@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { RECURRING_KINDS, MONTH_NAMES } from '../lib/recurring'
 import { OWNERS } from '../lib/accounts'
+import ProtectedForm from './ProtectedForm'
 
 export default function RecurringForm({ entry, accounts, onSave, onCancel, onDelete }) {
   const [name, setName] = useState(entry?.name ?? '')
@@ -60,7 +61,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
     <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{entry ? 'Edit recurring' : 'Add recurring'}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="r-name" className="mb-1 block text-sm font-medium text-ink-700">
               Name
@@ -255,7 +256,7 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

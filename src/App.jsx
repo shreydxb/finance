@@ -1,7 +1,18 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthProvider, useAuth } from './lib/AuthContext'
+import { NavigationSafetyProvider } from './lib/NavigationSafety'
+import { useNavigationSafety } from './lib/navigationSafetyContext'
 import { PrefsProvider, usePrefs } from './lib/PrefsContext'
 import { DISPLAY_CURRENCIES } from './lib/money'
+import {
+  detailHref,
+  hrefWithQuery,
+  parentHrefForDetail,
+  queryObject,
+  resolveAppHref,
+  routeForScreen,
+  safeInternalReturnTo,
+} from './lib/routes'
 import Login from './screens/Login'
 import Home from './screens/Home'
 import Accounts from './screens/Accounts'
@@ -40,12 +51,99 @@ const BUILT_SCREENS = {
   Settings,
 }
 
+function currentBrowserHref() {
+  return `${window.location.pathname}${window.location.search}`
+}
+
+function readBrowserRoute() {
+  let route = resolveAppHref(currentBrowserHref())
+  if (route.kind === 'redirect') {
+    window.history.replaceState(window.history.state, '', route.to)
+    route = resolveAppHref(route.to)
+  }
+  return route
+}
+
+function useBrowserRouter() {
+  const safety = useNavigationSafety()
+  const [route, setRoute] = useState(readBrowserRoute)
+  const hrefRef = useRef(route.href)
+  const stateRef = useRef(window.history.state)
+  const acceptNextPopRef = useRef(false)
+
+  const commitCurrentLocation = useCallback((historyState = window.history.state) => {
+    const nextRoute = readBrowserRoute()
+    hrefRef.current = nextRoute.href
+    stateRef.current = historyState
+    setRoute(nextRoute)
+  }, [])
+
+  useEffect(() => {
+    function handlePopState(event) {
+      if (acceptNextPopRef.current) {
+        acceptNextPopRef.current = false
+        commitCurrentLocation(event.state)
+        return
+      }
+      if (!safety.confirmLeave()) {
+        window.history.pushState(stateRef.current, '', hrefRef.current)
+        return
+      }
+      safety.clearAll()
+      commitCurrentLocation(event.state)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [commitCurrentLocation, safety])
+
+  const navigate = useCallback((target, options = {}) => {
+    let destination = resolveAppHref(target)
+    if (destination.kind === 'redirect') destination = resolveAppHref(destination.to)
+    if (destination.kind !== 'screen' && destination.kind !== 'login') return false
+    if (destination.href === hrefRef.current) return true
+    if (!options.force && !safety.confirmLeave()) return false
+
+    safety.clearAll()
+    const historyState = options.detail ? { routeParent: hrefRef.current } : {}
+    const method = options.replace ? 'replaceState' : 'pushState'
+    window.history[method](historyState, '', destination.href)
+    commitCurrentLocation(historyState)
+    return true
+  }, [commitCurrentLocation, safety])
+
+  const updateQuery = useCallback((values) => {
+    const nextHref = hrefWithQuery(route, values)
+    const nextRoute = resolveAppHref(nextHref)
+    window.history.replaceState(window.history.state, '', nextRoute.href)
+    commitCurrentLocation(window.history.state)
+  }, [commitCurrentLocation, route])
+
+  const openDetail = useCallback((kind, id) => {
+    const href = detailHref(kind, id, route.searchParams)
+    return href ? navigate(href, { detail: true }) : false
+  }, [navigate, route.searchParams])
+
+  const closeDetail = useCallback((options = {}) => {
+    const destination = parentHrefForDetail(route, window.history.state)
+    if (!destination) return false
+    if (!options.force && !safety.confirmLeave()) return false
+    safety.clearAll()
+    if (destination.method === 'back') {
+      acceptNextPopRef.current = true
+      window.history.back()
+      return true
+    }
+    window.history.replaceState({}, '', destination.href)
+    commitCurrentLocation({})
+    return true
+  }, [commitCurrentLocation, route, safety])
+
+  return { route, navigate, updateQuery, openDetail, closeDetail }
+}
+
 /** Currency + light/dark, in the header so they're reachable from any screen. */
 function DisplayControls() {
   const { currency, setCurrency, theme, setTheme } = usePrefs()
-
-  // Cycles light → dark → system, so "follow the OS" stays reachable without
-  // hiding it behind a menu.
   const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'
   const themeIcon = theme === 'light' ? '☀' : theme === 'dark' ? '☾' : '◐'
   const themeLabel = theme === 'system' ? 'Theme: following system' : `Theme: ${theme}`
@@ -53,17 +151,17 @@ function DisplayControls() {
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
-        {DISPLAY_CURRENCIES.map((c) => (
+        {DISPLAY_CURRENCIES.map((currencyCode) => (
           <button
-            key={c}
+            key={currencyCode}
             type="button"
-            onClick={() => setCurrency(c)}
-            aria-pressed={currency === c}
+            onClick={() => setCurrency(currencyCode)}
+            aria-pressed={currency === currencyCode}
             className={`rounded-md px-2 py-1 font-medium transition-colors ${
-              currency === c ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'
+              currency === currencyCode ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'
             }`}
           >
-            {c}
+            {currencyCode}
           </button>
         ))}
       </div>
@@ -80,22 +178,58 @@ function DisplayControls() {
   )
 }
 
-function Dashboard() {
-  const { signOut } = useAuth()
-  const [screen, setScreen] = useState('Home')
-  // Carries a "and open this specific item" instruction alongside a tab
-  // switch — e.g. Home's Recent-transaction row navigates to Transactions
-  // *and* opens that transaction's edit modal, not just the tab. Cleared by
-  // the target screen once it's consumed (onConsumeNav) so revisiting the
-  // tab later doesn't reopen the same item.
-  const [navPayload, setNavPayload] = useState(null)
+function NotFound({ navigate }) {
+  return (
+    <div className="mx-auto max-w-3xl px-6 py-16 text-center">
+      <p className="text-xs font-semibold uppercase tracking-widest text-ink-400">Not Found</p>
+      <h2 className="mt-2 text-xl font-semibold text-ink-900">This page does not exist.</h2>
+      <p className="mt-2 text-sm text-ink-500">Choose a known destination to continue.</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {[
+          ['Overview', '/overview'],
+          ['Money', '/money/activity'],
+          ['Wealth', '/wealth/net-worth'],
+          ['Planning', '/planning'],
+        ].map(([label, href]) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => navigate(href)}
+            className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
-  function navigate(target, payload = null) {
-    setScreen(target)
-    setNavPayload(payload)
+function Dashboard({ router }) {
+  const { signOut } = useAuth()
+  const safety = useNavigationSafety()
+  const { route, navigate, updateQuery, openDetail, closeDetail } = router
+  const routeQuery = useMemo(() => queryObject(route.searchParams), [route.searchParams])
+  const ActiveScreen = route.kind === 'screen' ? BUILT_SCREENS[route.screen] : null
+
+  function navigateToScreen(target, payload = null) {
+    navigate(routeForScreen(target, payload), { detail: Boolean(payload) })
   }
 
-  const ActiveScreen = BUILT_SCREENS[screen]
+  async function handleSignOut() {
+    if (!safety.confirmLeave()) return
+    safety.clearAll()
+    await signOut()
+  }
+
+  const screenProps = {
+    onNavigate: navigateToScreen,
+    routeQuery,
+    onRouteQueryChange: updateQuery,
+    detailId: route.kind === 'screen' ? route.detail?.id ?? null : null,
+    onOpenDetail: openDetail,
+    onCloseDetail: closeDetail,
+  }
 
   return (
     <div className="min-h-screen bg-ink-50 text-ink-900">
@@ -114,7 +248,7 @@ function Dashboard() {
             <DisplayControls />
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={handleSignOut}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900"
             >
               Sign out
@@ -124,19 +258,19 @@ function Dashboard() {
 
         <nav className="mx-auto max-w-6xl px-2 pb-2 sm:px-4">
           <ul className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {SCREENS.map((s) => (
-              <li key={s}>
+            {SCREENS.map((screen) => (
+              <li key={screen}>
                 <button
                   type="button"
-                  onClick={() => setScreen(s)}
-                  aria-current={screen === s ? 'page' : undefined}
+                  onClick={() => navigateToScreen(screen)}
+                  aria-current={route.kind === 'screen' && route.screen === screen ? 'page' : undefined}
                   className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
-                    screen === s
+                    route.kind === 'screen' && route.screen === screen
                       ? 'bg-ink-900 text-ink-50 shadow-card'
                       : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900'
                   }`}
                 >
-                  {s}
+                  {screen}
                 </button>
               </li>
             ))}
@@ -144,18 +278,8 @@ function Dashboard() {
         </nav>
       </div>
 
-      {/* Keyed on the screen name so switching tabs remounts and replays the
-          entrance animation — that transition is most of what makes the app
-          feel responsive rather than static. */}
-      <main key={screen} className="animate-fade">
-        {ActiveScreen ? (
-          // Home's "see all" links jump between tabs; other screens ignore it.
-          <ActiveScreen onNavigate={navigate} navPayload={navPayload} onConsumeNav={() => setNavPayload(null)} />
-        ) : (
-          <p className="mx-auto max-w-3xl px-6 py-10 text-center text-sm text-ink-500">
-            {screen} is coming in a later epic.
-          </p>
-        )}
+      <main key={route.kind === 'screen' ? route.screen : route.kind} className="animate-fade">
+        {ActiveScreen ? <ActiveScreen {...screenProps} /> : <NotFound navigate={navigate} />}
       </main>
     </div>
   )
@@ -163,16 +287,28 @@ function Dashboard() {
 
 function Gate() {
   const { session, loading } = useAuth()
+  const router = useBrowserRouter()
+  const { route, navigate } = router
+
+  useEffect(() => {
+    if (!session || route.kind !== 'login') return
+    const returnTo = safeInternalReturnTo(route.searchParams.get('returnTo')) ?? '/overview'
+    navigate(returnTo, { replace: true, force: true })
+  }, [navigate, route, session])
 
   if (loading) return null
-  return session ? <Dashboard /> : <Login />
+  if (!session) return <Login />
+  if (route.kind === 'login') return null
+  return <Dashboard router={router} />
 }
 
 function App() {
   return (
     <AuthProvider>
       <PrefsProvider>
-        <Gate />
+        <NavigationSafetyProvider>
+          <Gate />
+        </NavigationSafetyProvider>
       </PrefsProvider>
     </AuthProvider>
   )

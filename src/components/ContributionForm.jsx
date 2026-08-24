@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { todayLocal } from '../lib/dates'
+import ProtectedForm from './ProtectedForm'
 
 function today() {
   return todayLocal()
@@ -34,7 +35,7 @@ export default function ContributionForm({ accounts = [], onSave, onCancel }) {
     <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
       <div className="w-full max-w-sm rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">Log a contribution</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="c-amount" className="mb-1 block text-sm font-medium text-ink-700">
               Amount (AED)
@@ -121,7 +122,7 @@ export default function ContributionForm({ accounts = [], onSave, onCancel }) {
               Cancel
             </button>
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

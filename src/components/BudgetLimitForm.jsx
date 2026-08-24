@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { BUDGET_GROUPS } from '../lib/budgets'
+import ProtectedForm from './ProtectedForm'
 
 export default function BudgetLimitForm({ category, budget, onSave, onCancel }) {
   const [group, setGroup] = useState(budget?.group ?? 'Flexible')
@@ -32,7 +33,7 @@ export default function BudgetLimitForm({ category, budget, onSave, onCancel }) 
         </h2>
         <p className="mb-4 text-sm text-ink-500">Set a monthly budget limit</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="limit" className="mb-1 block text-sm font-medium text-ink-700">
               Monthly limit (AED)
@@ -89,7 +90,7 @@ export default function BudgetLimitForm({ category, budget, onSave, onCancel }) 
               Cancel
             </button>
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

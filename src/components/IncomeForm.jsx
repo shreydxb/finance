@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { INCOME_KINDS } from '../lib/income'
 import { todayLocal } from '../lib/dates'
+import ProtectedForm from './ProtectedForm'
 
 const PEOPLE = ['Shrey', 'Tarika']
 
@@ -43,7 +44,7 @@ export default function IncomeForm({ income, onSave, onCancel, onDelete }) {
     <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
       <div className="w-full max-w-sm rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{income ? 'Edit income' : 'Add income'}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="person" className="mb-1 block text-sm font-medium text-ink-700">
@@ -180,7 +181,7 @@ export default function IncomeForm({ income, onSave, onCancel, onDelete }) {
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

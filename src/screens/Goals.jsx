@@ -40,7 +40,7 @@ function ProgressBar({ pct }) {
  * mixing the two under one "Goals" label was confusing what this screen was
  * even for. See Debts.jsx for that half.
  */
-export default function Goals({ navPayload, onConsumeNav }) {
+export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
   const { fmt, fxRates } = usePrefs()
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
@@ -73,13 +73,26 @@ export default function Goals({ navPayload, onConsumeNav }) {
   // these tables now refreshes this screen (INT-01).
   useRealtimeRefresh(REALTIME_TABLES.goals, refresh)
 
-  // Deep-link from Home's Goals row.
   useEffect(() => {
-    if (!navPayload?.openGoalId || goals.length === 0) return
-    if (goals.some((g) => g.id === navPayload.openGoalId)) setDetailGoalId(navPayload.openGoalId)
-    onConsumeNav?.()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals, navPayload])
+    if (!detailId) {
+      setDetailGoalId(null)
+      return
+    }
+    if (goals.some((goal) => goal.id === detailId)) setDetailGoalId(detailId)
+  }, [goals, detailId])
+
+  function openGoal(id) {
+    if (onOpenDetail?.('goal', id)) return
+    setDetailGoalId(id)
+  }
+
+  function closeGoal(options) {
+    if (detailId) {
+      if (onCloseDetail?.(options)) setDetailGoalId(null)
+      return
+    }
+    setDetailGoalId(null)
+  }
 
   async function handleSaveGoal(values) {
     if (editingGoal && editingGoal !== 'new') {
@@ -94,7 +107,7 @@ export default function Goals({ navPayload, onConsumeNav }) {
   async function handleDeleteGoal() {
     await deleteGoal(editingGoal.id)
     setEditingGoal(null)
-    setDetailGoalId(null)
+    closeGoal({ force: true })
     await refresh()
   }
 
@@ -172,7 +185,7 @@ export default function Goals({ navPayload, onConsumeNav }) {
       ) : (
         <div className="space-y-3">
           {goals.map((g) => (
-            <SaveUpCard key={g.id} goal={g} saved={savedFor(g)} onClick={() => setDetailGoalId(g.id)} fmt={fmt} />
+            <SaveUpCard key={g.id} goal={g} saved={savedFor(g)} onClick={() => openGoal(g.id)} fmt={fmt} />
           ))}
         </div>
       )}
@@ -197,7 +210,7 @@ export default function Goals({ navPayload, onConsumeNav }) {
           linkedAccount={accountById.get(detailGoal.linked_account_id)}
           contributions={contributions.filter((c) => c.goal_id === detailGoal.id)}
           onEdit={() => setEditingGoal(detailGoal)}
-          onClose={() => setDetailGoalId(null)}
+          onClose={() => closeGoal()}
           onAddContribution={() => setAddingContribution(true)}
         />
       )}

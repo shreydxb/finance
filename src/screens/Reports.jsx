@@ -5,7 +5,6 @@ import { getSetting } from '../lib/settings'
 import { transactionsToCSV } from '../lib/reports'
 import {
   currentQuarter,
-  currentYear,
   currentYearMonth,
   monthLabel,
   monthRange,
@@ -49,8 +48,27 @@ import {
   buildComparisonSeries,
   resolveComparisonPeriod,
 } from '../lib/spendingComparison'
+import { useRouteQueryState } from '../lib/useRouteQueryState'
 
 const TREND_MONTHS = 6
+const INITIAL_MONTH = currentYearMonth()
+const INITIAL_QUARTER = currentQuarter()
+const ROUTE_DEFAULTS = {
+  section: 'cashflow',
+  mode: 'month',
+  year: INITIAL_MONTH.year,
+  month: INITIAL_MONTH.month,
+  quarter: INITIAL_QUARTER.quarter,
+  groupingMode: 'category',
+  subView: 'breakdown',
+  sankeyGrouping: 'group',
+  comparisonKey: 'month_average',
+}
+const ROUTE_SCHEMA = {
+  section: 'section', mode: 'period', year: ['year', Number, String], month: ['month', Number, String],
+  quarter: ['quarter', Number, String], groupingMode: 'group', subView: 'view',
+  sankeyGrouping: 'flowGroup', comparisonKey: 'comparison',
+}
 
 function periodInfo(mode, cursor) {
   if (mode === 'quarter') {
@@ -74,20 +92,36 @@ function trendPeriods(to) {
 const emptyComparison = { points: [], currentLabel: '', comparisonLabel: '', quality: 'incomplete' }
 const displayMoney = (value, fmt) => (value === null ? '—' : fmt(value))
 
-export default function Reports() {
+export default function Reports({ routeQuery, onRouteQueryChange }) {
   const { fmt } = usePrefs()
-  const [section, setSection] = useState('cashflow')
-  const [mode, setMode] = useState('month')
-  const [monthCursor, setMonthCursor] = useState(currentYearMonth())
-  const [quarterCursor, setQuarterCursor] = useState(currentQuarter())
-  const [yearCursor, setYearCursor] = useState(currentYear())
-  const [groupingMode, setGroupingMode] = useState('category')
-  const [subView, setSubView] = useState('breakdown')
+  const [routeState, setRouteState] = useRouteQueryState(ROUTE_DEFAULTS, ROUTE_SCHEMA, routeQuery, onRouteQueryChange)
+  const { section, mode, groupingMode, subView, sankeyGrouping, comparisonKey } = routeState
+  const monthCursor = { year: routeState.year, month: routeState.month }
+  const quarterCursor = { year: routeState.year, quarter: routeState.quarter }
+  const yearCursor = routeState.year
+  const setSection = (value) => setRouteState((state) => ({ ...state, section: value }))
+  const setMode = (value) => setRouteState((state) => ({ ...state, mode: value }))
+  const setMonthCursor = (update) => setRouteState((state) => {
+    const current = { year: state.year, month: state.month }
+    const next = typeof update === 'function' ? update(current) : update
+    return { ...state, year: next.year, month: next.month }
+  })
+  const setQuarterCursor = (update) => setRouteState((state) => {
+    const current = { year: state.year, quarter: state.quarter }
+    const next = typeof update === 'function' ? update(current) : update
+    return { ...state, year: next.year, quarter: next.quarter }
+  })
+  const setYearCursor = (update) => setRouteState((state) => ({
+    ...state,
+    year: typeof update === 'function' ? update(state.year) : update,
+  }))
+  const setGroupingMode = (value) => setRouteState((state) => ({ ...state, groupingMode: value }))
+  const setSubView = (value) => setRouteState((state) => ({ ...state, subView: value }))
   const [spendShape, setSpendShape] = useState('bars')
   const [incomeShape, setIncomeShape] = useState('donut')
   const [trendShape, setTrendShape] = useState('line')
   const [cashFlowShape, setCashFlowShape] = useState('sankey')
-  const [sankeyGrouping, setSankeyGrouping] = useState('group')
+  const setSankeyGrouping = (value) => setRouteState((state) => ({ ...state, sankeyGrouping: value }))
   const [flowDetail, setFlowDetail] = useState(null)
   const [data, setData] = useState(null)
   const [categories, setCategories] = useState([])
@@ -97,7 +131,7 @@ export default function Reports() {
   const [error, setError] = useState('')
   const [trendData, setTrendData] = useState([])
   const [trendLoading, setTrendLoading] = useState(false)
-  const [comparisonKey, setComparisonKey] = useState('month_average')
+  const setComparisonKey = (value) => setRouteState((state) => ({ ...state, comparisonKey: value }))
   const [comparisonSeries, setComparisonSeries] = useState(emptyComparison)
   const [comparisonLoading, setComparisonLoading] = useState(false)
 

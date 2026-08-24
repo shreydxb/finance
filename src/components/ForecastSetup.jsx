@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ProtectedForm from './ProtectedForm'
 
 /**
  * The forecast's assumptions — Accounts → Forecast (Taskiv #24). A single
@@ -59,7 +60,7 @@ export default function ForecastSetup({ accounts, defaultMonthlyIncome, defaultM
           An estimate, not a promise — one blended growth rate and your real trailing-12-month savings rate, projected forward.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="birthday" className="mb-1 block text-sm font-medium text-ink-700">
               Your birthday
@@ -182,7 +183,7 @@ export default function ForecastSetup({ accounts, defaultMonthlyIncome, defaultM
               Cancel
             </button>
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )
