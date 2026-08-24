@@ -22,6 +22,7 @@ import TransactionList from '../components/TransactionList'
 import { groupEntries, entryKey } from '../lib/transactionGroups'
 import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
+import { useRouteQueryState } from '../lib/useRouteQueryState'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -35,7 +36,18 @@ const EMPTY_FILTERS = {
   unreviewed: false,
 }
 
-export default function Transactions({ navPayload, onConsumeNav }) {
+const ROUTE_FILTER_DEFAULTS = {
+  ...EMPTY_FILTERS,
+}
+
+const ROUTE_FILTER_SCHEMA = {
+  search: 'search', category: 'category', owner: 'owner', accountId: 'account',
+  dateFrom: 'from', dateTo: 'to', sort: 'sort',
+  needsReview: ['needsReview', (value) => value === '1', () => '1'],
+  unreviewed: ['unreviewed', (value) => value === '1', () => '1'],
+}
+
+export default function Transactions({ routeQuery, onRouteQueryChange, detailId, onOpenDetail, onCloseDetail }) {
   const { fmt, fxRates } = usePrefs()
   const [transactions, setTransactions] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -46,7 +58,16 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   const [unreviewedCount, setUnreviewedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [routeFilters, setRouteFilters] = useRouteQueryState(
+    ROUTE_FILTER_DEFAULTS,
+    ROUTE_FILTER_SCHEMA,
+    routeQuery,
+    onRouteQueryChange,
+  )
+  const filters = useMemo(() => ({
+    ...EMPTY_FILTERS,
+    ...routeFilters,
+  }), [routeFilters])
   const [editing, setEditing] = useState(null) // 'new', a single transaction, or { splitGroup: [...] }
   const [showRules, setShowRules] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
@@ -91,18 +112,34 @@ export default function Transactions({ navPayload, onConsumeNav }) {
   // these tables now refreshes this screen (INT-01).
   useRealtimeRefresh(REALTIME_TABLES.transactions, refresh)
 
-  // Deep-link from Home's Recent-transaction row: open that specific
-  // transaction's edit modal once its data has arrived, then tell App to
-  // forget the payload so revisiting this tab later doesn't reopen it.
   useEffect(() => {
-    if (!navPayload?.openTransactionId || transactions.length === 0) return
+    if (!detailId) {
+      if (editing && editing !== 'new') setEditing(null)
+      return
+    }
+    if (transactions.length === 0) return
     const entry = groupEntries(transactions).find((e) =>
-      e.kind === 'single' ? e.transaction.id === navPayload.openTransactionId : e.lines.some((l) => l.id === navPayload.openTransactionId)
+      e.kind === 'single' ? e.transaction.id === detailId : e.lines.some((line) => line.id === detailId)
     )
     if (entry) openEdit(entry)
-    onConsumeNav?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, navPayload])
+  }, [transactions, detailId])
+
+  function setFilters(update) {
+    const current = filters
+    const next = typeof update === 'function' ? update(current) : update
+    setRouteFilters({
+      search: next.search,
+      category: next.category,
+      owner: next.owner,
+      accountId: next.accountId,
+      dateFrom: next.dateFrom,
+      dateTo: next.dateTo,
+      sort: next.sort,
+      needsReview: next.needsReview,
+      unreviewed: next.unreviewed,
+    })
+  }
 
   function toggleSelectMode() {
     setSelectMode((v) => !v)
@@ -238,6 +275,20 @@ export default function Transactions({ navPayload, onConsumeNav }) {
     }
   }
 
+  function openEntry(entry) {
+    const id = entry.kind === 'single' ? entry.transaction.id : entry.lines[0]?.id
+    if (id && onOpenDetail?.('transaction', id)) return
+    openEdit(entry)
+  }
+
+  function closeEdit(options) {
+    if (detailId) {
+      if (onCloseDetail?.(options)) setEditing(null)
+      return
+    }
+    setEditing(null)
+  }
+
   async function handleSave(result) {
     const isEditingExisting = editing && editing !== 'new'
 
@@ -263,7 +314,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
       await createTransaction(result.fields)
     }
 
-    setEditing(null)
+    closeEdit({ force: true })
     await refresh()
   }
 
@@ -300,7 +351,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
     } else {
       await deleteTransaction(editing.id)
     }
-    setEditing(null)
+    closeEdit({ force: true })
     await refresh()
   }
 
@@ -389,7 +440,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
             accountName={accountName}
             goalLabel={goalLabel}
             flat={flat}
-            onEntryClick={selectMode ? (entry) => toggleSelect(entryKey(entry)) : openEdit}
+            onEntryClick={selectMode ? (entry) => toggleSelect(entryKey(entry)) : openEntry}
             onMarkReviewed={selectMode ? undefined : handleMarkReviewed}
             onToggleReviewed={selectMode ? undefined : handleToggleReviewed}
             categories={categories}
@@ -430,7 +481,7 @@ export default function Transactions({ navPayload, onConsumeNav }) {
           goals={goals}
           rules={rules}
           onSave={handleSave}
-          onCancel={() => setEditing(null)}
+          onCancel={() => closeEdit()}
           onDelete={handleDelete}
           onCreateRule={handleCreateRule}
         />

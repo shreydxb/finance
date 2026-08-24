@@ -29,7 +29,7 @@ function ProgressBar({ pct }) {
  * table row shape. Still the same `pay_down` rows under the hood — no schema
  * change, just a dedicated screen.
  */
-export default function Debts() {
+export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDetail }) {
   const { fmt, fxRates } = usePrefs()
   const [debts, setDebts] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -55,6 +55,27 @@ export default function Debts() {
     refresh()
   }, [])
 
+  useEffect(() => {
+    if (!routeDetailId) {
+      setDetailId(null)
+      return
+    }
+    if (debts.some((debt) => debt.id === routeDetailId)) setDetailId(routeDetailId)
+  }, [debts, routeDetailId])
+
+  function openDebt(id) {
+    if (onOpenDetail?.('debt', id)) return
+    setDetailId(id)
+  }
+
+  function closeDebt(options) {
+    if (routeDetailId) {
+      if (onCloseDetail?.(options)) setDetailId(null)
+      return
+    }
+    setDetailId(null)
+  }
+
   async function handleSave(values) {
     if (editing && editing !== 'new') await updateGoal(editing.id, values)
     else await createGoal(values)
@@ -65,7 +86,7 @@ export default function Debts() {
   async function handleDelete() {
     await deleteGoal(editing.id)
     setEditing(null)
-    setDetailId(null)
+    closeDebt({ force: true })
     await refresh()
   }
 
@@ -134,7 +155,7 @@ export default function Debts() {
 
           <div className="space-y-3">
             {debts.map((d) => (
-              <DebtCard key={d.id} debt={d} account={accountById.get(d.linked_account_id)} onClick={() => setDetailId(d.id)} fmt={fmt} fxRates={fxRates} />
+              <DebtCard key={d.id} debt={d} account={accountById.get(d.linked_account_id)} onClick={() => openDebt(d.id)} fmt={fmt} fxRates={fxRates} />
             ))}
           </div>
         </>
@@ -156,7 +177,7 @@ export default function Debts() {
           debt={detail}
           account={accountById.get(detail.linked_account_id)}
           onEdit={() => setEditing(detail)}
-          onClose={() => setDetailId(null)}
+          onClose={() => closeDebt()}
           fmt={fmt}
           fxRates={fxRates}
         />

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { OWNERS } from '../lib/accounts'
 import { matchRule } from '../lib/categoryRules'
 import { todayLocal } from '../lib/dates'
+import ProtectedForm from './ProtectedForm'
 
 function today() {
   return todayLocal()
@@ -141,7 +142,7 @@ export default function TransactionForm({
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{isEdit ? 'Edit transaction' : 'Add transaction'}</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="date" className="mb-1 block text-sm font-medium text-ink-700">
@@ -441,7 +442,7 @@ export default function TransactionForm({
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

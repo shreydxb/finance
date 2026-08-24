@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { GROUPS } from '../lib/categories'
+import ProtectedForm from './ProtectedForm'
 
 export default function CategoryForm({ category, onSave, onCancel, onDelete }) {
   const [name, setName] = useState(category?.name ?? '')
@@ -31,7 +32,7 @@ export default function CategoryForm({ category, onSave, onCancel, onDelete }) {
         <h2 className="mb-4 text-lg font-semibold text-ink-900">
           {category ? 'Edit category' : 'Add category'}
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-[1fr_5rem] gap-3">
             <div>
               <label htmlFor="cat-name" className="mb-1 block text-sm font-medium text-ink-700">
@@ -109,7 +110,7 @@ export default function CategoryForm({ category, onSave, onCancel, onDelete }) {
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

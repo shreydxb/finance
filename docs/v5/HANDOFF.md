@@ -1,161 +1,170 @@
-# Our Money v5 handoff — SHR-113 Phase C scheduler review
+# Our Money v5 handoff — SHR-116 Phase 1 route foundation
 
 Date: 24 August 2026
 
-Branch: `shreydxb1/shr-113-phase-c-scheduler`
+Branch: `shreydxb1/shr-116-phase-1-route-foundation`
 
-Base: `1f39da032f21b1dd54c2b4846741504f3a5cbf73`
+Base: `3df1a49b3a04bfb14cc52a90670fe374fa61fbf3`
 
-Production application: **NOT APPLIED**
+Production application: **UNCHANGED**
 
-Scheduler: **OFF**
+Production Supabase / SHR-113 scheduler: **UNTOUCHED**
 
-The immutable PR head SHA and PR URL are recorded in the SHR-113/SHR-124
-Linear handoff after the final commit. They cannot be embedded in that commit
-without changing its SHA.
+The immutable head SHA, PR URL, Netlify Deploy Preview URL, and deploy ID are
+recorded in the final SHR-116 Linear handoff after the last commit and preview.
+They cannot be embedded in that commit without changing its SHA.
 
 ## Scope and outcome
 
-Phase B is independently production-QA-passed. This branch adds the smallest
-repository-controlled Phase-C scheduler plan required to invoke the protected
-`snapshot-net-worth` orchestrator once after each Dubai reporting day closes.
-It does not change financial calculations, publication policy, schema
-migration `043`, RLS/grants, Edge orchestration, Accounts, history, or any
-production state.
+This branch implements only the independently approved Phase 1 route
+foundation. It replaces the app's in-memory screen identity with browser URL
+identity while deliberately retaining the current ten-item header navigation
+and existing production screen bodies.
 
-A repository change is required because enabling hosted extensions, defining
-a permanent dispatcher/job, and preserving rollback instructions are durable
-infrastructure. The configuration is under `supabase/scheduler/`, deliberately
-outside the portable schema migration chain. Merge alone cannot activate it;
-production application remains a separately approved step.
+It does not implement the four-item v5 sidebar, mobile bottom navigation,
+responsive shell redesign, capability relocation, Accounts split, Reports
+dissolution, FIRE/Forecast relocation or convergence, design-system work,
+Overview redesign, or any financial semantic change.
 
-## Scheduler contract
+## Canonical route matrix
 
-- One job: `shr-113-authoritative-net-worth-close`.
-- Expression: `0 22 * * *` in production GMT/UTC.
-- Fire time: 22:00 UTC = 02:00 Asia/Dubai the following day.
-- Target: previous Dubai calendar day, closed two hours earlier.
-- One intended scheduled invocation per reporting day.
-- No automatic cron retry window.
-- pg_net request timeout: 120 seconds.
-- Same-name configuration reapplication updates the intended job rather than
-  introducing another named schedule.
+| Canonical route | Existing screen body reused in Phase 1 |
+| --- | --- |
+| `/overview` | Home |
+| `/money/activity` | Transactions |
+| `/money/budget` | Budget |
+| `/money/recurring` | Recurring |
+| `/money/insights` | Reports |
+| `/wealth/net-worth` | Accounts |
+| `/wealth/accounts` | Accounts |
+| `/wealth/investments` | Investments |
+| `/planning` | Goals |
+| `/planning/goals` | Goals |
+| `/planning/debt` | Debts |
+| `/planning/forecasts` | Accounts, including its unchanged forecast section |
+| `/settings` and approved Settings children | Settings |
 
-The dispatcher sends `trigger_kind=scheduled` plus the explicit previous-Dubai
-`target_day`. Existing Phase-B `claim_nw_snapshot_run` independently validates
-the target, serializes concurrent claims, and refuses Legacy/already-published
-dates. No revision, promotion, replacement, backfill, or reconstruction path is
-added.
+Approved Settings children are `/settings/household`,
+`/settings/preferences`, `/settings/categories`, `/settings/integrations`,
+`/settings/integrations/telegram`, and `/settings/data-sources`. Unknown
+Settings children are Not Found rather than silently opening Settings.
 
-## Security and secrets
+`/` replaces to `/overview`. `/money` and `/wealth` replace to their approved
+defaults. Legacy aliases replace as follows:
 
-`private.dispatch_authoritative_net_worth_snapshot()` is SECURITY INVOKER with
-an empty pinned search path and fully qualified `vault`/`net` objects. PUBLIC,
-anon, authenticated, and service_role all have execution revoked. The
-postgres-owned cron job is its only caller.
+| Legacy alias | Canonical destination |
+| --- | --- |
+| `/home` | `/overview` |
+| `/transactions` | `/money/activity` |
+| `/reports` | `/money/insights` |
+| `/accounts` | `/wealth/accounts` |
+| `/investments` | `/wealth/investments` |
+| `/budget` | `/money/budget` |
+| `/recurring` | `/money/recurring` |
+| `/goals` | `/planning/goals` |
+| `/debts` | `/planning/debt` |
 
-Three environment values are read from Supabase Vault by name only:
+Aliases preserve only route-specific allowlisted query parameters. Arbitrary
+keys and `returnTo` are removed. Redirects are replacement navigations and
+cannot loop.
 
-- `shr113_snapshot_endpoint`;
-- `shr113_snapshot_anon_jwt` — least-privilege legacy anon JWT for the existing
-  `verify_jwt=true` platform gate;
-- `shr113_snapshot_job_secret` — same newly rotated 256-bit value as the Edge
-  `SNAPSHOT_JOB_SECRET`.
+## URL and history behavior
 
-The scheduler does not hold a service-role key. Repository files contain no
-endpoint, JWT, API key, or job-secret value. Activation fails closed before
-scheduling when a required Vault entry is absent or empty.
+- Activity filter/search/sort and the distinct `needsReview` / `unreviewed`
+  queues are URL state.
+- Recurring scope, list/calendar mode, cursor, and income filters are URL
+  state.
+- Insights section, period/cursor, view, grouping, Sankey grouping, and
+  comparison are URL state.
+- Accounts composition grouping and Investments owner/group/chart selection
+  are URL state.
+- Query updates use history replacement; destinations and details use history
+  pushes. Reload, direct open, Back, and Forward therefore preserve the
+  revisitable state without creating a history entry per filter keystroke.
+- Unknown authenticated paths render an application Not Found surface. They
+  never fall through to Overview.
+- Netlify's existing SPA rewrite remains unchanged and provides direct-open
+  delivery; the client owns route and Not Found semantics.
 
-## Retry, recovery, and observability
+## Authentication and return targets
 
-There is one cron invocation and no automatic retry. Provider/capture failures
-that reach Edge remain durable in the existing logical run and append-only
-attempt model. Protected operator `manual_recovery` may retry only an explicit
-still-missing past target day, preserving earlier failure evidence.
+An unauthenticated direct-open keeps the requested internal URL while showing
+the existing Login screen; successful authentication therefore resumes that
+destination without transient memory. `/login?returnTo=...` additionally
+accepts only a resolved canonical or legacy-aliased internal application route.
+Absolute URLs, protocol-relative URLs, backslash variants, login recursion,
+and unknown paths are rejected and fall back to `/overview` after
+authentication.
 
-First-live-run QA must reconcile:
+## Immutable detail routes
 
-- `cron.job` and `cron.job_run_details`;
-- `net._http_response` within hosted pg_net's six-hour retention window;
-- Edge logs;
-- the target-day logical run and ordered attempt events;
-- item manifest, deterministic digest, source timestamps, quality, and totals;
-- one truthful Complete/Provisional daily point, or `skipped_incomplete` plus a
-  visible gap when required monetary inputs are invalid.
+Existing record surfaces now use immutable UUID routes:
 
-A successful cron row proves asynchronous enqueue, not HTTP/provider/capture
-success. A transport/auth failure before claim is visible as a cron firing with
-no expected target-day run plus pg_net/Edge evidence. The non-destructive
-rollback file only marks the named job inactive and preserves all evidence.
+- `/money/activity/:transactionId`;
+- `/money/recurring/:recurringId`;
+- `/wealth/accounts/:accountId`;
+- `/wealth/investments/:accountId`;
+- `/planning/goals/:goalId`;
+- `/planning/debt/:goalId`.
 
-## Files
+The existing list calls load the same rows they loaded before and open the
+matching existing detail/form after data arrives; no new Supabase read helper
+or query was introduced. A pushed detail records its exact parent URL so Close
+uses browser Back and restores filters. A direct-open detail has no assumed
+background entry, so Close replaces to a sensible canonical parent. Invalid or
+name-shaped IDs are Not Found.
 
-- `supabase/scheduler/activate_authoritative_net_worth.sql`
-- `supabase/scheduler/disable_authoritative_net_worth.sql`
-- `supabase/scheduler/README.md`
-- `supabase/db-test/scheduler_config.test.mjs`
-- `supabase/db-test/README.md`
-- `docs/v5/ARCHITECTURE.md`
-- `docs/v5/DATA_MODEL.md`
-- `docs/v5/DECISIONS.md`
-- `docs/v5/FINANCIAL_RULES.md`
-- `docs/v5/HANDOFF.md`
-- `supabase/schema/README.md`
-- `supabase/functions/snapshot-net-worth/README.md`
-- `supabase/config.toml`
+## Unsaved-edit protection
 
-There is no numbered schema migration, application source, Edge source, or
-frontend change.
+Existing modal forms register dirty state only after a field changes. Primary
+destination navigation, detail Close/Back, browser Back/Forward, sign-out, and
+page unload cannot silently discard a dirty form. A rejected confirmation
+restores the current history entry. Successful saves/deletes use the existing
+mutation path and clear the guard as their form closes.
+
+## Financial and operational invariance
+
+- No financial arithmetic, canonical contract, Supabase query helper, mutation
+  helper, RLS policy, grant, migration, Edge Function, or Netlify production
+  configuration changed.
+- Existing Home, Reports, Accounts, Transactions, Recurring, Investments,
+  Budget, Goals, Debt, Settings, FIRE, and Forecast screen calculations and
+  calls remain their prior implementations.
+- No file under `supabase/` changed. No migration was added or applied.
+- SHR-113 cron, Vault secrets, Edge Functions, snapshot tables, `nw_daily`,
+  snapshot policy, scheduler evidence/history, and production Supabase
+  configuration were neither read-write accessed nor changed.
+- Production Netlify remains unchanged. Only the one explicitly requested
+  exact-head Deploy Preview is authorized for this handoff.
 
 ## Validation
 
 - `npm run lint`: PASS with the same five pre-existing React warnings and no
-  Phase-C warning/error.
-- `npm test`: PASS, 511/511 full app and Edge tests.
-- `npm run build`: PASS, 126 modules; the existing large-chunk advisory remains.
-- `npm run test:db`: PASS, 92/92 after applying all 42 schema files from empty.
-  This includes migration `043` rerun/idempotency, full snapshot/RLS/security
-  integration, and all four new scheduler source/security checks.
-- Supabase CLI 2.115 `db lint --schema public,private --level warning
-  --fail-on error`: PASS against the clean local database; no schema errors.
-- `git diff --check`, complete diff/status, secret-literal scan, and self-review:
-  PASS. No applied migration SQL, application source, Edge source, production
-  credential/value, or unrelated file changed.
+  new warning/error.
+- `npm test`: PASS, 524/524 full application and Edge tests. This includes 13
+  new route/history/security contract tests.
+- `npm run build`: PASS, 132 modules. The existing large-chunk advisory remains.
+- Local production-build browser QA: PASS. `/` replaced to `/overview` before
+  the auth boundary; `/transactions?search=rent&owner=Shrey&returnTo=...`
+  replaced to the safe canonical query; reload preserved it; Back/Forward
+  restored exact URLs; and unknown paths remained unknown at Login rather than
+  becoming Overview. The expected warning for absent local Vite Supabase
+  environment values was the only browser console warning.
+- `git diff --check`: PASS.
+- Prohibited-path review: PASS. No `supabase/`, `netlify.toml`, package,
+  financial data/helper, or scheduler file changed.
 
-The first local database invocation correctly failed because the isolated
-server was not listening on the configured port. After starting the local test
-server, the clean from-empty rerun passed. The first db-lint connection refused
-TLS because the isolated server is non-TLS; rerunning the same pinned linter
-with local-only `sslmode=disable` passed. Neither transient setup failure
-contacted production or changed repository content.
+## Independent QA checks
 
-## Production baseline and boundary
-
-Read-only verification before implementation confirmed:
-
-- main/production merge: `1f39da032f21b1dd54c2b4846741504f3a5cbf73`;
-- exactly 9 `nw_daily` rows, all Legacy;
-- zero runs, attempts, items, and `nw_snapshots` rows;
-- migration `043`, `accounts.price_quote_at`, deployed protected orchestrator,
-  and Phase-B canonical Accounts behavior present;
-- Vault installed with zero entries;
-- pg_cron and pg_net available but not installed; cron/net schemas absent;
-- no job, dispatch, snapshot invocation, or history mutation.
-
-This branch has not changed production Supabase, Edge Functions, Vault,
-Netlify, or financial data. It has not enabled pg_cron/pg_net or created a
-schedule. SHR-113 and SHR-124 remain open.
-
-## Independent review checks
-
-1. Confirm exact base/head and that no migration `043`, Edge, app, or financial
-   semantic changed.
-2. Review exact UTC/Dubai boundary and the one-job/no-auto-retry decision.
-3. Confirm Vault-only dual authentication, no service-role cron credential,
-   dispatcher mode/search path/ACL, and absence of secret literals.
-4. Confirm activation is separate from the portable migration chain and cannot
-   occur from merge alone.
-5. Confirm legacy/published protection and manual missing-day-only recovery
-   remain owned by the unchanged Phase-B contracts.
-6. Confirm rollback deactivates only the named job and retains all evidence.
-7. Keep scheduler OFF until a new exact-head production activation approval.
+1. Verify base/head, clean PR scope, and exact-head preview deploy ID.
+2. Exercise every canonical and legacy URL while authenticated, including
+   alias query sanitization and unknown-route Not Found.
+3. Verify direct-open, reload, Close, browser Back, and Forward for each UUID
+   detail family with a real existing record.
+4. Change a protected form field and reject navigation through a current top
+   tab, browser Back, detail Close, reload, and sign-out; confirm the edit is
+   not discarded.
+5. Confirm current screen results, data calls, mutations, and current ten-item
+   desktop/mobile navigation presentation are unchanged.
+6. Confirm there is no Supabase/SHR-113 diff or production action.
+7. Keep the PR unmerged and production unchanged until independent QA passes.

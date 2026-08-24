@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ASSET_TYPES, LIABILITY_TYPES, OWNERS, CURRENCIES } from '../lib/accounts'
+import ProtectedForm from './ProtectedForm'
 
 const EMPTY = {
   name: '',
@@ -110,7 +111,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
           {account ? 'Edit account' : 'Add account'}
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <span className="mb-1 block text-sm font-medium text-ink-700">Asset or liability?</span>
             <div className="grid grid-cols-2 gap-2">
@@ -382,7 +383,7 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

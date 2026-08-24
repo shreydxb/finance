@@ -34,9 +34,12 @@ import ForecastChart from '../components/ForecastChart'
 import ForecastSetup from '../components/ForecastSetup'
 import ForecastEventForm from '../components/ForecastEventForm'
 import AnimatedNumber from '../components/AnimatedNumber'
+import { useRouteQueryState } from '../lib/useRouteQueryState'
 
 const FORECAST_SETTING_KEY = 'forecast_assumptions'
 const FORECAST_YEARS = 25
+const ROUTE_DEFAULTS = { groupBy: 'type' }
+const ROUTE_SCHEMA = { groupBy: 'group' }
 
 /** Investments live on their own tab; this screen is about what you spend from and owe. */
 const INVESTMENTS_EXCLUDED = (a) => a.type !== 'investment'
@@ -71,13 +74,15 @@ function participatingCanonicalNetWorth(canonicalAccounts, participatingIds) {
   )
 }
 
-export default function Accounts({ onNavigate }) {
+export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, detailId, onOpenDetail, onCloseDetail }) {
   const { accounts, fxRates, loading: accountsLoading, error, refresh } = useAccountsAndFx()
   const { wealth, history, loading: wealthLoading, error: wealthError } = useCanonicalWealth()
   const { fmt } = usePrefs()
   const [editing, setEditing] = useState(null)
   const [viewingAccount, setViewingAccount] = useState(null)
-  const [groupBy, setGroupBy] = useState('type')
+  const [routeState, setRouteState] = useRouteQueryState(ROUTE_DEFAULTS, ROUTE_SCHEMA, routeQuery, onRouteQueryChange)
+  const { groupBy } = routeState
+  const setGroupBy = (value) => setRouteState((state) => ({ ...state, groupBy: value }))
   // Transactions for the card-cycle totals and the detail view's spending
   // history. 220 days covers the open cycle plus roughly six prior ones (the
   // longest cycle is 31 days), which is what the "recent cycles" trend needs
@@ -201,6 +206,36 @@ export default function Accounts({ onNavigate }) {
   const assetGroups = groupByType(listed.filter((a) => !a.is_liability), ASSET_TYPES, canonicalById)
   const liabilityGroups = groupByType(listed.filter((a) => a.is_liability), LIABILITY_TYPES, canonicalById)
 
+  useEffect(() => {
+    if (!detailId) {
+      setViewingAccount(null)
+      setViewingCard(null)
+      return
+    }
+    const account = listed.find((item) => item.id === detailId)
+    if (!account) return
+    if (account.type === 'credit_card') {
+      setViewingCard(account)
+      setViewingAccount(null)
+    } else {
+      setViewingAccount(account)
+      setViewingCard(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, detailId])
+
+  function openAccount(account) {
+    if (onOpenDetail?.('account', account.id)) return
+    if (account.type === 'credit_card') setViewingCard(account)
+    else setViewingAccount(account)
+  }
+
+  function closeAccount(options) {
+    if (detailId && !onCloseDetail?.(options)) return
+    setViewingAccount(null)
+    setViewingCard(null)
+  }
+
   const compositionGroups = useMemo(() => {
     const byKey = new Map()
     if (canonicalAccounts.some((account) => account.quality_status === 'incomplete')) return []
@@ -238,7 +273,7 @@ export default function Accounts({ onNavigate }) {
   async function handleDelete(id) {
     await deleteAccount(id)
     setEditing(null)
-    setViewingAccount(null)
+    closeAccount({ force: true })
     await refresh()
   }
 
@@ -403,14 +438,14 @@ export default function Accounts({ onNavigate }) {
         fmt={fmt}
         today={today}
         onEdit={setEditing}
-        onSelect={setViewingCard}
+        onSelect={openAccount}
       />
 
-      <BankSection accounts={bankAccounts} fmt={fmt} canonicalById={canonicalById} onSelect={setViewingAccount} onAdd={() => setEditing('new')} />
+      <BankSection accounts={bankAccounts} fmt={fmt} canonicalById={canonicalById} onSelect={openAccount} onAdd={() => setEditing('new')} />
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <AccountGroupList title="Assets" groups={assetGroups} onSelect={setViewingAccount} fmt={fmt} canonicalById={canonicalById} />
-        <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={setViewingAccount} fmt={fmt} canonicalById={canonicalById} />
+        <AccountGroupList title="Assets" groups={assetGroups} onSelect={openAccount} fmt={fmt} canonicalById={canonicalById} />
+        <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={openAccount} fmt={fmt} canonicalById={canonicalById} />
       </div>
 
       {listed.length === 0 && (
@@ -426,7 +461,7 @@ export default function Accounts({ onNavigate }) {
       {viewingAccount && !editing && (
         <AccountDetail
           account={viewingAccount}
-          onClose={() => setViewingAccount(null)}
+          onClose={() => closeAccount()}
           onEdit={() => setEditing(viewingAccount)}
         />
       )}
@@ -438,7 +473,7 @@ export default function Accounts({ onNavigate }) {
           fxRates={fxRates}
           fmt={fmt}
           today={today}
-          onClose={() => setViewingCard(null)}
+          onClose={() => closeAccount()}
           onEdit={() => setEditing(viewingCard)}
           onRefresh={refreshRecentTxns}
         />

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ProtectedForm from './ProtectedForm'
 
 /**
  * `fixedKind` locks the form to one kind with no toggle shown — used now that
@@ -80,7 +81,7 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAcco
         <h2 className="mb-4 text-lg font-semibold text-ink-900">
           {isEdit ? `Edit ${kind === 'save_up' ? 'goal' : 'debt'}` : fixedKind === 'pay_down' ? 'Add debt' : 'Add goal'}
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           {!isEdit && !fixedKind && (
             <div>
               <span className="mb-1 block text-sm font-medium text-ink-700">Type</span>
@@ -282,7 +283,7 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAcco
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

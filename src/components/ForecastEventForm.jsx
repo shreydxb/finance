@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { EVENT_KINDS } from '../lib/forecastEvents'
 import { todayLocal } from '../lib/dates'
+import ProtectedForm from './ProtectedForm'
 
 /** Add/edit one forecast_events row — the click-to-edit alternative to a draggable pin, see ForecastChart's comment. */
 export default function ForecastEventForm({ event, onSave, onCancel, onDelete }) {
@@ -39,7 +40,7 @@ export default function ForecastEventForm({ event, onSave, onCancel, onDelete })
       <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
         <h2 className="mb-4 text-lg font-semibold text-ink-900">{isEdit ? 'Edit life event' : 'Add a life event'}</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="kind" className="mb-1 block text-sm font-medium text-ink-700">
               Type
@@ -153,7 +154,7 @@ export default function ForecastEventForm({ event, onSave, onCancel, onDelete })
               </button>
             )}
           </div>
-        </form>
+        </ProtectedForm>
       </div>
     </div>
   )

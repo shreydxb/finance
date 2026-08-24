@@ -14,6 +14,25 @@ import { listIncome, createIncome, updateIncome, deleteIncome, INCOME_KINDS } fr
 import { listAccounts, OWNERS } from '../lib/accounts'
 import RecurringForm from '../components/RecurringForm'
 import IncomeForm from '../components/IncomeForm'
+import { useRouteQueryState } from '../lib/useRouteQueryState'
+
+const CURRENT_MONTH = new Date()
+const ROUTE_DEFAULTS = {
+  view: 'bills',
+  layout: 'list',
+  year: CURRENT_MONTH.getFullYear(),
+  month: CURRENT_MONTH.getMonth() + 1,
+  personFilter: '',
+  kindFilter: '',
+}
+const ROUTE_SCHEMA = {
+  view: 'type',
+  layout: 'view',
+  year: ['year', Number, String],
+  month: ['month', Number, String],
+  personFilter: 'owner',
+  kindFilter: 'kind',
+}
 
 function formatMoney(amount, currency) {
   return `${currency} ${Number(amount).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`
@@ -23,13 +42,19 @@ function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function Recurring({ navPayload, onConsumeNav }) {
-  const [view, setView] = useState('bills')
-  const [layout, setLayout] = useState('list') // list | calendar
-  const [calendarCursor, setCalendarCursor] = useState(() => {
-    const now = new Date()
-    return { year: now.getFullYear(), month: now.getMonth() + 1 }
+export default function Recurring({ routeQuery, onRouteQueryChange, detailId, onOpenDetail, onCloseDetail }) {
+  const [routeState, setRouteState] = useRouteQueryState(ROUTE_DEFAULTS, ROUTE_SCHEMA, routeQuery, onRouteQueryChange)
+  const { view, layout, personFilter, kindFilter } = routeState
+  const calendarCursor = { year: routeState.year, month: routeState.month }
+  const setView = (next) => setRouteState((state) => ({ ...state, view: next }))
+  const setLayout = (next) => setRouteState((state) => ({ ...state, layout: next }))
+  const setCalendarCursor = (update) => setRouteState((state) => {
+    const current = { year: state.year, month: state.month }
+    const next = typeof update === 'function' ? update(current) : update
+    return { ...state, year: next.year, month: next.month }
   })
+  const setPersonFilter = (next) => setRouteState((state) => ({ ...state, personFilter: next }))
+  const setKindFilter = (next) => setRouteState((state) => ({ ...state, kindFilter: next }))
   const [entries, setEntries] = useState([])
   const [income, setIncome] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -37,8 +62,6 @@ export default function Recurring({ navPayload, onConsumeNav }) {
   const [error, setError] = useState('')
   const [editingEntry, setEditingEntry] = useState(null) // recurring row, or 'new'
   const [editingIncome, setEditingIncome] = useState(null)
-  const [personFilter, setPersonFilter] = useState('')
-  const [kindFilter, setKindFilter] = useState('')
 
   async function refresh() {
     setError('')
@@ -58,17 +81,31 @@ export default function Recurring({ navPayload, onConsumeNav }) {
     refresh()
   }, [])
 
-  // Deep-link from Home's Due-soon row.
   useEffect(() => {
-    if (!navPayload?.openRecurringId || entries.length === 0) return
-    const entry = entries.find((e) => e.id === navPayload.openRecurringId)
+    if (!detailId) {
+      if (editingEntry && editingEntry !== 'new') setEditingEntry(null)
+      return
+    }
+    if (entries.length === 0) return
+    const entry = entries.find((item) => item.id === detailId)
     if (entry) {
-      setView('bills')
       setEditingEntry(entry)
     }
-    onConsumeNav?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, navPayload])
+  }, [entries, detailId])
+
+  function openEntry(entry) {
+    if (onOpenDetail?.('recurring', entry.id)) return
+    setEditingEntry(entry)
+  }
+
+  function closeEntry(options) {
+    if (detailId) {
+      if (onCloseDetail?.(options)) setEditingEntry(null)
+      return
+    }
+    setEditingEntry(null)
+  }
 
   async function handleSaveEntry(values) {
     if (editingEntry && editingEntry !== 'new') {
@@ -76,13 +113,13 @@ export default function Recurring({ navPayload, onConsumeNav }) {
     } else {
       await createRecurring(values)
     }
-    setEditingEntry(null)
+    closeEntry({ force: true })
     await refresh()
   }
 
   async function handleDeleteEntry() {
     await deleteRecurring(editingEntry.id)
-    setEditingEntry(null)
+    closeEntry({ force: true })
     await refresh()
   }
 
@@ -175,7 +212,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
           )}
 
           {layout === 'calendar' && entries.length > 0 && (
-            <CalendarView entries={bills} cursor={calendarCursor} setCursor={setCalendarCursor} onSelect={setEditingEntry} />
+            <CalendarView entries={bills} cursor={calendarCursor} setCursor={setCalendarCursor} onSelect={openEntry} />
           )}
 
           {layout === 'list' && withDue.length > 0 && (
@@ -187,7 +224,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
                   <button
                     key={entry.id}
                     type="button"
-                    onClick={() => setEditingEntry(entry)}
+                    onClick={() => openEntry(entry)}
                     className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                   >
                     <span className="min-w-0">
@@ -221,7 +258,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
                   <button
                     key={entry.id}
                     type="button"
-                    onClick={() => setEditingEntry(entry)}
+                    onClick={() => openEntry(entry)}
                     className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                   >
                     <span className="min-w-0">
@@ -243,7 +280,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
               entry={editingEntry === 'new' ? null : editingEntry}
               accounts={accounts}
               onSave={handleSaveEntry}
-              onCancel={() => setEditingEntry(null)}
+              onCancel={() => closeEntry()}
               onDelete={handleDeleteEntry}
             />
           )}
@@ -264,7 +301,7 @@ export default function Recurring({ navPayload, onConsumeNav }) {
                   <button
                     key={entry.id}
                     type="button"
-                    onClick={() => setEditingEntry(entry)}
+                    onClick={() => openEntry(entry)}
                     className="flex w-full items-center justify-between border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                   >
                     <span className="min-w-0">
