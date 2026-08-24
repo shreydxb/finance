@@ -1,108 +1,114 @@
-# Our Money v5 handoff — SHR-122
+# Our Money v5 handoff — SHR-113 Phase A
 
-Date: 2026-08-23 (Asia/Dubai)
+Date: 2026-08-24 (Asia/Dubai)
 
-Branch: `shreydxb1/shr-122-shr-111-phase-b-migrate-home-and-reports-to-canonical`
+Branch: `shreydxb1/shr-113-authoritative-net-worth-phase-a`
 
-Baseline: `main` at `33a7d09b8fd9bf85b101bb20795e4f9cc9356781`
+Production base: `main` merge `a3b864d92a55af532efea1fc8cd05aeac6953661` (tree-equivalent SHR-122 head `283cdd899521508fcee0ea33604f29cf290128fb`)
 
-Status: **QA BLOCKERS FIXED; READY FOR INDEPENDENT RE-QA ON THE NEW EXACT-HEAD DEPLOY PREVIEW. DO NOT MERGE OR DEPLOY PRODUCTION.**
+Status: **IMPLEMENTED FOR INDEPENDENT QA. PRODUCTION STATE = NOT APPLIED. EDGE FUNCTION = NOT DEPLOYED. SCHEDULER = INACTIVE / NOT INSTALLED. DO NOT MERGE OR DEPLOY PRODUCTION.**
 
-## Scope delivered
+The immutable final PR head SHA, PR URL, Deploy Preview URL/deploy ID, and verified preview `commit_ref` are recorded in the SHR-113 Linear implementation handoff after the final commit. They cannot be embedded in that same commit without changing its SHA.
 
-- Migrated Home's current-month Consumption and Savings rate cards from raw transaction/income arithmetic to `canonical_period_metrics`.
-- Migrated Reports headlines to direct canonical fields: posted income, consumption spend, savings movement, cash retained, cash flow, savings, and savings rate.
-- Migrated category actuals to `canonical_budget_actuals`; merchant, recorded-owner, source, and recorded-person presentation groupings use only canonical AED facts from `v_canonical_ledger_aed` and `v_canonical_income_aed`.
-- Replaced misleading Spent/Expenses/Spending labels with Consumption wherever the value is canonical `consumption_spend`.
-- Added one strict runtime contract layer that fails closed on missing/duplicate/malformed/unknown rows, enum values, quality states, contract versions, contradictory quality evidence, mismatched metadata counts/currencies, invalid classification pairs, and invalid transfer/group/direction combinations.
-- Added one shared deterministic quality model: `complete < provisional < incomplete`.
-- Realtime events only invalidate/refetch canonical data; no realtime payload mutates financial totals.
-- Fixed Home/Reports period defaults and comparison boundaries to `Asia/Dubai`.
-- Preserved the existing transaction CSV contract. Net Worth, Investments, Goals, Budget planning, recurring items, recent transactions, and other out-of-scope Home consumers remain unchanged.
-- Corrected v5 documentation: production is verified through migrations `041` and `042`.
+## Delivered Phase-A contract
 
-No database migration, Supabase write, production deploy, or merge is part of SHR-122.
+- Added migration `043_authoritative_net_worth_snapshots.sql` with one logical run per Dubai reporting date, append-only attempt/failure evidence, immutable per-published-run valuation items, deterministic SHA-256 input digest, and additive nullable `nw_daily` provenance.
+- Preserved every pre-existing `nw_daily` tuple and value. There is no migration `UPDATE`, backfill, reconstruction, interpolation, or guessed historical FX/price/account input. Null run provenance means legacy.
+- Kept `nw_snapshots` untouched/deprecated and read-only; SHR-113 never populates it.
+- Removed authenticated/anonymous history mutation. Household members retain RLS-governed read-only history/provenance access; authenticated outsiders see zero rows and anonymous callers have no table access.
+- Added service-role-only, pinned-search-path, `SECURITY INVOKER` claim/evidence/policy/capture contracts. Browser identities cannot execute them. Postgres canonical account contracts remain the financial engine.
+- Added snapshot publication policy `shr-113-snapshot-policy-v1` only in the SHR-113 evaluation layer: FX fetch age through six hours; provider quote/session-as-of through 36 hours Complete, over 36 through 96 hours Provisional when evidence permits, and missing/older invalid; manual investment and older valid bank/liability inputs Provisional with age/reason evidence. SHR-111 canonical views/functions were not changed.
+- Missing/invalid canonical monetary input records a `skipped_incomplete` run and publishes no `nw_daily` point. A plausible partial balance sheet is impossible.
+- Enforced valuation-close semantics: `target_day` is the Dubai reporting date, while actual `snapshot_at` and per-source as-of/fetch timestamps are retained. Capture before the Dubai day close is rejected.
+- Enforced one-publish-per-day idempotency, transaction/advisory-lock concurrency, immutable published evidence/items/daily points, append-only retries, and no automatic replacement/promotion. Manual recovery can fill only an explicit missing past day.
+- Added `accounts.price_quote_at` so provider quote/session time remains distinct from `price_updated_at` fetch/write time.
+- Extracted shared FX and investment provider modules and refactored the existing refresh Edge Functions to reuse them. HTTP success without valid provider content/timestamps is failure evidence; partial price success is explicit per account.
+- Added `snapshot-net-worth` Edge source. It checks both platform JWT configuration and a dedicated constant-time `SNAPSHOT_JOB_SECRET`, then claims, refreshes, appends evidence, and requests Postgres capture. It performs no net-worth arithmetic.
+- Removed the Accounts mount/open `nw_daily` upsert side effect and deleted the browser snapshot writer.
+- Migrated current Accounts net worth/assets/liabilities to `canonical_balance_sheet`, investment value to `canonical_investment_metrics`, and account/composition/forecast starting values to `v_canonical_accounts_aed`. Canonical unavailable stays unavailable; there is no legacy financial fallback.
+- Made history read-only and visually distinguishes Legacy, Complete, Provisional, skipped-incomplete, and genuine gaps. Null gaps break the chart rather than interpolating or becoming zero.
+- Added the provenance tables to encrypted backup dependency order.
+- Corrected production-status drift: production is through migration `042`; `043` is repository-only and not applied.
 
-## Canonical behavior
+## Migration and schema intent
 
-- Canonical monetary truth stays in AED. `fmt` converts canonical AED for display only.
-- Canonical `NULL` is rendered unavailable and never replaced with zero or a legacy calculation.
-- Nonzero `needs_review` periods remain monetary and surface as Provisional.
-- Missing required FX, unresolved zero placeholders, and other required incomplete inputs surface as Incomplete; affected period values, breakdowns, trends, comparisons, and flows do not show plausible partial authority.
-- Savings rate remains `NULL` for nonpositive posted income and displays the canonical `nonpositive_income` reason.
-- Internal transfers and legacy exact `Transfer` rows remain outside consumption.
-- `Savings & Investments` remains `savings_movement`, separate from consumption.
-- Refunds remain signed canonical consumption facts.
-- Shrey, Tarika, Joint, and Unassigned remain exact recorded buckets. The 69/31 target is presentation guidance only.
-- Category/merchant/source/person groups render only after their canonical AED facts reconcile to the authoritative period total at two-decimal precision.
-- Sankey renders only when all required flows are nonnegative and both source and destination sides reconcile exactly at cents. Otherwise Reports shows the signed canonical-bars fallback (or unavailable values for Incomplete periods).
+Only one migration is added:
 
-## Main implementation files
+- `supabase/schema/043_authoritative_net_worth_snapshots.sql`
 
-- `src/lib/canonicalContracts.js` — strict runtime response validation and quality ordering.
-- `src/lib/canonicalMetrics.js` — canonical RPC/view reads and person/household scope application.
-- `src/lib/canonicalPresentation.js` — presentation-only grouping, reconciliation, headline mapping, quality copy, and Sankey gate.
-- `src/screens/Home.jsx` — canonical current-month KPIs and quality indicator.
-- `src/screens/Reports.jsx` — canonical headlines, flows, breakdowns, trends, comparisons, and exact recorded-person presentation.
-- `src/lib/spendingComparison.js` — Dubai-local periods and reconciled canonical-ledger comparisons.
-- `src/components/CanonicalQualityIndicator.js` — subtle, keyboard-focusable Complete/Provisional/Incomplete disclosure with rendered accessible detail, current-rate AED basis, FX timestamp, and status-specific evidence counts.
+New tables:
 
-## Regression coverage
+- `nw_snapshot_runs` — unique logical `target_day` and idempotency identity, lifecycle, actual capture time, final quality/evidence, source version, digest, and publication ID.
+- `nw_snapshot_attempt_events` — immutable phase/outcome/evidence events keyed by run + attempt; failed retries remain queryable.
+- `nw_snapshot_items` — immutable exact valuation inputs and quality for each account in a published run.
 
-- Home/Reports equality for the same canonical response.
-- Complete, provisional, zero-placeholder incomplete, and missing-FX incomplete fixtures.
-- Positive, zero, and negative posted-income savings-rate behavior.
-- Transfer/card-settlement exclusion.
-- Savings & Investments decomposition.
-- Signed refunds.
-- Exact recorded person buckets.
-- Category reconciliation and fail-closed mismatch behavior.
-- Dubai midnight, month, quarter, year, and comparison boundaries.
-- Sankey cents reconciliation/nonnegative gate and fallback conditions.
-- Source-discipline checks proving migrated screen code does not import or call legacy total/group/FX financial arithmetic.
-- Negative contract fixtures for contradictory Complete/Provisional/Incomplete evidence, top-level/metadata mismatches, monetary dependencies, every classification-reason family, and group/transfer/direction invariants.
-- Rendered component coverage for keyboard focus, accessible disclosure detail, AED/FX provenance, provisional counts, and incomplete reason counts.
+Additive columns:
+
+- `accounts.price_quote_at`.
+- Nullable `nw_daily.run_id`, `snapshot_at`, `published_at`, `quality_status`, `investment_value_aed`, `source_version`, `quality_evidence`, and `input_digest`.
+
+There is no household ID because the current production model is one shared household with membership authorization. SHR-115 owns future household normalization.
+
+## Edge source/version intent
+
+- New function source: `supabase/functions/snapshot-net-worth/`.
+- Source version persisted on capture: `shr-113-phase-a-v1`.
+- Shared provider logic: `supabase/functions/_shared/fxRefresh.ts` and `priceRefresh.ts`.
+- `supabase/config.toml` keeps `verify_jwt = true` for the new function.
+- Required future secret: `SNAPSHOT_JOB_SECRET`, server/Vault only.
+- Intended future retry window (documentation only): `*/15 22-23 * * *` UTC, 02:00–03:45 Asia/Dubai, targeting the just-ended Dubai date.
+- Phase A installs no extension, Vault value, pg_net call, `cron.schedule`, or notification job. It deploys no Edge function.
+
+## Security model
+
+- Authenticated household member: SELECT through membership RLS on daily history, runs, attempts, and items; no INSERT/UPDATE/DELETE and no execution of snapshot contracts.
+- Authenticated outsider: zero rows through RLS; no snapshot contract execution.
+- Anonymous: no table access and no snapshot contract execution.
+- Service role: minimum direct privileges required by the trusted `SECURITY INVOKER` workflow plus execution of four closed contracts. No browser-callable recovery RPC exists.
+- All four contracts pin `search_path = ''`, fully qualify data references, and revoke PUBLIC/anon/authenticated execution. No new `SECURITY DEFINER` function or view was introduced.
+- Published logical runs, attempt events, item manifests, and authoritative daily points are trigger-protected against mutation. Direct authenticated fabrication of legacy or authoritative history is denied.
 
 ## Validation evidence
 
-- `pnpm run lint`: PASS (pre-existing fast-refresh/exhaustive-deps warnings only).
-- `pnpm test`: PASS — 494 tests.
-- `pnpm run build`: PASS.
-- Complete database integration suite: required `db-integration` GitHub CI job; run from empty through schema `042` against PostgreSQL before QA handoff acceptance.
-- Read-only production-intent probes re-run against `our-rokda` (`wrxqgfbolryveivgdjia`):
-  - February 2026 Complete: income AED 0.00; consumption AED 280.39; savings movement AED 0.00; cash retained/cash flow/savings AED -280.39; savings rate `NULL` / `nonpositive_income`; category actuals reconcile to AED 280.39.
-  - July 2026 Provisional: income AED 0.00; consumption AED 10,357.80; 27 review rows; category actuals reconcile to AED 10,357.80.
-  - August 2026 intentionally Incomplete: income AED 0.00; all dependent consumption/movement/cash/savings/rate values `NULL`; reason `incomplete_inputs`; 11 review rows; 3 zero placeholders. The unaffected partial category sum AED 4,130.97 is deliberately not promoted.
-  - December 2026 Complete positive-income fixture: income/cash retained/cash flow/savings AED 6,000.00; consumption/movement AED 0.00; savings rate 100.00%.
-  - Live canonical ledger and income field shapes match the strict browser contracts.
+Run on an isolated PostgreSQL 17.11 scratch cluster; production Supabase was not modified.
 
-## SHR-123 blocker resolution
+- Lint: PASS; five pre-existing React warnings only, no SHR-113 warning/error.
+- Full browser/Edge/function test suite: PASS — 511/511.
+- Production Vite build: PASS — 126 modules transformed. Existing large-chunk advisory only.
+- Clean database migration from empty: PASS — all 42 schema files through numbered migration `043` applied.
+- Complete DB integration: PASS — 87/87 against real PostgreSQL.
+- Migration rerun/idempotency: PASS; `043` reruns inside the test transaction and preserves legacy `nw_daily` content plus physical tuple identity.
+- RLS/security catalog/advisor-shape regression: PASS for RLS, primary keys, grants, write policies, invoker mode, pinned search paths, and anon/authenticated function exposure.
+- Official Supabase CLI v2.115.0 `db lint --schema public,private --level warning --fail-on error`: PASS; only the pre-existing unrelated `create_goal_contribution.v_contribution` unused-variable warning.
+- Edge orchestration/provider tests: PASS, including secret rejection, execution ordering, provider timestamp separation, partial price success, FX failure, published no-op, and manual target forwarding.
+- Diff hygiene: `git diff --check` PASS.
 
-- Reproduced and rejected the QA payload where a `complete` period carried one top-level `needs_review` row and one metadata provisional row.
-- Reproduced and rejected the QA payload pairing `categorised_consumption` with `internal_transfer` and null canonical monetary fields.
-- Quality validation now requires evidence appropriate to the known enum: Complete has no review/provisional/incomplete evidence; Provisional has matching nonzero review/provisional evidence and no incomplete evidence; Incomplete has matching incomplete evidence.
-- Top-level zero-placeholder counts match metadata exactly; missing-FX counts and currency metadata must agree; provisional/zero-placeholder counts cannot exceed review counts.
-- Canonical classification precedence and transaction-group/transfer-direction constraints are validated before facts reach presentation code. Contradictory payloads throw a canonical contract error and never trigger legacy fallback arithmetic.
-- The quality indicator is now a native keyboard disclosure. Its rendered, `aria-describedby` detail remains subtle while exposing current-rate AED basis, FX timestamp, provisional/review counts, and incomplete reason counts/currencies.
-- The approved production-intent probes were re-run read-only on 2026-08-23 after the fixes; February, July, August, and December results remain exactly as recorded above. Production Supabase was not modified.
+Coverage includes duplicate same-day invocation, concurrent claim loser, Dubai UTC boundary and pre-close rejection, missing/stale FX, 36h/96h quote boundaries, missing provider timestamp, partial price refresh, manual investment, old bank/liability Provisional evidence, canonical incomplete account/liability skip, Complete and Provisional publication, skipped-incomplete without a point, retry evidence preservation, missing-day recovery, no replacement, household read, outsider/anonymous isolation, direct write/RPC denial, legacy tuple preservation, empty `nw_snapshots`, Accounts zero-write open path, canonical-only current Accounts values, and truthful gaps.
+
+## Production and rollback state
+
+- Production database: unchanged; migration `043` **NOT APPLIED**.
+- Production `nw_daily`: unchanged; no repair, backfill, reconstruction, or new row.
+- Production `nw_snapshots`: unchanged/empty.
+- Production Edge Functions: unchanged; `snapshot-net-worth` **NOT DEPLOYED** and existing refresh functions are not redeployed by this handoff.
+- Production scheduler: **INACTIVE / NOT INSTALLED**. No pg_cron/pg_net/Vault change.
+- Netlify production: unchanged. The QA artifact is a Deploy Preview only.
+- Git `main`: unchanged; no merge.
+
+Operational rollback after any future separately approved application is additive disablement: disable the future schedule first, make the Edge endpoint unreachable/roll back its source, and roll back the frontend independently. Do not drop provenance schema, restore browser history writes, delete run evidence, or rewrite a published/legacy daily point.
 
 ## Independent QA gate
 
-The PR and exactly one Netlify Deploy Preview must be created from the final commit containing this handoff. Record the immutable PR head SHA, preview URL, Netlify build/deploy identifier, and verified preview `commit_ref` in the structured Linear SHR-122 implementation comment. Do not change code after that preview; any change creates a new preview/review gate.
+The child QA issue created from this handoff must verify the exact PR head and exact Deploy Preview commit:
 
-Independent re-QA should verify:
+1. Schema applies from empty and reruns without changing a seeded legacy tuple; no existing history is backfilled.
+2. Grants, RLS, catalog mode/search paths, outsider/anon isolation, and direct authenticated write/RPC denial match the matrix above.
+3. Complete, Provisional, skipped-incomplete, duplicate, concurrent, retry, manual-recovery, timestamp, FX, price, and account/liability fixtures reproduce the DB evidence.
+4. Published run/items/daily evidence is immutable; failed attempt evidence survives retry; `nw_snapshots` remains empty.
+5. Edge orchestration has both gates, reuses shared provider logic, treats partial/invalid responses explicitly, and performs no financial calculation.
+6. Accounts open/mount makes zero snapshot mutations, current values come only from canonical contracts, and canonical unavailable never falls back.
+7. History labels Legacy/Complete/Provisional/skipped and leaves gaps unconnected and nonzero.
+8. Preview UI loads against current production (without migration `043`) through the read-only legacy compatibility path; its `commit_ref` equals the final PR head.
+9. Production database, Edge deployments, scheduler, Netlify production, and `main` remain unchanged throughout QA.
 
-1. GitHub `check` and `db-integration` jobs pass at the exact PR head.
-2. Preview build SHA exactly equals the PR head SHA.
-3. Home and Reports show equal canonical household figures for the same month, including July Provisional and August Incomplete.
-4. August displays unavailable canonical monetary values and never AED 4,130.97 as authoritative consumption.
-5. February/July/December meanings and savings-rate reasons match the production probes above.
-6. Category and merchant breakdowns reconcile; refunds remain signed; Transfer/card settlements are absent; Savings & Investments remains separate.
-7. Sankey appears only for exact, nonnegative reconciled flows and otherwise uses the signed-bars/unavailable fallback.
-8. Dubai-local defaults and comparison boundaries are correct around 00:00–03:59 local time.
-9. Display-currency changes convert canonical AED presentation without changing canonical meaning or quality.
-10. CSV output remains compatible and out-of-scope Home widgets remain unchanged.
-11. Malformed-but-known quality/classification/transfer combinations fail closed, including the two payloads recorded in SHR-123.
-12. Every quality pill can receive keyboard focus and exposes rendered status detail without depending on a native `title` tooltip.
-
-SHR-122 remains open pending independent QA. Do not merge to `main`, deploy production, or modify production Supabase without explicit approval.
+SHR-113 must remain open. Phase B production application and Phase C scheduler activation/first-run verification require separate explicit approvals.

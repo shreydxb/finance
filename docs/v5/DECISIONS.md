@@ -140,3 +140,13 @@ Linked save-up goals use linked account value and treat contributions as activit
 
 Migration `041` implements additive security-invoker views/functions and split-original identity for new/replaced splits. Migration `042` corrects the implementation so only save-up goals require a positive target; pay-down quality follows the already-approved starting-balance plus linked-liability authority. Existing APIs and consumers remain on legacy outputs until separately reviewed consumer migrations.
 
+## ADR-016 — Daily net worth is a qualified server-captured valuation close
+
+Status: accepted; Phase A repository implementation pending independent QA and production approval — 2026-08-24 — SHR-113
+
+`nw_daily` is the long-term daily authority; `nw_snapshots` remains deprecated. Existing daily rows are preserved as legacy facts with unknown provenance and are never silently recomputed. One logical run exists per Dubai reporting date, while append-only attempt events preserve every retry/failure and an immutable item manifest preserves the exact qualified valuation inputs of a publication.
+
+The point is a valuation close labeled by Dubai `target_day` and stamped with the actual `snapshot_at`; it does not imply all source facts existed before the target day's 23:59:59. Provider fetch and quote/session timestamps are distinct. Snapshot policy v1 freshness thresholds are local to SHR-113 and do not change SHR-111 canonical contracts.
+
+Only trusted service orchestration can claim/capture. Postgres/canonical contracts calculate money and fail closed: missing or invalid canonical inputs produce a `skipped_incomplete` run and no daily point. Complete and Provisional are explicit; no plausible partial balance sheet, revision, automatic replacement, historical reconstruction, or scheduler activation is permitted in Phase A. Accounts is a canonical-value/history reader and opening it has no snapshot write side effect.
+

@@ -3,7 +3,10 @@ import test from 'node:test'
 
 import {
   mergeCanonicalQuality,
+  normalizeCanonicalAccountRows,
+  normalizeCanonicalBalanceSheet,
   normalizeCanonicalBudgetRows,
+  normalizeCanonicalInvestmentMetrics,
   normalizeCanonicalLedgerRows,
   normalizeCanonicalPeriodResponse,
 } from './canonicalContracts.js'
@@ -263,4 +266,35 @@ test('duplicate canonical fact identities fail closed', () => {
   assert.throws(() => normalizeCanonicalLedgerRows([ledger, ledger]), /duplicate ids/)
   const budget = { category: 'Groceries', actual_aed: '1', quality_status: 'complete', transaction_count: 1, needs_review_count: 0, zero_placeholder_count: 0, missing_fx_count: 0 }
   assert.throws(() => normalizeCanonicalBudgetRows([budget, budget]), /duplicate categories/)
+})
+
+test('canonical wealth contracts reconcile and preserve provisional evidence', () => {
+  const balance = normalizeCanonicalBalanceSheet([{
+    scope: 'household', person: null, assets_aed: '200.00', liabilities_aed: '50.00', net_worth_aed: '150.00',
+    quality_status: 'provisional', incomplete_account_count: 0, provisional_account_count: 1, missing_fx_count: 0,
+    quality_metadata: { fx_basis: 'current_rate_aed', classification_version: 'shr-111-phase-a-v1' },
+  }])
+  assert.equal(balance.net_worth_aed, 150)
+  assert.equal(balance.quality_status, 'provisional')
+
+  const investments = normalizeCanonicalInvestmentMetrics([{
+    scope: 'household', person: null, investment_value_aed: '100.00', cost_basis_aed: null, unrealized_pnl_aed: null,
+    quality_status: 'incomplete', incomplete_value_count: 0, incomplete_pnl_count: 1, provisional_count: 0,
+    manual_value_count: 0, stale_value_count: 0, missing_fx_count: 0,
+    quality_metadata: { fx_basis: 'current_rate_aed', classification_version: 'shr-111-phase-a-v1' },
+  }])
+  assert.equal(investments.investment_value_aed, 100, 'missing P&L does not erase valid current investment value')
+})
+
+test('canonical account rows fail closed instead of exposing legacy arithmetic', () => {
+  const rows = normalizeCanonicalAccountRows([{
+    id: 'account-1', owner: 'Shrey', type: 'cash', is_liability: false, currency: 'AED',
+    canonical_value_aed: '250', quality_status: 'complete', valuation_method: 'account_balance',
+    valuation_as_of: '2026-08-24T12:00:00Z', fx_rate_to_aed: '1', fx_updated_at: '2026-08-24T11:00:00Z',
+  }])
+  assert.equal(rows[0].canonical_value_aed, 250)
+  assert.throws(
+    () => normalizeCanonicalAccountRows([{ ...rows[0], quality_status: 'incomplete', canonical_value_aed: '250' }]),
+    /incomplete account.*must not expose/
+  )
 })

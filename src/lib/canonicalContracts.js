@@ -62,6 +62,14 @@ function normalizeBoolean(value, label) {
   return value
 }
 
+function normalizeTimestamp(value, label, { nullable = true } = {}) {
+  if (value === null && nullable) return null
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+    throw contractError(`${label} must be a timestamp${nullable ? ' or null' : ''}`)
+  }
+  return value
+}
+
 function normalizeTextArray(value, label) {
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
     throw contractError(`${label} must be text[]`)
@@ -477,6 +485,109 @@ export function normalizeCanonicalBudgetRows(data) {
   const rows = data.map(normalizeCanonicalBudgetRow)
   if (new Set(rows.map((row) => row.category)).size !== rows.length) {
     throw contractError('canonical budget response contains duplicate categories')
+  }
+  return Object.freeze(rows)
+}
+
+function normalizeWealthMetadata(value, label) {
+  const metadata = assertObject(value, label)
+  if (metadata.fx_basis !== 'current_rate_aed') throw contractError(`${label}.fx_basis is unknown`)
+  if (metadata.classification_version !== 'shr-111-phase-a-v1') {
+    throw contractError(`${label}.classification_version is unknown`)
+  }
+  return Object.freeze({ ...metadata })
+}
+
+function exactlyOne(data, label) {
+  if (!Array.isArray(data)) throw contractError(`${label} response must be an array`)
+  if (data.length !== 1) throw contractError(`${label} returned ${data.length} rows; expected exactly one`)
+  return assertObject(data[0], `${label} row`)
+}
+
+export function normalizeCanonicalBalanceSheet(data) {
+  const row = exactlyOne(data, 'canonical_balance_sheet')
+  const quality = normalizeCanonicalQuality(row.quality_status)
+  const normalized = {
+    scope: normalizeText(row.scope, 'scope'),
+    person: normalizeText(row.person, 'person', { nullable: true, empty: true }),
+    assets_aed: normalizeCanonicalMoney(row.assets_aed, 'assets_aed'),
+    liabilities_aed: normalizeCanonicalMoney(row.liabilities_aed, 'liabilities_aed'),
+    net_worth_aed: normalizeCanonicalMoney(row.net_worth_aed, 'net_worth_aed'),
+    quality_status: quality,
+    incomplete_account_count: normalizeCount(row.incomplete_account_count, 'incomplete_account_count'),
+    provisional_account_count: normalizeCount(row.provisional_account_count, 'provisional_account_count'),
+    missing_fx_count: normalizeCount(row.missing_fx_count, 'missing_fx_count'),
+    quality_metadata: normalizeWealthMetadata(row.quality_metadata, 'quality_metadata'),
+  }
+  const amounts = [normalized.assets_aed, normalized.liabilities_aed, normalized.net_worth_aed]
+  if (quality === 'incomplete' && amounts.some((value) => value !== null)) {
+    throw contractError('incomplete balance sheet must not expose monetary totals')
+  }
+  if (quality !== 'incomplete' && amounts.some((value) => value === null)) {
+    throw contractError('qualified balance sheet requires every monetary total')
+  }
+  if (normalized.net_worth_aed !== null
+    && !sameMoney(normalized.net_worth_aed, normalized.assets_aed - normalized.liabilities_aed)) {
+    throw contractError('balance sheet does not reconcile')
+  }
+  return Object.freeze(normalized)
+}
+
+export function normalizeCanonicalInvestmentMetrics(data) {
+  const row = exactlyOne(data, 'canonical_investment_metrics')
+  const quality = normalizeCanonicalQuality(row.quality_status)
+  const normalized = {
+    scope: normalizeText(row.scope, 'scope'),
+    person: normalizeText(row.person, 'person', { nullable: true, empty: true }),
+    investment_value_aed: normalizeCanonicalMoney(row.investment_value_aed, 'investment_value_aed'),
+    cost_basis_aed: normalizeCanonicalMoney(row.cost_basis_aed, 'cost_basis_aed'),
+    unrealized_pnl_aed: normalizeCanonicalMoney(row.unrealized_pnl_aed, 'unrealized_pnl_aed'),
+    quality_status: quality,
+    incomplete_value_count: normalizeCount(row.incomplete_value_count, 'incomplete_value_count'),
+    incomplete_pnl_count: normalizeCount(row.incomplete_pnl_count, 'incomplete_pnl_count'),
+    provisional_count: normalizeCount(row.provisional_count, 'provisional_count'),
+    manual_value_count: normalizeCount(row.manual_value_count, 'manual_value_count'),
+    stale_value_count: normalizeCount(row.stale_value_count, 'stale_value_count'),
+    missing_fx_count: normalizeCount(row.missing_fx_count, 'missing_fx_count'),
+    quality_metadata: normalizeWealthMetadata(row.quality_metadata, 'quality_metadata'),
+  }
+  if (normalized.incomplete_value_count > 0 && normalized.investment_value_aed !== null) {
+    throw contractError('incomplete investment value must be unavailable')
+  }
+  if (normalized.incomplete_value_count === 0 && normalized.investment_value_aed === null) {
+    throw contractError('complete/provisional investment value is missing')
+  }
+  return Object.freeze(normalized)
+}
+
+export function normalizeCanonicalAccountRows(data) {
+  if (!Array.isArray(data)) throw contractError('canonical account response must be an array')
+  const rows = data.map((value, index) => {
+    const row = assertObject(value, `canonical account row ${index}`)
+    return Object.freeze({
+      id: normalizeText(row.id, `account ${index}.id`),
+      owner: normalizeText(row.owner, `account ${index}.owner`, { nullable: true, empty: true }),
+      type: normalizeText(row.type, `account ${index}.type`),
+      is_liability: normalizeBoolean(row.is_liability, `account ${index}.is_liability`),
+      currency: normalizeText(row.currency, `account ${index}.currency`),
+      canonical_value_aed: normalizeCanonicalMoney(row.canonical_value_aed, `account ${index}.canonical_value_aed`),
+      quality_status: normalizeCanonicalQuality(row.quality_status, `account ${index}.quality_status`),
+      valuation_method: normalizeText(row.valuation_method, `account ${index}.valuation_method`),
+      valuation_as_of: normalizeTimestamp(row.valuation_as_of, `account ${index}.valuation_as_of`),
+      fx_rate_to_aed: normalizeCanonicalMoney(row.fx_rate_to_aed, `account ${index}.fx_rate_to_aed`),
+      fx_updated_at: normalizeTimestamp(row.fx_updated_at, `account ${index}.fx_updated_at`),
+    })
+  })
+  if (new Set(rows.map((row) => row.id)).size !== rows.length) {
+    throw contractError('canonical account response contains duplicate IDs')
+  }
+  for (const row of rows) {
+    if (row.quality_status === 'incomplete' && row.canonical_value_aed !== null) {
+      throw contractError(`incomplete account ${row.id} must not expose an AED value`)
+    }
+    if (row.quality_status !== 'incomplete' && row.canonical_value_aed === null) {
+      throw contractError(`qualified account ${row.id} is missing AED value`)
+    }
   }
   return Object.freeze(rows)
 }

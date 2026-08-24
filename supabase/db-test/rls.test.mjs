@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { actAs, OUTSIDER_ID, SHREY_ID, withTx } from './helpers.mjs'
+import { actAs, expectReject, OUTSIDER_ID, SHREY_ID, withTx } from './helpers.mjs'
 
 async function seedOneTransaction(client) {
   await actAs(client, 'service_role') // bypasses RLS, so seeding never depends on the thing being tested
@@ -83,22 +83,16 @@ test('household_members itself is readable by members, not writable through the 
   })
 })
 
-test('nw_daily: member can select/insert/update, but nobody can delete (no delete policy, by design)', async () => {
+test('nw_daily: member can read but authoritative history mutation is service-only', async () => {
   await withTx(async (client) => {
     await actAs(client, 'authenticated', SHREY_ID)
-    const { rows } = await client.query(
-      `insert into nw_daily (day, total_aed) values (current_date, 100000) returning id`
+    assert.equal((await client.query('select count(*) from nw_daily')).rows[0].count, '0')
+    await expectReject(client,
+      () => client.query(`insert into nw_daily (day, total_aed) values (current_date, 100000)`),
+      /permission denied/i
     )
-    assert.equal(rows.length, 1)
-
-    await client.query(`update nw_daily set total_aed = 100001 where id = $1`, [rows[0].id])
-    const { rows: after } = await client.query('select total_aed from nw_daily where id = $1', [
-      rows[0].id,
-    ])
-    assert.equal(Number(after[0].total_aed), 100001)
-
-    const del = await client.query('delete from nw_daily where id = $1', [rows[0].id])
-    assert.equal(del.rowCount, 0, 'net-worth history must not be deletable through the API, ever')
+    await expectReject(client, () => client.query(`update nw_daily set total_aed = 100001`), /permission denied/i)
+    await expectReject(client, () => client.query(`delete from nw_daily`), /permission denied/i)
   })
 })
 

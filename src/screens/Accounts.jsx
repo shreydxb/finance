@@ -9,17 +9,17 @@ import {
   typeIcon,
 } from '../lib/accounts'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
+import { useCanonicalWealth } from '../lib/useCanonicalWealth'
 import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
 import { listCategories } from '../lib/categories'
 import { listIncome } from '../lib/income'
-import { listDailyNetWorth, recordDailyNetWorth } from '../lib/snapshots'
 import { getSetting, upsertSetting } from '../lib/settings'
 import { colorizeGroups } from '../lib/chartPalette'
 import { usePrefs } from '../lib/PrefsContext'
-import { formatMoney, toAED } from '../lib/money'
+import { formatMoney } from '../lib/money'
 import { cardSummary, parseLast4, cardDisplayName, previousCycles, categoryBreakdown } from '../lib/cards'
 import { todayLocal } from '../lib/dates'
-import { computeMonthlyAssumptions, dateAtAge, participatingNetWorth, projectNetWorth } from '../lib/forecast'
+import { computeMonthlyAssumptions, dateAtAge, projectNetWorth } from '../lib/forecast'
 import {
   listForecastEvents,
   createForecastEvent,
@@ -50,12 +50,33 @@ function scrollToGroup(type) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+const HISTORY_LABELS = {
+  legacy: 'Legacy',
+  complete: 'Complete',
+  provisional: 'Provisional',
+  skipped: 'Skipped',
+  gap: 'Gap',
+}
+
+function displayCanonicalMoney(value, fmt) {
+  return value === null || value === undefined ? '—' : fmt(value)
+}
+
+function participatingCanonicalNetWorth(canonicalAccounts, participatingIds) {
+  const selected = canonicalAccounts.filter((account) => !participatingIds || participatingIds.includes(account.id))
+  if (selected.some((account) => account.quality_status === 'incomplete' || account.canonical_value_aed === null)) return null
+  return selected.reduce(
+    (sum, account) => sum + (account.is_liability ? -account.canonical_value_aed : account.canonical_value_aed),
+    0
+  )
+}
+
 export default function Accounts({ onNavigate }) {
-  const { accounts, fxRates, loading, error, refresh } = useAccountsAndFx()
+  const { accounts, fxRates, loading: accountsLoading, error, refresh } = useAccountsAndFx()
+  const { wealth, history, loading: wealthLoading, error: wealthError } = useCanonicalWealth()
   const { fmt } = usePrefs()
   const [editing, setEditing] = useState(null)
   const [viewingAccount, setViewingAccount] = useState(null)
-  const [history, setHistory] = useState([])
   const [groupBy, setGroupBy] = useState('type')
   // Transactions for the card-cycle totals and the detail view's spending
   // history. 220 days covers the open cycle plus roughly six prior ones (the
@@ -103,8 +124,9 @@ export default function Accounts({ onNavigate }) {
   const forecastMonthlyDefaults = useMemo(() => computeMonthlyAssumptions(yearIncome, yearTxns, fxRates, 12), [yearIncome, yearTxns, fxRates])
 
   const forecastProjection = useMemo(() => {
-    if (!forecastAssumptions) return null
-    const startNetWorth = participatingNetWorth(accounts, fxRates, forecastAssumptions.participatingAccountIds)
+    if (!forecastAssumptions || !wealth) return null
+    const startNetWorth = participatingCanonicalNetWorth(wealth.accounts, forecastAssumptions.participatingAccountIds)
+    if (startNetWorth === null) return null
     const events = [
       ...forecastEvents,
       {
@@ -121,7 +143,7 @@ export default function Accounts({ onNavigate }) {
       years: FORECAST_YEARS,
       events,
     })
-  }, [forecastAssumptions, forecastEvents, accounts, fxRates])
+  }, [forecastAssumptions, forecastEvents, wealth])
 
   async function saveForecastAssumptions(assumptions) {
     await upsertSetting(FORECAST_SETTING_KEY, assumptions)
@@ -147,37 +169,19 @@ export default function Accounts({ onNavigate }) {
     setEditingForecastEvent(null)
   }
 
-  // Net worth still counts investments — they're part of what the household is
-  // worth, they just aren't listed on this screen.
-  const totals = useMemo(() => {
-    let assets = 0
-    let liabilities = 0
-    let investments = 0
-    for (const a of accounts) {
-      const aed = toAED(Number(a.value) || 0, a.currency, fxRates)
-      if (a.is_liability) liabilities += aed
-      else {
-        assets += aed
-        if (a.type === 'investment') investments += aed
-      }
-    }
-    return { assets, liabilities, investments, netWorth: assets - liabilities }
-  }, [accounts, fxRates])
-
-  // Record today's net worth, then read history back. Upsert-by-day means
-  // reopening the app doesn't create duplicate points.
-  useEffect(() => {
-    if (loading || accounts.length === 0) return
-    let cancelled = false
-    recordDailyNetWorth(accounts, fxRates)
-      .catch(() => null)
-      .then(() => listDailyNetWorth(90))
-      .then((rows) => !cancelled && setHistory(rows))
-      .catch(() => !cancelled && setHistory([]))
-    return () => {
-      cancelled = true
-    }
-  }, [loading, accounts, fxRates])
+  const balance = wealth?.balance ?? null
+  const investmentMetrics = wealth?.investments ?? null
+  const canonicalAccounts = useMemo(() => wealth?.accounts ?? [], [wealth])
+  const canonicalById = useMemo(
+    () => new Map(canonicalAccounts.map((account) => [account.id, account])),
+    [canonicalAccounts]
+  )
+  const totals = {
+    assets: balance?.assets_aed ?? null,
+    liabilities: balance?.liabilities_aed ?? null,
+    investments: investmentMetrics?.investment_value_aed ?? null,
+    netWorth: balance?.net_worth_aed ?? null,
+  }
 
   function refreshRecentTxns() {
     const from = new Date(Date.now() - 220 * 86400000).toISOString().slice(0, 10)
@@ -194,15 +198,16 @@ export default function Accounts({ onNavigate }) {
   const listed = accounts.filter(INVESTMENTS_EXCLUDED)
   const cards = listed.filter((a) => a.type === 'credit_card')
   const bankAccounts = listed.filter((a) => a.type === 'cash' || a.type === 'fixed_deposit')
-  const assetGroups = groupByType(listed.filter((a) => !a.is_liability), ASSET_TYPES, fxRates)
-  const liabilityGroups = groupByType(listed.filter((a) => a.is_liability), LIABILITY_TYPES, fxRates)
+  const assetGroups = groupByType(listed.filter((a) => !a.is_liability), ASSET_TYPES, canonicalById)
+  const liabilityGroups = groupByType(listed.filter((a) => a.is_liability), LIABILITY_TYPES, canonicalById)
 
   const compositionGroups = useMemo(() => {
     const byKey = new Map()
-    for (const a of accounts) {
-      if (a.is_liability) continue
-      const key = groupBy === 'owner' ? a.owner : a.type
-      byKey.set(key, (byKey.get(key) || 0) + toAED(Number(a.value) || 0, a.currency, fxRates))
+    if (canonicalAccounts.some((account) => account.quality_status === 'incomplete')) return []
+    for (const account of canonicalAccounts) {
+      if (account.is_liability) continue
+      const key = groupBy === 'owner' ? account.owner ?? 'Unassigned' : account.type
+      byKey.set(key, (byKey.get(key) || 0) + account.canonical_value_aed)
     }
     return colorizeGroups(
       Array.from(byKey, ([key, value]) => ({
@@ -211,11 +216,16 @@ export default function Accounts({ onNavigate }) {
         value,
       }))
     )
-  }, [accounts, fxRates, groupBy])
+  }, [canonicalAccounts, groupBy])
 
-  const chartPoints = history.map((h) => ({ label: shortDay(h.day), value: Number(h.total_aed) }))
-  const firstValue = chartPoints[0]?.value
-  const change = chartPoints.length > 1 ? totals.netWorth - firstValue : null
+  const chartPoints = history.map((point) => ({
+    label: shortDay(point.day),
+    value: point.total_aed === null ? null : Number(point.total_aed),
+    status: point.history_status,
+    statusLabel: HISTORY_LABELS[point.history_status],
+  }))
+  const firstValue = chartPoints.find((point) => point.value !== null)?.value
+  const change = firstValue !== undefined && totals.netWorth !== null ? totals.netWorth - firstValue : null
   const changePct = change !== null && firstValue ? (change / Math.abs(firstValue)) * 100 : null
 
   async function handleSave(values) {
@@ -232,7 +242,7 @@ export default function Accounts({ onNavigate }) {
     await refresh()
   }
 
-  if (loading) {
+  if (accountsLoading || wealthLoading) {
     return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading accounts…</div>
   }
 
@@ -254,11 +264,19 @@ export default function Accounts({ onNavigate }) {
           {error}
         </p>
       )}
+      {wealthError && (
+        <p role="alert" className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {wealthError}
+        </p>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
         <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
           <div className="mb-3 flex items-baseline justify-between">
-            <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Net worth</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Net worth</p>
+              {balance && <WealthQualityBadge quality={balance.quality_status} />}
+            </div>
             {change !== null && (
               <span className={`tnum text-xs font-medium ${change < 0 ? 'text-neg-600' : 'text-pos-600'}`}>
                 {change >= 0 ? '▲' : '▼'} {fmt(Math.abs(change))}
@@ -266,42 +284,48 @@ export default function Accounts({ onNavigate }) {
               </span>
             )}
           </div>
-          <AnimatedNumber
-            value={totals.netWorth}
-            format={fmt}
-            className="tnum block text-3xl font-semibold tracking-tight text-ink-900"
-          />
+          {totals.netWorth === null
+            ? <span className="tnum block text-3xl font-semibold tracking-tight text-ink-400">—</span>
+            : <AnimatedNumber
+                value={totals.netWorth}
+                format={fmt}
+                className="tnum block text-3xl font-semibold tracking-tight text-ink-900"
+              />}
           <div className="mt-4">
             <LineChart points={chartPoints} formatValue={fmt} height={190} />
           </div>
-          {chartPoints.length <= 1 && (
-            <p className="mt-2 text-xs text-ink-400">
-              History starts today — a point is recorded each day you open the app.
-            </p>
-          )}
+          <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-ink-500" aria-label="History quality legend">
+            <HistoryLegend label="Complete" className="bg-pos-50 text-pos-700" />
+            <HistoryLegend label="Provisional" className="bg-amber-50 text-amber-800" />
+            <HistoryLegend label="Legacy" className="bg-ink-100 text-ink-600" />
+            <HistoryLegend label="Gap / skipped" className="border border-dashed border-ink-300 text-ink-500" />
+          </div>
         </div>
 
         <aside className="space-y-4">
           <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
             <h3 className="mb-3 text-sm font-semibold text-ink-900">Summary</h3>
-            <SummaryRow label="Assets" value={fmt(totals.assets)} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
+            <SummaryRow label="Assets" value={displayCanonicalMoney(totals.assets, fmt)} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
             <div className="my-2 h-2 w-full overflow-hidden rounded-full bg-ink-100">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-pos-500 to-brand-500"
                 style={{
-                  width: `${totals.assets > 0 ? Math.min(100, ((totals.assets - totals.liabilities) / totals.assets) * 100) : 0}%`,
+                  width: `${totals.assets > 0 && totals.liabilities !== null ? Math.min(100, ((totals.assets - totals.liabilities) / totals.assets) * 100) : 0}%`,
                 }}
               />
             </div>
             <SummaryRow
               label="Liabilities"
-              value={fmt(totals.liabilities)}
+              value={displayCanonicalMoney(totals.liabilities, fmt)}
               tone="neg"
               onClick={() => scrollToGroup(liabilityGroups[0]?.type)}
             />
             <div className="mt-3 space-y-1.5 border-t border-ink-100 pt-3 text-xs">
-              <SummaryRow small label="Investments" value={fmt(totals.investments)} onClick={() => onNavigate?.('Investments')} />
-              <SummaryRow small label="Cash & other" value={fmt(totals.assets - totals.investments)} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
+              <SummaryRow small label="Investments" value={displayCanonicalMoney(totals.investments, fmt)} onClick={() => onNavigate?.('Investments')} />
+              <SummaryRow small label="Cash & other" value={displayCanonicalMoney(
+                totals.assets !== null && totals.investments !== null ? totals.assets - totals.investments : null,
+                fmt
+              )} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
             </div>
           </div>
 
@@ -382,11 +406,11 @@ export default function Accounts({ onNavigate }) {
         onSelect={setViewingCard}
       />
 
-      <BankSection accounts={bankAccounts} fmt={fmt} fxRates={fxRates} onSelect={setViewingAccount} onAdd={() => setEditing('new')} />
+      <BankSection accounts={bankAccounts} fmt={fmt} canonicalById={canonicalById} onSelect={setViewingAccount} onAdd={() => setEditing('new')} />
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <AccountGroupList title="Assets" groups={assetGroups} onSelect={setViewingAccount} fmt={fmt} fxRates={fxRates} />
-        <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={setViewingAccount} fmt={fmt} fxRates={fxRates} />
+        <AccountGroupList title="Assets" groups={assetGroups} onSelect={setViewingAccount} fmt={fmt} canonicalById={canonicalById} />
+        <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={setViewingAccount} fmt={fmt} canonicalById={canonicalById} />
       </div>
 
       {listed.length === 0 && (
@@ -494,6 +518,12 @@ function ForecastSection({ loaded, assumptions, projection, events, fmt, onSetup
           </button>
         </div>
       </div>
+
+      {!projection && (
+        <p className="mb-4 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-500">
+          Forecast unavailable because at least one participating canonical account value is incomplete.
+        </p>
+      )}
 
       {retirementPoint && (
         <div className="mb-4 grid grid-cols-2 gap-3">
@@ -665,13 +695,14 @@ function CardsSection({ cards, transactions, fxRates, fmt, today, onEdit, onSele
 }
 
 /** Bank and cash accounts, with their balances. */
-function BankSection({ accounts, fmt, fxRates, onSelect, onAdd }) {
-  const total = accounts.reduce((sum, a) => sum + toAED(Number(a.value) || 0, a.currency, fxRates), 0)
+function BankSection({ accounts, fmt, canonicalById, onSelect, onAdd }) {
+  const values = accounts.map((account) => canonicalById.get(account.id)?.canonical_value_aed ?? null)
+  const total = values.some((value) => value === null) ? null : values.reduce((sum, value) => sum + value, 0)
   return (
     <section className="mt-6">
       <div className="mb-2 flex items-baseline justify-between">
         <h3 className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">Bank &amp; cash</h3>
-        {accounts.length > 0 && <span className="tnum text-xs font-medium text-ink-600">{fmt(total)}</span>}
+        {accounts.length > 0 && <span className="tnum text-xs font-medium text-ink-600">{displayCanonicalMoney(total, fmt)}</span>}
       </div>
       <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
         {accounts.length === 0 ? (
@@ -703,7 +734,7 @@ function BankSection({ accounts, fmt, fxRates, onSelect, onAdd }) {
               </span>
               <span className="shrink-0 text-right">
                 <span className="tnum block text-sm font-semibold text-ink-900">
-                  {fmt(toAED(Number(a.value) || 0, a.currency, fxRates))}
+                  {displayCanonicalMoney(canonicalById.get(a.id)?.canonical_value_aed, fmt)}
                 </span>
                 {a.currency !== 'AED' && (
                   <span className="tnum block text-xs text-ink-400">
@@ -717,6 +748,19 @@ function BankSection({ accounts, fmt, fxRates, onSelect, onAdd }) {
       </div>
     </section>
   )
+}
+
+function WealthQualityBadge({ quality }) {
+  const styles = quality === 'complete'
+    ? 'bg-pos-50 text-pos-700'
+    : quality === 'provisional'
+      ? 'bg-amber-50 text-amber-800'
+      : 'bg-ink-100 text-ink-600'
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${styles}`}>{quality}</span>
+}
+
+function HistoryLegend({ label, className }) {
+  return <span className={`rounded-full px-2 py-0.5 ${className}`}>{label}</span>
 }
 
 function SummaryRow({ label, value, tone, small, onClick }) {
@@ -738,17 +782,18 @@ function SummaryRow({ label, value, tone, small, onClick }) {
   )
 }
 
-function groupByType(accounts, typeDefs, fxRates) {
+function groupByType(accounts, typeDefs, canonicalById) {
   return typeDefs
     .map((t) => {
       const items = accounts.filter((a) => a.type === t.value)
-      const subtotalAED = items.reduce((sum, a) => sum + toAED(Number(a.value) || 0, a.currency, fxRates), 0)
+      const values = items.map((account) => canonicalById.get(account.id)?.canonical_value_aed ?? null)
+      const subtotalAED = values.some((value) => value === null) ? null : values.reduce((sum, value) => sum + value, 0)
       return { type: t.value, items, subtotalAED }
     })
     .filter((g) => g.items.length > 0)
 }
 
-function AccountGroupList({ title, groups, onSelect, fmt, fxRates }) {
+function AccountGroupList({ title, groups, onSelect, fmt, canonicalById }) {
   if (groups.length === 0) return null
   return (
     <div>
@@ -760,7 +805,7 @@ function AccountGroupList({ title, groups, onSelect, fmt, fxRates }) {
               <span className="text-sm font-medium text-ink-700">
                 {typeIcon(g.type)} {typeLabel(g.type)}
               </span>
-              <span className="tnum text-sm font-semibold text-ink-900">{fmt(g.subtotalAED)}</span>
+              <span className="tnum text-sm font-semibold text-ink-900">{displayCanonicalMoney(g.subtotalAED, fmt)}</span>
             </div>
             <ul>
               {g.items.map((a) => (
@@ -775,7 +820,7 @@ function AccountGroupList({ title, groups, onSelect, fmt, fxRates }) {
                       <span className="text-xs text-ink-400">{a.owner}</span>
                     </span>
                     <span className="shrink-0 pl-2 text-right">
-                      <span className="tnum block text-ink-700">{fmt(toAED(Number(a.value) || 0, a.currency, fxRates))}</span>
+                      <span className="tnum block text-ink-700">{displayCanonicalMoney(canonicalById.get(a.id)?.canonical_value_aed, fmt)}</span>
                       {a.currency !== 'AED' && (
                         <span className="tnum block text-[11px] text-ink-400">
                           {formatMoney(Number(a.value), a.currency, { decimals: 0 })}

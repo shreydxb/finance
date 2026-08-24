@@ -516,13 +516,14 @@ test('041 split identity reconciles new RPC writes; legacy identity gaps and sub
 
 test('041 outputs round in Postgres numeric at canonical two-decimal precision and never touch nw_daily history', async () => {
   await withTx(async (client) => {
-    await asMember(client)
-    const cash = await account(client, { value: 10 })
-    await transaction(client, cash, { amount: 1.005 })
+    await actAs(client, 'service_role')
     await client.query(
       `insert into nw_daily (day,total_aed,assets_aed,liabilities_aed)
        values ('2026-07-31',123.456,200,76.544)`
     )
+    await asMember(client)
+    const cash = await account(client, { value: 10 })
+    await transaction(client, cash, { amount: 1.005 })
     const p = await period(client)
     assert.equal(Number(p.consumption_spend_aed), 1.01)
     await client.query(`select * from canonical_balance_sheet()`)

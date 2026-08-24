@@ -22,6 +22,7 @@ on:
           - refresh-prices
           - refresh-fx
           - backup
+          - snapshot-net-worth
 
 env:
   PROJECT_REF: wrxqgfbolryveivgdjia
@@ -62,5 +63,14 @@ jobs:
       - name: Deploy backup
         if: ${{ inputs.functions == 'all' || inputs.functions == 'backup' }}
         run: supabase functions deploy backup --project-ref "$PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      # SHR-113 Phase A adds this manual deployment path but does not invoke it.
+      # Database apply, function secrets/deploy, and scheduler activation remain
+      # separate approval gates.
+      - name: Deploy snapshot-net-worth
+        if: ${{ inputs.functions == 'all' || inputs.functions == 'snapshot-net-worth' }}
+        run: supabase functions deploy snapshot-net-worth --project-ref "$PROJECT_REF"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
