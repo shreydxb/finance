@@ -142,11 +142,21 @@ Migration `041` implements additive security-invoker views/functions and split-o
 
 ## ADR-016 — Daily net worth is a qualified server-captured valuation close
 
-Status: accepted; Phase A repository implementation pending independent QA and production approval — 2026-08-24 — SHR-113
+Status: accepted, implemented, and applied to production through Phase B; scheduler remains inactive — 2026-08-24 — SHR-113
 
 `nw_daily` is the long-term daily authority; `nw_snapshots` remains deprecated. Existing daily rows are preserved as legacy facts with unknown provenance and are never silently recomputed. One logical run exists per Dubai reporting date, while append-only attempt events preserve every retry/failure and an immutable item manifest preserves the exact qualified valuation inputs of a publication.
 
 The point is a valuation close labeled by Dubai `target_day` and stamped with the actual `snapshot_at`; it does not imply all source facts existed before the target day's 23:59:59. Provider fetch and quote/session timestamps are distinct. Snapshot policy v1 freshness thresholds are local to SHR-113 and do not change SHR-111 canonical contracts.
 
 Only trusted service orchestration can claim/capture. Postgres/canonical contracts calculate money and fail closed: missing or invalid canonical inputs produce a `skipped_incomplete` run and no daily point. Complete and Provisional are explicit; no plausible partial balance sheet, revision, automatic replacement, historical reconstruction, or scheduler activation is permitted in Phase A. Accounts is a canonical-value/history reader and opening it has no snapshot write side effect.
+
+## ADR-017 — One post-close UTC job dispatches the previous Dubai reporting day
+
+Status: accepted Phase-C implementation plan; repository configuration pending independent review and production activation remains unauthorized — 2026-08-24 — SHR-113 / SHR-124
+
+The authoritative snapshot scheduler has one intended invocation per reporting day: one named pg_cron job runs at `0 22 * * *` in production GMT/UTC, which is 02:00 Asia/Dubai after the target day closed. The dispatcher derives the previous Dubai calendar day and sends it explicitly; the existing claim contract independently validates the same date boundary.
+
+There is no automatic cron retry window. Failures that reach orchestration remain durable in the logical run and append-only attempt model; an operator may recover only a still-missing past day through the existing protected `manual_recovery` contract. Target-day uniqueness, advisory locking, and immutable daily history prevent duplicate publication, replacement, or Legacy-row modification.
+
+The permanent scheduler configuration is version-controlled under `supabase/scheduler/` but deliberately separate from the portable application-schema migration chain, because applying it is a separately approved hosted-infrastructure gate. A private postgres-owned SECURITY INVOKER dispatcher reads the function URL, least-privilege platform JWT, and operator secret from Vault, pins an empty search path, and is executable by no API role. pg_cron/pg_net evidence and Edge logs provide transport observability; the existing snapshot run/attempt/item model remains the authoritative business evidence.
 

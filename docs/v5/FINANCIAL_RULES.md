@@ -49,11 +49,12 @@ Status: canonical invariants and current known semantics for SHR-108. An item ma
 - Internal transfers and credit-card payments do not change household net worth by themselves.
 - `nw_daily` is the daily history authority. Existing rows with null run provenance are immutable legacy facts; do not backfill, reconstruct, or rewrite them to make a chart continuous.
 - `nw_snapshots` is deprecated and remains unpopulated by SHR-113. Monthly views must derive from qualified `nw_daily` points without inventing missing days.
-- A Phase-A authoritative point is a Dubai reporting-date valuation close with its actual `snapshot_at`; it does not claim every source fact existed by Dubai 23:59:59.
+- An authoritative point is a Dubai reporting-date valuation close with its actual `snapshot_at`; it does not claim every source fact existed by Dubai 23:59:59.
 - Missing/invalid canonical monetary input publishes no `nw_daily` row. The logical run records `skipped_incomplete`; a plausible partial balance sheet is forbidden.
 - SHR-113 publication policy v1 alone requires FX fetched within six hours; quoted investments are Complete at a trustworthy provider quote/session age up to 36 hours, Provisional over 36 and through 96 hours after an evidenced failed refresh, and Incomplete beyond 96 hours or without a trustworthy provider timestamp. These thresholds do not alter SHR-111 canonical views.
 - Manual investments and valid older manual bank/liability balances are Provisional with age/reason evidence. Daily user reconfirmation is not required. Provider fetch time and provider quote/session time remain distinct facts.
 - One point may be published per Dubai day. Duplicate/concurrent execution is idempotent; an existing daily point is never automatically replaced. Phase A manual recovery may fill only a missing past day and does not promote/revise a published day.
+- Scheduling does not change publication policy: the Phase-C job has one intended post-close invocation per reporting day and no automatic retry window. A failed or missing day remains visible until protected operator recovery; it is never filled with partial or invented history.
 
 ## Budgets and recurring commitments
 
@@ -86,7 +87,7 @@ Relevant work should prove, as applicable:
 
 ## SHR-111 Phase A canonical contracts
 
-Status: accepted and applied to production through migration `042`. Home and Reports canonical consumer migration is implemented on SHR-122 pending independent code and preview QA; other consumers remain separately gated.
+Status: accepted and applied to production through migration `042`. Home, Reports, and Accounts canonical consumer migrations are production-applied and independently QA-passed through SHR-122/SHR-113 Phase B; other consumers remain separately gated.
 
 - `posted_income` is posted `income` rows. Recurring income remains expected/planned.
 - `consumption_spend` excludes typed transfers, legacy exact `Transfer`, and exact `Savings & Investments`. Uncategorised consumption counts; a negative category refund reduces it.

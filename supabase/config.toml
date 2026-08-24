@@ -33,7 +33,7 @@ verify_jwt = true
 [functions.backup]
 verify_jwt = true
 
-# SHR-113 Phase A source only. No production cron job is installed or active.
+# SHR-113 Phase B production function. No production cron job is installed or active.
 # A platform-verified JWT and SNAPSHOT_JOB_SECRET are both required; ordinary
 # signed-in browser sessions do not know the dedicated job secret.
 [functions.snapshot-net-worth]

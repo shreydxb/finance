@@ -1,10 +1,11 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. Production is verified through `042` as of 24 August 2026. Migration
-`043` is the additive SHR-113 authoritative snapshot foundation and is
-explicitly **NOT APPLIED** pending independent QA and separate production
-approval. Its scheduler is **INACTIVE / not installed**.
+order. Production is verified through `043` as of 24 August 2026. Migration
+`043` is the additive SHR-113 authoritative snapshot foundation and is applied
+with all nine existing Legacy rows unchanged. Its scheduler is **INACTIVE /
+not installed**; the separately gated Phase-C operational configuration lives
+under `supabase/scheduler/`.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
 `supabase migration list`; `008` onward do.
@@ -61,7 +62,7 @@ findings each one closes, and the verification evidence.
 | `040_harden_pending_actions_authorization` | Reproduces the deployed `037` table on clean databases; service-only guarded pending-action state machine | SHR-110 / SHR-120 |
 | `041_canonical_financial_metrics_phase_a` | Additive canonical ledger/income/account/goal views, period/balance/investment/budget functions, split identity, quality metadata — applied; production QA found the debt-quality predicate fixed by `042` | SHR-111 Phase A |
 | `042_fix_canonical_debt_quality` | Recreates only the security-invoker goal-progress view so positive target is save-up-only and pay-down quality uses starting balance + linked liability — applied | SHR-111 / SHR-121 |
-| `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — **NOT APPLIED** | SHR-113 Phase A |
+| `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — applied and independently production-QA-passed | SHR-113 Phase A/B |
 
 ## Rules
 
@@ -80,8 +81,9 @@ findings each one closes, and the verification evidence.
 
 ## Not applied, despite appearing in design docs
 
-`pg_cron` and `pg_net` are available and **not installed** — both are needed
-for the nightly backup schedule and future Telegram pushes.
+`pg_cron` and `pg_net` are available and **not installed**. SHR-113 Phase C
+proposes their separately reviewed hosted activation for one net-worth job;
+merging repository configuration alone does not install either extension.
 
 `accounts.statement_day` / `due_day` / `credit_limit` **were** in this list and
 are now applied as `035_statement_cycle`. The columns exist and are null on all
@@ -115,7 +117,8 @@ backfill. Independent production QA found one goal-quality predicate bug.
 not alter goal data or arithmetic; it only makes the existing goal-quality
 predicate follow the approved save-up/pay-down bases.
 
-`043_authoritative_net_worth_snapshots` is repository-only pending independent
-QA. It does not backfill, reconstruct, or update any existing `nw_daily` row;
-`nw_snapshots` remains untouched/deprecated. No pg_cron/pg_net job is installed
-by the migration or this phase.
+`043_authoritative_net_worth_snapshots` is applied and independently verified
+in production. It did not backfill, reconstruct, or update any existing
+`nw_daily` row; `nw_snapshots` remains untouched/deprecated. No pg_cron/pg_net
+job is installed by the migration. Phase-C activation remains a separate,
+explicitly reviewed operational step documented in `supabase/scheduler/`.

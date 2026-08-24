@@ -1,123 +1,161 @@
-# Our Money v5 handoff — SHR-113 Phase A
+# Our Money v5 handoff — SHR-113 Phase C scheduler review
 
-Date: 2026-08-24 (Asia/Dubai)
+Date: 24 August 2026
 
-Branch: `shreydxb1/shr-113-authoritative-net-worth-phase-a`
+Branch: `shreydxb1/shr-113-phase-c-scheduler`
 
-Production base: `main` merge `a3b864d92a55af532efea1fc8cd05aeac6953661` (tree-equivalent SHR-122 head `283cdd899521508fcee0ea33604f29cf290128fb`)
+Base: `1f39da032f21b1dd54c2b4846741504f3a5cbf73`
 
-Status: **IMPLEMENTED FOR INDEPENDENT QA. PRODUCTION STATE = NOT APPLIED. EDGE FUNCTION = NOT DEPLOYED. SCHEDULER = INACTIVE / NOT INSTALLED. DO NOT MERGE OR DEPLOY PRODUCTION.**
+Production application: **NOT APPLIED**
 
-The immutable final PR head SHA, PR URL, Deploy Preview URL/deploy ID, and verified preview `commit_ref` are recorded in the SHR-113 Linear implementation handoff after the final commit. They cannot be embedded in that same commit without changing its SHA.
+Scheduler: **OFF**
 
-## Delivered Phase-A contract
+The immutable PR head SHA and PR URL are recorded in the SHR-113/SHR-124
+Linear handoff after the final commit. They cannot be embedded in that commit
+without changing its SHA.
 
-- Corrected the independent-QA hosted-Supabase blocker without changing the
-  Phase-A contract: migration `043` now resolves pgcrypto as
-  `extensions.digest(...)`, matching a clean hosted project. The clean DB
-  harness installs pgcrypto in `extensions`, grants the same schema USAGE as
-  hosted Supabase, proves `public.digest(bytea,text)` is absent, and rejects a
-  migration source regression back to `public.digest(...)`.
+## Scope and outcome
 
-- Added migration `043_authoritative_net_worth_snapshots.sql` with one logical run per Dubai reporting date, append-only attempt/failure evidence, immutable per-published-run valuation items, deterministic SHA-256 input digest, and additive nullable `nw_daily` provenance.
-- Preserved every pre-existing `nw_daily` tuple and value. There is no migration `UPDATE`, backfill, reconstruction, interpolation, or guessed historical FX/price/account input. Null run provenance means legacy.
-- Kept `nw_snapshots` untouched/deprecated and read-only; SHR-113 never populates it.
-- Removed authenticated/anonymous history mutation. Household members retain RLS-governed read-only history/provenance access; authenticated outsiders see zero rows and anonymous callers have no table access.
-- Added service-role-only, pinned-search-path, `SECURITY INVOKER` claim/evidence/policy/capture contracts. Browser identities cannot execute them. Postgres canonical account contracts remain the financial engine.
-- Added snapshot publication policy `shr-113-snapshot-policy-v1` only in the SHR-113 evaluation layer: FX fetch age through six hours; provider quote/session-as-of through 36 hours Complete, over 36 through 96 hours Provisional when evidence permits, and missing/older invalid; manual investment and older valid bank/liability inputs Provisional with age/reason evidence. SHR-111 canonical views/functions were not changed.
-- Missing/invalid canonical monetary input records a `skipped_incomplete` run and publishes no `nw_daily` point. A plausible partial balance sheet is impossible.
-- Enforced valuation-close semantics: `target_day` is the Dubai reporting date, while actual `snapshot_at` and per-source as-of/fetch timestamps are retained. Capture before the Dubai day close is rejected.
-- Enforced one-publish-per-day idempotency, transaction/advisory-lock concurrency, immutable published evidence/items/daily points, append-only retries, and no automatic replacement/promotion. Manual recovery can fill only an explicit missing past day.
-- Added `accounts.price_quote_at` so provider quote/session time remains distinct from `price_updated_at` fetch/write time.
-- Extracted shared FX and investment provider modules and refactored the existing refresh Edge Functions to reuse them. HTTP success without valid provider content/timestamps is failure evidence; partial price success is explicit per account.
-- Added `snapshot-net-worth` Edge source. It checks both platform JWT configuration and a dedicated constant-time `SNAPSHOT_JOB_SECRET`, then claims, refreshes, appends evidence, and requests Postgres capture. It performs no net-worth arithmetic.
-- Removed the Accounts mount/open `nw_daily` upsert side effect and deleted the browser snapshot writer.
-- Migrated current Accounts net worth/assets/liabilities to `canonical_balance_sheet`, investment value to `canonical_investment_metrics`, and account/composition/forecast starting values to `v_canonical_accounts_aed`. Canonical unavailable stays unavailable; there is no legacy financial fallback.
-- Made history read-only and visually distinguishes Legacy, Complete, Provisional, skipped-incomplete, and genuine gaps. Null gaps break the chart rather than interpolating or becoming zero.
-- Added the provenance tables to encrypted backup dependency order.
-- Corrected production-status drift: production is through migration `042`; `043` is repository-only and not applied.
+Phase B is independently production-QA-passed. This branch adds the smallest
+repository-controlled Phase-C scheduler plan required to invoke the protected
+`snapshot-net-worth` orchestrator once after each Dubai reporting day closes.
+It does not change financial calculations, publication policy, schema
+migration `043`, RLS/grants, Edge orchestration, Accounts, history, or any
+production state.
 
-## Migration and schema intent
+A repository change is required because enabling hosted extensions, defining
+a permanent dispatcher/job, and preserving rollback instructions are durable
+infrastructure. The configuration is under `supabase/scheduler/`, deliberately
+outside the portable schema migration chain. Merge alone cannot activate it;
+production application remains a separately approved step.
 
-Only one migration is added:
+## Scheduler contract
 
-- `supabase/schema/043_authoritative_net_worth_snapshots.sql`
+- One job: `shr-113-authoritative-net-worth-close`.
+- Expression: `0 22 * * *` in production GMT/UTC.
+- Fire time: 22:00 UTC = 02:00 Asia/Dubai the following day.
+- Target: previous Dubai calendar day, closed two hours earlier.
+- One intended scheduled invocation per reporting day.
+- No automatic cron retry window.
+- pg_net request timeout: 120 seconds.
+- Same-name configuration reapplication updates the intended job rather than
+  introducing another named schedule.
 
-New tables:
+The dispatcher sends `trigger_kind=scheduled` plus the explicit previous-Dubai
+`target_day`. Existing Phase-B `claim_nw_snapshot_run` independently validates
+the target, serializes concurrent claims, and refuses Legacy/already-published
+dates. No revision, promotion, replacement, backfill, or reconstruction path is
+added.
 
-- `nw_snapshot_runs` — unique logical `target_day` and idempotency identity, lifecycle, actual capture time, final quality/evidence, source version, digest, and publication ID.
-- `nw_snapshot_attempt_events` — immutable phase/outcome/evidence events keyed by run + attempt; failed retries remain queryable.
-- `nw_snapshot_items` — immutable exact valuation inputs and quality for each account in a published run.
+## Security and secrets
 
-Additive columns:
+`private.dispatch_authoritative_net_worth_snapshot()` is SECURITY INVOKER with
+an empty pinned search path and fully qualified `vault`/`net` objects. PUBLIC,
+anon, authenticated, and service_role all have execution revoked. The
+postgres-owned cron job is its only caller.
 
-- `accounts.price_quote_at`.
-- Nullable `nw_daily.run_id`, `snapshot_at`, `published_at`, `quality_status`, `investment_value_aed`, `source_version`, `quality_evidence`, and `input_digest`.
+Three environment values are read from Supabase Vault by name only:
 
-There is no household ID because the current production model is one shared household with membership authorization. SHR-115 owns future household normalization.
+- `shr113_snapshot_endpoint`;
+- `shr113_snapshot_anon_jwt` — least-privilege legacy anon JWT for the existing
+  `verify_jwt=true` platform gate;
+- `shr113_snapshot_job_secret` — same newly rotated 256-bit value as the Edge
+  `SNAPSHOT_JOB_SECRET`.
 
-## Edge source/version intent
+The scheduler does not hold a service-role key. Repository files contain no
+endpoint, JWT, API key, or job-secret value. Activation fails closed before
+scheduling when a required Vault entry is absent or empty.
 
-- New function source: `supabase/functions/snapshot-net-worth/`.
-- Source version persisted on capture: `shr-113-phase-a-v1`.
-- Shared provider logic: `supabase/functions/_shared/fxRefresh.ts` and `priceRefresh.ts`.
-- `supabase/config.toml` keeps `verify_jwt = true` for the new function.
-- Required future secret: `SNAPSHOT_JOB_SECRET`, server/Vault only.
-- Intended future retry window (documentation only): `*/15 22-23 * * *` UTC, 02:00–03:45 Asia/Dubai, targeting the just-ended Dubai date.
-- Phase A installs no extension, Vault value, pg_net call, `cron.schedule`, or notification job. It deploys no Edge function.
+## Retry, recovery, and observability
 
-## Security model
+There is one cron invocation and no automatic retry. Provider/capture failures
+that reach Edge remain durable in the existing logical run and append-only
+attempt model. Protected operator `manual_recovery` may retry only an explicit
+still-missing past target day, preserving earlier failure evidence.
 
-- Authenticated household member: SELECT through membership RLS on daily history, runs, attempts, and items; no INSERT/UPDATE/DELETE and no execution of snapshot contracts.
-- Authenticated outsider: zero rows through RLS; no snapshot contract execution.
-- Anonymous: no table access and no snapshot contract execution.
-- Service role: minimum direct privileges required by the trusted `SECURITY INVOKER` workflow plus execution of four closed contracts. No browser-callable recovery RPC exists.
-- All four contracts pin `search_path = ''`, fully qualify data references, and revoke PUBLIC/anon/authenticated execution. No new `SECURITY DEFINER` function or view was introduced.
-- Published logical runs, attempt events, item manifests, and authoritative daily points are trigger-protected against mutation. Direct authenticated fabrication of legacy or authoritative history is denied.
+First-live-run QA must reconcile:
 
-## Validation evidence
+- `cron.job` and `cron.job_run_details`;
+- `net._http_response` within hosted pg_net's six-hour retention window;
+- Edge logs;
+- the target-day logical run and ordered attempt events;
+- item manifest, deterministic digest, source timestamps, quality, and totals;
+- one truthful Complete/Provisional daily point, or `skipped_incomplete` plus a
+  visible gap when required monetary inputs are invalid.
 
-Run on an isolated PostgreSQL 17.11 scratch cluster; production Supabase was not modified.
+A successful cron row proves asynchronous enqueue, not HTTP/provider/capture
+success. A transport/auth failure before claim is visible as a cron firing with
+no expected target-day run plus pg_net/Edge evidence. The non-destructive
+rollback file only marks the named job inactive and preserves all evidence.
 
-- Lint: PASS; five pre-existing React warnings only, no SHR-113 warning/error.
-- Full browser/Edge/function test suite: PASS — 511/511.
-- Production Vite build: PASS — 126 modules transformed. Existing large-chunk advisory only.
-- Clean database migration from empty: PASS — all 42 schema files through numbered migration `043` applied.
-- Complete DB integration: PASS — 88/88 against real PostgreSQL, including a
-  clean hosted-compatible pgcrypto layout with `extensions.digest` present and
-  `public.digest` absent.
-- Migration rerun/idempotency: PASS; `043` reruns inside the test transaction and preserves legacy `nw_daily` content plus physical tuple identity.
-- RLS/security catalog/advisor-shape regression: PASS for RLS, primary keys, grants, write policies, invoker mode, pinned search paths, and anon/authenticated function exposure.
-- Official Supabase CLI v2.115.0 `db lint --schema public,private --level warning --fail-on error`: PASS; only the pre-existing unrelated `create_goal_contribution.v_contribution` unused-variable warning.
-- Edge orchestration/provider tests: PASS, including secret rejection, execution ordering, provider timestamp separation, partial price success, FX failure, published no-op, and manual target forwarding.
-- Diff hygiene: `git diff --check` PASS.
+## Files
 
-Coverage includes duplicate same-day invocation, concurrent claim loser, Dubai UTC boundary and pre-close rejection, missing/stale FX, 36h/96h quote boundaries, missing provider timestamp, partial price refresh, manual investment, old bank/liability Provisional evidence, canonical incomplete account/liability skip, Complete and Provisional publication, skipped-incomplete without a point, retry evidence preservation, missing-day recovery, no replacement, household read, outsider/anonymous isolation, direct write/RPC denial, legacy tuple preservation, empty `nw_snapshots`, Accounts zero-write open path, canonical-only current Accounts values, and truthful gaps.
+- `supabase/scheduler/activate_authoritative_net_worth.sql`
+- `supabase/scheduler/disable_authoritative_net_worth.sql`
+- `supabase/scheduler/README.md`
+- `supabase/db-test/scheduler_config.test.mjs`
+- `supabase/db-test/README.md`
+- `docs/v5/ARCHITECTURE.md`
+- `docs/v5/DATA_MODEL.md`
+- `docs/v5/DECISIONS.md`
+- `docs/v5/FINANCIAL_RULES.md`
+- `docs/v5/HANDOFF.md`
+- `supabase/schema/README.md`
+- `supabase/functions/snapshot-net-worth/README.md`
+- `supabase/config.toml`
 
-## Production and rollback state
+There is no numbered schema migration, application source, Edge source, or
+frontend change.
 
-- Production database: unchanged; migration `043` **NOT APPLIED**.
-- Production `nw_daily`: unchanged; no repair, backfill, reconstruction, or new row.
-- Production `nw_snapshots`: unchanged/empty.
-- Production Edge Functions: unchanged; `snapshot-net-worth` **NOT DEPLOYED** and existing refresh functions are not redeployed by this handoff.
-- Production scheduler: **INACTIVE / NOT INSTALLED**. No pg_cron/pg_net/Vault change.
-- Netlify production: unchanged. The QA artifact is a Deploy Preview only.
-- Git `main`: unchanged; no merge.
+## Validation
 
-Operational rollback after any future separately approved application is additive disablement: disable the future schedule first, make the Edge endpoint unreachable/roll back its source, and roll back the frontend independently. Do not drop provenance schema, restore browser history writes, delete run evidence, or rewrite a published/legacy daily point.
+- `npm run lint`: PASS with the same five pre-existing React warnings and no
+  Phase-C warning/error.
+- `npm test`: PASS, 511/511 full app and Edge tests.
+- `npm run build`: PASS, 126 modules; the existing large-chunk advisory remains.
+- `npm run test:db`: PASS, 92/92 after applying all 42 schema files from empty.
+  This includes migration `043` rerun/idempotency, full snapshot/RLS/security
+  integration, and all four new scheduler source/security checks.
+- Supabase CLI 2.115 `db lint --schema public,private --level warning
+  --fail-on error`: PASS against the clean local database; no schema errors.
+- `git diff --check`, complete diff/status, secret-literal scan, and self-review:
+  PASS. No applied migration SQL, application source, Edge source, production
+  credential/value, or unrelated file changed.
 
-## Independent QA gate
+The first local database invocation correctly failed because the isolated
+server was not listening on the configured port. After starting the local test
+server, the clean from-empty rerun passed. The first db-lint connection refused
+TLS because the isolated server is non-TLS; rerunning the same pinned linter
+with local-only `sslmode=disable` passed. Neither transient setup failure
+contacted production or changed repository content.
 
-The child QA issue created from this handoff must verify the exact PR head and exact Deploy Preview commit:
+## Production baseline and boundary
 
-1. Schema applies from empty and reruns without changing a seeded legacy tuple; no existing history is backfilled.
-2. Grants, RLS, catalog mode/search paths, outsider/anon isolation, and direct authenticated write/RPC denial match the matrix above.
-3. Complete, Provisional, skipped-incomplete, duplicate, concurrent, retry, manual-recovery, timestamp, FX, price, and account/liability fixtures reproduce the DB evidence.
-4. Published run/items/daily evidence is immutable; failed attempt evidence survives retry; `nw_snapshots` remains empty.
-5. Edge orchestration has both gates, reuses shared provider logic, treats partial/invalid responses explicitly, and performs no financial calculation.
-6. Accounts open/mount makes zero snapshot mutations, current values come only from canonical contracts, and canonical unavailable never falls back.
-7. History labels Legacy/Complete/Provisional/skipped and leaves gaps unconnected and nonzero.
-8. Preview UI loads against current production (without migration `043`) through the read-only legacy compatibility path; its `commit_ref` equals the final PR head.
-9. Production database, Edge deployments, scheduler, Netlify production, and `main` remain unchanged throughout QA.
+Read-only verification before implementation confirmed:
 
-SHR-113 must remain open. Phase B production application and Phase C scheduler activation/first-run verification require separate explicit approvals.
+- main/production merge: `1f39da032f21b1dd54c2b4846741504f3a5cbf73`;
+- exactly 9 `nw_daily` rows, all Legacy;
+- zero runs, attempts, items, and `nw_snapshots` rows;
+- migration `043`, `accounts.price_quote_at`, deployed protected orchestrator,
+  and Phase-B canonical Accounts behavior present;
+- Vault installed with zero entries;
+- pg_cron and pg_net available but not installed; cron/net schemas absent;
+- no job, dispatch, snapshot invocation, or history mutation.
+
+This branch has not changed production Supabase, Edge Functions, Vault,
+Netlify, or financial data. It has not enabled pg_cron/pg_net or created a
+schedule. SHR-113 and SHR-124 remain open.
+
+## Independent review checks
+
+1. Confirm exact base/head and that no migration `043`, Edge, app, or financial
+   semantic changed.
+2. Review exact UTC/Dubai boundary and the one-job/no-auto-retry decision.
+3. Confirm Vault-only dual authentication, no service-role cron credential,
+   dispatcher mode/search path/ACL, and absence of secret literals.
+4. Confirm activation is separate from the portable migration chain and cannot
+   occur from merge alone.
+5. Confirm legacy/published protection and manual missing-day-only recovery
+   remain owned by the unchanged Phase-B contracts.
+6. Confirm rollback deactivates only the named job and retains all evidence.
+7. Keep scheduler OFF until a new exact-head production activation approval.

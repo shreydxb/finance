@@ -1,6 +1,6 @@
-# Authoritative net-worth snapshot orchestrator (SHR-113 Phase A)
+# Authoritative net-worth snapshot orchestrator (SHR-113)
 
-Production state: **NOT DEPLOYED**. Scheduler: **INACTIVE / not installed**.
+Production state: **DEPLOYED and protected**. Scheduler: **INACTIVE / not installed**.
 
 This function is a trusted orchestrator, not a financial engine. After both
 platform JWT verification and a constant-time `SNAPSHOT_JOB_SECRET` check, it:
@@ -17,17 +17,19 @@ separate evidence. HTTP 200 is not accepted as success when the parsed
 provider result or any required timestamp is invalid. The function never sums
 assets, liabilities, investments, or net worth.
 
-## Future activation contract (not Phase A)
+## Phase-C activation contract (repository-only pending independent review)
 
-The reviewed schedule is an independently enabled pg_cron/pg_net retry window:
-`*/15 22-23 * * *` UTC, corresponding to 02:00 through 03:45 Asia/Dubai. Each
-scheduled invocation targets the just-ended Dubai day; the first publish wins
-and later invocations are no-ops. URL/JWT/job-secret values must come from
-Vault, never source SQL or the browser.
+The Phase-C schedule has exactly one intended invocation per reporting day:
+`0 22 * * *` UTC, corresponding to 02:00 Asia/Dubai on the next calendar day.
+It targets the just-ended Dubai day. There is no automatic cron retry window;
+failed or missing days use the existing protected operator recovery contract.
+URL/JWT/job-secret values come from Vault, never source SQL or the browser.
 
-Phase A deliberately contains no `cron.schedule`, pg_net installation, Vault
-write, or production secret/deployment command. Deployment, migration apply,
-scheduler enablement, and first production publication remain separate gates.
+The reviewed activation and immediate-disable artifacts live under
+`supabase/scheduler/`. They remain separate from the portable schema migration
+chain and must not be applied before exact-head independent approval. See that
+directory's runbook for the authentication, observability, recovery, and
+rollback contract.
 
 Manual recovery is operator-only through the same authenticated/secret path
 with `trigger_kind: "manual_recovery"` and an explicit missing past
