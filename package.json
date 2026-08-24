@@ -8,13 +8,17 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test \"supabase/functions/**/*.test.ts\" \"src/**/*.test.js\"",
+    "test": "npm run test:node && npm run test:ui",
+    "test:node": "node --test \"supabase/functions/**/*.test.ts\" \"src/**/*.test.js\"",
+    "test:ui": "vitest run",
+    "test:visual": "npm run build && node scripts/run-visual-tests.mjs",
     "test:db:setup": "node supabase/db-test/setup-db.mjs",
     "test:db": "npm run test:db:setup && node --test \"supabase/db-test/**/*.test.mjs\"",
     "parity:canonical": "node supabase/db-test/canonical-parity.mjs",
     "demo:telegram": "node supabase/functions/telegram-intake/demo.ts"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "1.1.23",
     "@supabase/supabase-js": "^2.112.1",
     "@tailwindcss/vite": "^4.3.3",
     "react": "^19.2.8",
@@ -22,11 +26,19 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "jsdom": "30.0.1",
     "oxlint": "^1.75.0",
     "pg": "^8.23.0",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "4.1.11",
+    "vitest-axe": "0.1.0"
   }
 }

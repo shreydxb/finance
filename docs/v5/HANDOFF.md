@@ -1,170 +1,145 @@
-# Our Money v5 handoff — SHR-116 Phase 1 route foundation
+# Our Money v5 handoff — SHR-117 Phase 1 design-system foundation
 
 Date: 24 August 2026
 
-Branch: `shreydxb1/shr-116-phase-1-route-foundation`
+Branch: `shreydxb1/shr-117-phase-1-design-system-foundation`
 
-Base: `3df1a49b3a04bfb14cc52a90670fe374fa61fbf3`
+Base: `33cad0ef772497f7a0dd76c6d41b8ea554141e25`
 
-Production application: **UNCHANGED**
+Production application: **NOT APPLIED**
 
-Production Supabase / SHR-113 scheduler: **UNTOUCHED**
+Production Supabase / Edge Functions / RLS / SHR-113 scheduler: **UNTOUCHED**
 
-The immutable head SHA, PR URL, Netlify Deploy Preview URL, and deploy ID are
-recorded in the final SHR-116 Linear handoff after the last commit and preview.
-They cannot be embedded in that commit without changing its SHA.
+Production Netlify configuration and site: **UNCHANGED**
+
+The immutable final head SHA, PR URL, exact-head Netlify Deploy Preview URL,
+and deploy ID are recorded in the final SHR-117 Linear handoff after the last
+commit. They cannot be embedded in that commit without changing its SHA.
 
 ## Scope and outcome
 
-This branch implements only the independently approved Phase 1 route
-foundation. It replaces the app's in-memory screen identity with browser URL
-identity while deliberately retaining the current ten-item header navigation
-and existing production screen bodies.
+This branch implements only the independently approved SHR-117 Phase 1
+foundation. It adds a semantic token layer, deterministic standalone preview,
+presentation primitives, an accessible Radix Dialog foundation, fixture-only
+ChartFrame accessibility infrastructure, and automated UI/accessibility/visual
+coverage.
 
-It does not implement the four-item v5 sidebar, mobile bottom navigation,
-responsive shell redesign, capability relocation, Accounts split, Reports
-dissolution, FIRE/Forecast relocation or convergence, design-system work,
-Overview redesign, or any financial semantic change.
+It does not activate an AppShell, desktop sidebar, mobile bottom navigation,
+SHR-116 Phase 2, responsive screen migration, production chart rewrite,
+Sankey change, capability relocation, SHR-118 Overview, financial arithmetic,
+canonical metrics, Supabase, Edge Functions, RLS, Netlify configuration, or
+SHR-113 scheduler/history changes.
 
-## Canonical route matrix
+## Foundation inventory
 
-| Canonical route | Existing screen body reused in Phase 1 |
-| --- | --- |
-| `/overview` | Home |
-| `/money/activity` | Transactions |
-| `/money/budget` | Budget |
-| `/money/recurring` | Recurring |
-| `/money/insights` | Reports |
-| `/wealth/net-worth` | Accounts |
-| `/wealth/accounts` | Accounts |
-| `/wealth/investments` | Investments |
-| `/planning` | Goals |
-| `/planning/goals` | Goals |
-| `/planning/debt` | Debts |
-| `/planning/forecasts` | Accounts, including its unchanged forecast section |
-| `/settings` and approved Settings children | Settings |
+- Semantic light/dark roles for canvas/surfaces, text, borders, action/focus,
+  financial positive/negative, success/warning/danger/info/attention, and
+  matching soft/contrast roles.
+- Inter type aliases, 4 px spacing-compatible control sizes, named radii,
+  three elevation levels, 120/180/240 ms motion variables, reduced-motion
+  parity, named copy/form/detail/content/dense/shell widths, and the global
+  focus-visible contract.
+- `Button`, `IconButton`, `Field`, `Input`, `Select`, `Textarea`, `Checkbox`,
+  `Panel`, `Card`, `Amount`, `Percentage`, `MissingValue`, `Badge`, `Status`,
+  `EmptyState`, `LoadingState`, and `ErrorState`.
+- `OverlayRoot`, `OverlayTrigger`, `OverlayBackdrop`, `OverlaySurface`,
+  `Dialog`, and `ConfirmDialog` backed by `@radix-ui/react-dialog` for portal,
+  modal focus containment, Escape, inert background behavior, and focus
+  restoration. ConfirmDialog deliberately focuses Cancel first.
+- `QualityIndicator`, `FreshnessIndicator`, `ProvenanceDisclosure`, and
+  `AttentionIndicator`. Every quality/freshness/attention state, timestamp,
+  label, reason, and severity is caller-supplied; no inference is present.
+- `ChartFrame` and `ChartDataAlternative` with a named region, summary, and
+  keyboard-operable semantic data table. The preview chart uses deterministic
+  hard-coded fixture strings and geometry only.
+- `design-system.html` is a separate Vite build entry and does not enter the
+  production route registry or authentication flow.
 
-Approved Settings children are `/settings/household`,
-`/settings/preferences`, `/settings/categories`, `/settings/integrations`,
-`/settings/integrations/telegram`, and `/settings/data-sources`. Unknown
-Settings children are Not Found rather than silently opening Settings.
+No layout DSL, production shell primitive activation, icon library, global
+locale behavior, financial formatter, calculation, or data hook was added.
 
-`/` replaces to `/overview`. `/money` and `/wealth` replace to their approved
-defaults. Legacy aliases replace as follows:
+## Dependencies
 
-| Legacy alias | Canonical destination |
-| --- | --- |
-| `/home` | `/overview` |
-| `/transactions` | `/money/activity` |
-| `/reports` | `/money/insights` |
-| `/accounts` | `/wealth/accounts` |
-| `/investments` | `/wealth/investments` |
-| `/budget` | `/money/budget` |
-| `/recurring` | `/money/recurring` |
-| `/goals` | `/planning/goals` |
-| `/debts` | `/planning/debt` |
+- Runtime: `@radix-ui/react-dialog@1.1.23`.
+- Development: `vitest@4.1.11`, `jsdom@30.0.1`, Testing Library,
+  `vitest-axe@0.1.0`, Playwright `1.62.1`, and `@axe-core/playwright@4.13.0`.
+- The compatible transitive `nanoid` lock entry moved to the patched release;
+  final `npm audit --audit-level=high` reports zero vulnerabilities.
+- No icon dependency was added.
 
-Aliases preserve only route-specific allowlisted query parameters. Arbitrary
-keys and `returnTo` are removed. Redirects are replacement navigations and
-cannot loop.
+## Bundle comparison
 
-## URL and history behavior
+Baseline production build at the base SHA:
 
-- Activity filter/search/sort and the distinct `needsReview` / `unreviewed`
-  queues are URL state.
-- Recurring scope, list/calendar mode, cursor, and income filters are URL
-  state.
-- Insights section, period/cursor, view, grouping, Sankey grouping, and
-  comparison are URL state.
-- Accounts composition grouping and Investments owner/group/chart selection
-  are URL state.
-- Query updates use history replacement; destinations and details use history
-  pushes. Reload, direct open, Back, and Forward therefore preserve the
-  revisitable state without creating a history entry per filter keystroke.
-- Unknown authenticated paths render an application Not Found surface. They
-  never fall through to Overview.
-- Netlify's existing SPA rewrite remains unchanged and provides direct-open
-  delivery; the client owns route and Not Found semantics.
+- JS: 689.30 kB raw / 177.84 kB gzip.
+- CSS: 39.04 kB raw / 7.80 kB gzip.
 
-## Authentication and return targets
+Phase 1 multi-entry build effective production app load:
 
-An unauthenticated direct-open keeps the requested internal URL while showing
-the existing Login screen; successful authentication therefore resumes that
-destination without transient memory. `/login?returnTo=...` additionally
-accepts only a resolved canonical or legacy-aliased internal application route.
-Absolute URLs, protocol-relative URLs, backslash variants, login recursion,
-and unknown paths are rejected and fall back to `/overview` after
-authentication.
+- JS: 689.85 kB raw / 178.59 kB gzip (+0.55 kB raw / +0.75 kB gzip).
+- Shared CSS: 53.28 kB raw / 10.42 kB gzip (+14.24 kB raw / +2.62 kB gzip).
+- Standalone preview entry: 62.91 kB raw / 19.60 kB gzip, loaded only by
+  `design-system.html`.
 
-## Immutable detail routes
-
-Existing record surfaces now use immutable UUID routes:
-
-- `/money/activity/:transactionId`;
-- `/money/recurring/:recurringId`;
-- `/wealth/accounts/:accountId`;
-- `/wealth/investments/:accountId`;
-- `/planning/goals/:goalId`;
-- `/planning/debt/:goalId`.
-
-The existing list calls load the same rows they loaded before and open the
-matching existing detail/form after data arrives; no new Supabase read helper
-or query was introduced. A pushed detail records its exact parent URL so Close
-uses browser Back and restores filters. A direct-open detail has no assumed
-background entry, so Close replaces to a sensible canonical parent. Invalid or
-name-shaped IDs are Not Found.
-
-## Unsaved-edit protection
-
-Existing modal forms register dirty state only after a field changes. Primary
-destination navigation, detail Close/Back, browser Back/Forward, sign-out, and
-page unload cannot silently discard a dirty form. A rejected confirmation
-restores the current history entry. Successful saves/deletes use the existing
-mutation path and clear the guard as their form closes.
-
-## Financial and operational invariance
-
-- No financial arithmetic, canonical contract, Supabase query helper, mutation
-  helper, RLS policy, grant, migration, Edge Function, or Netlify production
-  configuration changed.
-- Existing Home, Reports, Accounts, Transactions, Recurring, Investments,
-  Budget, Goals, Debt, Settings, FIRE, and Forecast screen calculations and
-  calls remain their prior implementations.
-- No file under `supabase/` changed. No migration was added or applied.
-- SHR-113 cron, Vault secrets, Edge Functions, snapshot tables, `nw_daily`,
-  snapshot policy, scheduler evidence/history, and production Supabase
-  configuration were neither read-write accessed nor changed.
-- Production Netlify remains unchanged. Only the one explicitly requested
-  exact-head Deploy Preview is authorized for this handoff.
+The existing large single-application bundle is split into a 498.00 kB app
+entry and 191.85 kB shared runtime by the multi-page build; the effective
+comparison above sums the loaded JS rather than presenting that split as a
+false reduction.
 
 ## Validation
 
-- `npm run lint`: PASS with the same five pre-existing React warnings and no
-  new warning/error.
-- `npm test`: PASS, 524/524 full application and Edge tests. This includes 13
-  new route/history/security contract tests.
-- `npm run build`: PASS, 132 modules. The existing large-chunk advisory remains.
-- Local production-build browser QA: PASS. `/` replaced to `/overview` before
-  the auth boundary; `/transactions?search=rent&owner=Shrey&returnTo=...`
-  replaced to the safe canonical query; reload preserved it; Back/Forward
-  restored exact URLs; and unknown paths remained unknown at Login rather than
-  becoming Overview. The expected warning for absent local Vite Supabase
-  environment values was the only browser console warning.
+- `npm run lint`: PASS with the same five pre-existing warnings and no new
+  warning or error.
+- `npm test`: PASS, 524 existing Node/application/Edge tests plus 7 new UI
+  tests (531 total).
+- `npm run build`: PASS, 199 modules and both `index.html` and
+  `design-system.html` outputs.
+- `npm run test:visual`: PASS, 3 browser tests. Six deterministic baselines
+  cover 390×844, 768×1024, and 1440×900 in light and dark themes.
+- Browser axe: PASS across the full harness in light and dark themes with zero
+  violations. The initial dark danger-button contrast failure was corrected
+  with a theme-specific danger contrast token before baselines were accepted.
+- Overlay assertions: PASS for focus entry, modal focus containment, keyboard
+  Tab behavior, Escape, trigger focus restoration, and ConfirmDialog safe
+  default focus.
+- Form assertions: PASS for labels, help/error descriptions, required,
+  invalid, disabled, and loading semantics.
+- Browser assertions: PASS for 44 px default Button/IconButton targets,
+  2 px focus-visible ring, no mobile horizontal overflow with long labels,
+  reduced-motion overlay duration, and keyboard-opened chart data table.
+- Fixture assertions: PASS for long labels, large and negative values, missing
+  values, Complete/Provisional/Incomplete, stale, and review/attention states.
+- `npm audit --audit-level=high`: PASS, zero vulnerabilities.
 - `git diff --check`: PASS.
-- Prohibited-path review: PASS. No `supabase/`, `netlify.toml`, package,
-  financial data/helper, or scheduler file changed.
+
+## Invariance evidence
+
+- Production route registry, `App.jsx`, route helpers/tests, screen code, and
+  canonical/financial helpers are unchanged.
+- Financial calculations, accepted display-currency/source precision, and
+  application-wide locale behavior are unchanged. Primitives render supplied
+  strings and supplied semantic state only.
+- Existing Supabase data calls and mutation paths are unchanged.
+- No file under `supabase/` changed; no migration was added or applied.
+- Edge Functions, RLS, grants, production data, `nw_daily`, snapshot capture,
+  SHR-113 scheduling/history, Vault, and scheduler configuration are untouched.
+- `netlify.toml` and production Netlify configuration are unchanged. The only
+  deployment authorized is the one exact-head Deploy Preview recorded in
+  Linear. Production state remains **NOT APPLIED**.
 
 ## Independent QA checks
 
-1. Verify base/head, clean PR scope, and exact-head preview deploy ID.
-2. Exercise every canonical and legacy URL while authenticated, including
-   alias query sanitization and unknown-route Not Found.
-3. Verify direct-open, reload, Close, browser Back, and Forward for each UUID
-   detail family with a real existing record.
-4. Change a protected form field and reject navigation through a current top
-   tab, browser Back, detail Close, reload, and sign-out; confirm the edit is
-   not discarded.
-5. Confirm current screen results, data calls, mutations, and current ten-item
-   desktop/mobile navigation presentation are unchanged.
-6. Confirm there is no Supabase/SHR-113 diff or production action.
-7. Keep the PR unmerged and production unchanged until independent QA passes.
+1. Verify the base/head SHAs, PR scope, and exact-head deploy ID/URL in Linear.
+2. Open `/design-system.html` on the preview and inspect light/dark at mobile,
+   tablet, and desktop widths.
+3. Keyboard-test controls, quality/provenance disclosures, Dialog focus trap,
+   Escape/focus restoration, ConfirmDialog Cancel-first focus, and ChartFrame
+   data-table disclosure.
+4. Confirm long/large/negative/missing and quality/freshness/attention fixtures
+   remain legible without relying on color alone.
+5. Confirm canonical routes and authenticated production screens behave as at
+   the base SHA and that no production data request is made by the harness.
+6. Confirm no Supabase, Edge, RLS, Netlify configuration, SHR-113, calculation,
+   or production action occurred.
+7. Keep the PR unmerged and production unchanged. Phase 2 requires a separate
+   review gate.

@@ -1,9 +1,11 @@
 @import "tailwindcss";
+@import "./design-system/tokens.css";
+@import "./design-system/foundation.css";
 
-/* ── Design tokens ────────────────────────────────────────────────────────
-   One source of truth for colour, elevation and motion. Screens use these
-   via generated utilities (bg-ink-50, text-brand-600, shadow-card, …) so a
-   palette change happens here, not across nine screens.
+/* ── Legacy compatibility ramps ──────────────────────────────────────────
+   New foundation components consume semantic aliases from tokens.css.
+   Existing screens continue to use these raw ramps until the separately
+   reviewed convergence phase, so Phase 1 does not create a broad visual diff.
 
    Neutrals are cool-tinted rather than Tailwind's warm `stone` — greys with
    a slight blue cast read as "financial software" rather than "blog", and
@@ -23,11 +25,6 @@
   --color-ink-700: #363d4b;
   --color-ink-800: #212734;
   --color-ink-900: #121620;
-
-  /* Card/panel background. Separate from the ink scale because it is not
-     always literally white — in dark mode it sits *above* the page, not
-     below it, so it can't just be ink-50. */
-  --color-surface: #ffffff;
 
   /* Deliberately dark in BOTH themes — the net-worth hero and the login card
      are always-dark surfaces carrying white text. Using ink-900 for these was
@@ -90,7 +87,6 @@
   --color-ink-800: #e3e8ef;
   --color-ink-900: #f4f6f9;
 
-  --color-surface: #161c27;
   /* Lifted rather than identical, so the hero still separates from the page. */
   --color-night: #1c2434;
 
@@ -185,7 +181,8 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--color-ink-50);
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
   /* App-wide rather than per-figure: almost every number here is money, and
      lining figures keep columns aligned in every table without each component
      having to remember. Inter's tabular digits read fine in prose too. */
@@ -211,8 +208,8 @@ select option {
 
 /* Every interactive element gets a consistent, visible focus ring rather
    than the per-component `focus:border-*` the app used before. */
-:where(button, a, input, select, textarea):focus-visible {
-  outline: 2px solid var(--color-brand-500);
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -226,4 +223,13 @@ select option {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
 }
