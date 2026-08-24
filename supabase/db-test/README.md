@@ -84,6 +84,12 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   starting-balance/link failures, unchanged save-up bases, and unclamped negative
   raw debt progress. `canonical-parity.mjs` is a separate read-only pre-migration
   probe for production-compatible evidence.
+- **`scheduler_config.test.mjs`** — SHR-113 Phase C source/security contract:
+  exactly one named `0 22 * * *` job, previous-Dubai target derivation,
+  Vault-only dual authentication, no credential/endpoint literals,
+  SECURITY INVOKER plus empty search path and API-role revokes, and a
+  non-destructive exact-job disable path. The operational activation file is
+  intentionally not applied by the portable from-empty schema test.
 - **`constraints.test.ts`** — the zero-amount pair from 031, `group_kind` /
   `transfer_direction` pairing from 025, and `NULL` handling on
   `save_telegram_settings`'s person slots — bug 1 above.

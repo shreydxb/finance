@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through repository-only `043`. Production is verified through migration `042`; `043` is not applied.
+Status: semantic map of the schema represented by `supabase/schema/001` through `043`. Production is verified through migration `043`. The repository-only Phase-C scheduler configuration adds no financial table or publication semantic and remains inactive pending review.
 
 ## Reading this document
 
@@ -77,7 +77,7 @@ Migration `042`, now production-applied, additively corrects only goal-quality c
 
 ## Valuation and history
 
-### Net-worth snapshots — SHR-113 Phase A repository contract
+### Net-worth snapshots — SHR-113 production contract
 
 - `nw_daily` remains the daily AED history authority. Migration `043` adds only nullable provenance (`run_id`, actual `snapshot_at`/`published_at`, quality, investment value, source version, evidence, digest). Existing rows remain byte/content-identical and classify as legacy because provenance is null.
 - `nw_snapshot_runs` has one logical run/idempotency identity per Dubai target day. It records trigger, policy, lifecycle, final quality/evidence, digest, and publication identity.
@@ -89,6 +89,8 @@ Migration `042`, now production-applied, additively corrects only goal-quality c
 Published runs/items/authoritative daily points are immutable. Authenticated household members have RLS-governed read-only access; anonymous and outsiders cannot read, and browser identities cannot mutate or invoke capture contracts. Service-only SECURITY INVOKER contracts claim, append attempt evidence, apply SHR-113 policy v1, and atomically publish or record a skipped-incomplete run. The Edge orchestrator refreshes and records evidence only; Postgres canonical account contracts remain the money engine.
 
 This is snapshot provenance, not an event-sourced valuation ledger or contributions-versus-market attribution model. No dated historical FX/quote/account ledger is introduced and no history is reconstructed.
+
+Phase C proposes no new financial entity. Its operational configuration creates one private scheduler dispatcher and one named pg_cron job outside the portable schema migration chain. The job has no retry table of its own: durable outcomes and retries remain represented only by the existing logical run and append-only attempt/item evidence. Transport evidence lives in pg_cron/pg_net and Edge logs, not in authoritative financial tables.
 
 ## Household, settings, and access
 
