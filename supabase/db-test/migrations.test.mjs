@@ -91,6 +91,31 @@ test('043 is rerunnable and preserves legacy nw_daily content and physical tuple
   })
 })
 
+test('043 resolves pgcrypto digest from the hosted Supabase extensions schema', async () => {
+  const sql = readFileSync(new URL('../schema/043_authoritative_net_worth_snapshots.sql', import.meta.url), 'utf8')
+
+  assert.match(sql, /\bextensions\.digest\s*\(/, '043 must qualify digest through the hosted extensions schema')
+  assert.doesNotMatch(sql, /\bpublic\.digest\s*\(/, '043 must never depend on pgcrypto being installed in public')
+
+  await withTx(async (client) => {
+    const { rows } = await client.query(`
+      select
+        e.extnamespace = 'extensions'::regnamespace as pgcrypto_is_hosted_layout,
+        to_regprocedure('extensions.digest(bytea,text)') is not null as extensions_digest_exists,
+        to_regprocedure('public.digest(bytea,text)') is null as public_digest_absent,
+        has_schema_privilege('service_role', 'extensions', 'usage') as service_role_has_usage
+      from pg_extension e
+      where e.extname = 'pgcrypto'
+    `)
+
+    assert.equal(rows.length, 1, 'pgcrypto must be installed in the clean hosted-compatible fixture')
+    assert.equal(rows[0].pgcrypto_is_hosted_layout, true)
+    assert.equal(rows[0].extensions_digest_exists, true)
+    assert.equal(rows[0].public_digest_absent, true)
+    assert.equal(rows[0].service_role_has_usage, true)
+  })
+})
+
 test('039 moves the RLS helper out of public with minimum execution privileges', async () => {
   await withTx(async (client) => {
     const { rows } = await client.query(`

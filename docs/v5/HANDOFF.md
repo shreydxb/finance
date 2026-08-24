@@ -12,6 +12,13 @@ The immutable final PR head SHA, PR URL, Deploy Preview URL/deploy ID, and verif
 
 ## Delivered Phase-A contract
 
+- Corrected the independent-QA hosted-Supabase blocker without changing the
+  Phase-A contract: migration `043` now resolves pgcrypto as
+  `extensions.digest(...)`, matching a clean hosted project. The clean DB
+  harness installs pgcrypto in `extensions`, grants the same schema USAGE as
+  hosted Supabase, proves `public.digest(bytea,text)` is absent, and rejects a
+  migration source regression back to `public.digest(...)`.
+
 - Added migration `043_authoritative_net_worth_snapshots.sql` with one logical run per Dubai reporting date, append-only attempt/failure evidence, immutable per-published-run valuation items, deterministic SHA-256 input digest, and additive nullable `nw_daily` provenance.
 - Preserved every pre-existing `nw_daily` tuple and value. There is no migration `UPDATE`, backfill, reconstruction, interpolation, or guessed historical FX/price/account input. Null run provenance means legacy.
 - Kept `nw_snapshots` untouched/deprecated and read-only; SHR-113 never populates it.
@@ -76,7 +83,9 @@ Run on an isolated PostgreSQL 17.11 scratch cluster; production Supabase was not
 - Full browser/Edge/function test suite: PASS — 511/511.
 - Production Vite build: PASS — 126 modules transformed. Existing large-chunk advisory only.
 - Clean database migration from empty: PASS — all 42 schema files through numbered migration `043` applied.
-- Complete DB integration: PASS — 87/87 against real PostgreSQL.
+- Complete DB integration: PASS — 88/88 against real PostgreSQL, including a
+  clean hosted-compatible pgcrypto layout with `extensions.digest` present and
+  `public.digest` absent.
 - Migration rerun/idempotency: PASS; `043` reruns inside the test transaction and preserves legacy `nw_daily` content plus physical tuple identity.
 - RLS/security catalog/advisor-shape regression: PASS for RLS, primary keys, grants, write policies, invoker mode, pinned search paths, and anon/authenticated function exposure.
 - Official Supabase CLI v2.115.0 `db lint --schema public,private --level warning --fail-on error`: PASS; only the pre-existing unrelated `create_goal_contribution.v_contribution` unused-variable warning.

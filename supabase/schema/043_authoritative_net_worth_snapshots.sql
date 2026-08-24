@@ -711,7 +711,7 @@ begin
     group by i.account_type
   ) g;
 
-  select encode(public.digest(convert_to(
+  select encode(extensions.digest(convert_to(
     jsonb_build_object(
       'policy_version', 'shr-113-snapshot-policy-v1',
       'target_day', v_run.target_day,
