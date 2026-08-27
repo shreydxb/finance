@@ -16,6 +16,7 @@ import GoalForm from '../components/GoalForm'
 import ContributionForm from '../components/ContributionForm'
 import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
+import { ErrorState, LoadingState } from '../design-system'
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -156,7 +157,7 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
   const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
+    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   return (
@@ -173,9 +174,7 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
+        <div className="mb-4"><ErrorState title={error} /></div>
       )}
 
       {goals.length === 0 ? (

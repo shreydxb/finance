@@ -15,6 +15,7 @@ import { listAccounts, OWNERS } from '../lib/accounts'
 import RecurringForm from '../components/RecurringForm'
 import IncomeForm from '../components/IncomeForm'
 import { useRouteQueryState } from '../lib/useRouteQueryState'
+import { ErrorState, LoadingState } from '../design-system'
 
 const CURRENT_MONTH = new Date()
 const ROUTE_DEFAULTS = {
@@ -140,7 +141,7 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
+    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   // "Bills & EMIs" means things you pay. Recurring income rows were mixed in
@@ -187,9 +188,7 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
+        <div className="mb-4"><ErrorState title={error} /></div>
       )}
 
       {view === 'bills' ? (

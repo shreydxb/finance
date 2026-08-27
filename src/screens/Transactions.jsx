@@ -23,6 +23,7 @@ import { groupEntries, entryKey } from '../lib/transactionGroups'
 import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
 import { useRouteQueryState } from '../lib/useRouteQueryState'
+import { ErrorState, LoadingState } from '../design-system'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -356,7 +357,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
+    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   return (
@@ -426,9 +427,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
       )}
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
+        <div className="mb-4"><ErrorState title={error} /></div>
       )}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
