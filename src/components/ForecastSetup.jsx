@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Button } from '../design-system'
 import ProtectedForm from './ProtectedForm'
 
 /**
@@ -168,20 +169,21 @@ export default function ForecastSetup({ accounts, defaultMonthlyIncome, defaultM
           )}
 
           <div className="flex items-center gap-2 pt-2">
-            <button
+            <Button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+              loading={submitting}
+              className="flex-1"
             >
               {submitting ? 'Saving…' : 'Save'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onCancel}
-              className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+              intent="secondary"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </ProtectedForm>
       </div>

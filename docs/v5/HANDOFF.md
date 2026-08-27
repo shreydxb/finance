@@ -1,10 +1,10 @@
-# Our Money v5 handoff — SHR-117 Phase 2 Batch 1
+# Our Money v5 handoff — SHR-117 Phase 2 Batch 2
 
-Date: 27 August 2026
+Date: 28 August 2026
 
-Branch: `shreydxb1/shr-117-phase-2-batch-1-feedback`
+Branch: `shreydxb1/shr-117-phase-2-batch-2-form-actions`
 
-Base: `d0f80119f5b9d7f9c963938d0a94317ea6a799e0`
+Base: `bb70a532b6bf3ef9e82212c48dbc9d6011473218`
 
 Production application: **UNCHANGED**
 
@@ -13,137 +13,137 @@ Production Supabase / Edge Functions / RLS / SHR-113 scheduler: **UNTOUCHED**
 Production Netlify configuration and site: **UNCHANGED**
 
 The immutable final head SHA, PR URL, exact-head Netlify Deploy Preview URL,
-deploy ID, CI result, and final validation totals are recorded in the SHR-117
-Linear implementation handoff after the final commit. They cannot be embedded
-in that commit without changing its SHA.
+deploy ID, CI result, and final targeted verification are recorded in the
+SHR-117 Linear implementation handoff after the final commit. They cannot be
+embedded in that commit without changing its SHA.
 
 ## Scope and outcome
 
-This branch implements only the independently approved SHR-117 Phase 2 Batch 1
-passive page-feedback convergence.
+This branch implements only the independently approved SHR-117 Phase 2 Batch 2
+form action-footer convergence. The existing Save, Cancel, and conditional
+Delete controls now consume `Button` from the shipped `src/design-system`
+public surface in exactly these ten forms:
 
-The existing visible `Loading…` and caller-supplied load-error strings now use
-the shipped design-system `LoadingState` and `ErrorState` on:
+- AccountForm;
+- BudgetLimitForm;
+- CategoryForm;
+- ContributionForm;
+- ForecastEventForm;
+- ForecastSetup;
+- GoalForm;
+- IncomeForm;
+- RecurringForm;
+- TransactionForm.
 
-- Budget;
-- Debts;
-- Goals;
-- Recurring;
-- Settings;
-- Transactions.
+No field, adjacent control, overlay shell, dialog, confirmation, header action,
+card, empty state, chart, progress, quality indicator, value presentation, or
+other screen composition was migrated.
 
-Six copied loading recipes and six copied error-alert recipes were removed.
-Every error state remains inline and passive. No retry/action or new request
-was added.
+## Interaction behavior preserved
 
-## Behavior preserved
+- Visible labels remain exactly `Save`, `Saving…`, `Cancel`, and `Delete`.
+- Save remains the sole submit control, preserves the existing submitting
+  interval, and is disabled while pending. The shared loading affordance adds
+  `aria-busy` while retaining `Saving…` as its accessible name.
+- Cancel remains `type="button"`, preserves each existing `onCancel` callback,
+  and never submits.
+- Delete remains conditional, in the same Save / Cancel / Delete order, and
+  calls precisely the pre-existing handler expression. Account and Category
+  continue passing their record IDs. ForecastEvent, Goal, Income, Recurring,
+  and Transaction continue passing React's click event because their existing
+  markup directly supplied `onDelete`; this is intentionally locked by tests
+  rather than silently changing the callback contract.
+- No confirmation was added or changed. The two existing native `confirm()`
+  call sites elsewhere in Investments and Transactions remain untouched.
+- Validation, payload construction, `onSave`, request count/order, catch/error/
+  finally behavior, close behavior, and dirty-form/navigation guards are
+  unchanged.
 
-- Loader functions, Promise/request counts, effect ordering, state machines,
-  catches, error assignment, and loaded/error render ordering are unchanged.
-- Existing loading and error wording is byte-for-byte unchanged.
-- Existing route/query state, detail behavior, realtime refresh behavior,
-  screen composition outside the 12 presentation nodes, and mutation handlers
-  are unchanged.
-- Financial calculations, canonical metrics, formatting semantics, accepted
-  precision/currency behavior, and data queries are unchanged.
-- No adjacent buttons, fields, cards, empty states, dialogs, confirmations,
-  progress bars, quality indicators, values, or charts were migrated.
-- Home/Overview and SHR-118 are untouched.
-- SHR-116 Phase 2 shell/navigation remains unstarted.
+## Focused deterministic coverage
 
-## Focused regression coverage
+`src/components/form-actions.ui.test.jsx` provides four tests for every
+approved form (**40 total**):
 
-`src/screens/feedback-convergence.ui.test.jsx` contains three deterministic
-checks for each of the six screens (18 total):
+1. exact action order, visible labels, button types, sole submit control,
+   conditional Delete visibility, keyboard Cancel behavior, no accidental
+   submit/delete, and axe on the footer;
+2. exact valid payload, one `onSave` call, exact pending label, disabled and
+   `aria-busy` state, forced double-click protection, and restored Save state;
+3. create-mode Delete absence plus keyboard Delete activation with the exact
+   existing callback signature, without any data call or real destructive
+   mutation;
+4. rejected-save wording, one unchanged payload/callback, and the existing
+   finally path restoring an enabled Save control.
 
-1. initial loading exposes one shared status while preserving the exact
-   pre-existing loader/request count;
-2. a rejected load keeps the exact error inline, supplies one passive alert,
-   has no action, preserves loaded screen structure, makes no extra request,
-   and passes axe;
-3. a successful load preserves normal composition with no passive feedback
-   left visible and the same request count.
+All callbacks are deterministic mocks. No preview or production financial data
+is read or mutated by this suite.
 
-Settings coverage includes its existing four primary settings reads plus the
-four Telegram child reads after the main screen becomes renderable. The tests
-therefore lock the pre-existing eight-call error/normal-load behavior rather
-than hiding it behind the presentation migration.
+## Bundle and harness isolation
 
-## First-consumer bundle isolation
-
-The production screens intentionally import `LoadingState` and `ErrorState`
-from the approved `src/design-system/index.js` public surface.
-
-The first build showed that the two-entry graph would otherwise place the
-preview's broad design-system dependency graph in the normal application's
-shared chunk. `vite.config.js` now marks only `src/design-system/**` modules
-as side-effect-free for tree-shaking. Those files are pure React presentation
-modules; no component API or style changed.
-
-Exact base build:
-
-- normal app JS: 498.00 kB app + 191.85 kB shared =
-  **689.85 kB raw / 178.59 kB gzip**;
-- shared CSS: **53.28 kB raw / 10.42 kB gzip**;
-- standalone preview entry: **62.91 kB raw / 19.60 kB gzip**.
-
-Batch 1 build:
+Exact reviewed-base build (`bb70a532…`):
 
 - normal app JS: 497.73 kB app + 195.61 kB shared =
   **693.34 kB raw / 179.87 kB gzip**;
-- delta: **+3.49 kB raw / +1.28 kB gzip**;
-- shared CSS: **53.28 kB raw / 10.42 kB gzip**, unchanged;
-- standalone preview entry: **59.30 kB raw / 18.76 kB gzip**, with the used
-  state dependencies now in the shared chunk.
+- shared CSS: **53.28 kB raw / 10.42 kB gzip**;
+- standalone preview entry: **59.30 kB raw / 18.76 kB gzip**.
 
-`index.html` loads only the app and `States` chunks. It does not reference
-the `designSystem` preview entry. The fixture-only strings “SHR-117 · PHASE
-1”, “Design-system foundation”, and “Deterministic fixture data only” occur
-only in the `designSystem` entry and are absent from both normal app-loaded
-JS chunks.
+Batch 2 build before the immutable commit:
+
+- normal app JS: 494.97 kB app + 195.61 kB shared =
+  **690.58 kB raw / 179.90 kB gzip**;
+- delta: **−2.76 kB raw / +0.03 kB gzip**;
+- shared CSS: **53.22 kB raw / 10.42 kB gzip**;
+- standalone preview entry: **59.30 kB raw / 18.76 kB gzip**.
+
+`index.html` loads only the app and shared `States` chunks; it does not reference
+the `designSystem` preview entry. Searches of both normal app-loaded JS chunks
+find zero preview fixture strings and zero Dialog/Radix markers, including
+`SHR-117`, `Deterministic fixture`, `Design-system foundation`, `radix-dialog`,
+`DialogContent`, `DismissableLayer`, and `react-remove-scroll`. Those overlay
+dependencies remain confined to the standalone preview entry. No primitive,
+public API, design-system style, Vite configuration, or package changed.
 
 ## Validation
 
 Local validation completed before the immutable implementation commit:
 
-- focused feedback suite: **PASS — 18/18**;
-- `npm run lint`: PASS at the implementation stage with the same five
-  pre-existing warnings and no new warning/error;
-- `npm test`: **PASS — 524/524 Node/application/Edge tests and 25/25 UI
-  tests**;
+- focused form-action suite: **PASS — 40/40**;
+- `npm run lint`: PASS with the same five pre-existing warnings and no new
+  warning/error;
+- `npm test`: **PASS — 524/524 Node/application/Edge tests and 65/65 UI tests**;
 - `npm run build`: **PASS — 199 modules**, both application entries;
 - `npm run test:visual`: deterministic mobile/tablet/desktop light/dark
-  screenshots, browser axe, focus/target/reduced-motion checks — **PASS —
-  3/3**;
+  screenshots, browser axe, focus/target/reduced-motion checks — **PASS — 3/3**;
 - `git diff --check`: **PASS**;
-- exact-head GitHub Actions CI and targeted Deploy Preview verification are
-  recorded in the SHR-117 Linear handoff after push.
+- exact-head GitHub Actions CI and Deploy Preview verification are recorded in
+  SHR-117 after push.
 
 ## Explicit protected-state confirmation
 
-- No file under `supabase/` changed.
-- No migration, schema, RLS, grant, Auth, Storage, production data, or secret
-  change was made.
-- No Edge Function or Netlify Function changed.
-- `netlify.toml` and production Netlify configuration are unchanged.
-- No financial query, calculation, canonical contract, data call, or mutation
-  changed.
-- `App.jsx`, route helpers/tests, navigation, aliases, query-state handling,
-  and dirty guards are unchanged.
-- SHR-113 snapshot tables, capture, history, scheduler, cron, Vault, and
-  operational evidence are untouched.
+- No file under `supabase/` changed; schema, migrations, RLS, grants, Auth,
+  Storage, production data, and secrets are untouched.
+- No Edge Function, Netlify Function, `netlify.toml`, or production Netlify
+  configuration changed.
+- No financial query, calculation, canonical contract, value semantic, data
+  call, payload, or mutation changed.
+- `App.jsx`, route helpers/tests, navigation, aliases, query state, AppShell,
+  Overview/SHR-118, and `ProtectedForm` dirty guards are unchanged.
+- SHR-113 snapshot tables, capture/history pipeline, scheduler, cron, Vault,
+  and operational evidence are untouched.
 - No production deployment, merge, or production action is authorized by this
-  handoff. The PR must remain open and unmerged for lightweight independent QA.
+  handoff. The PR remains open and unmerged for targeted independent QA.
 
-## Lightweight independent QA entry points
+## Tier 2 targeted independent QA entry points
 
 1. Verify exact base/head, changed-file scope, CI, and Deploy Preview commit.
-2. Review the 12 presentation-node replacements and confirm no state/effect/
-   loader/data/mutation code changed.
-3. Confirm all 18 focused regression tests and full validation pass.
-4. Inspect representative Money, Planning, and Settings loading/error states
-   at targeted mobile/desktop light/dark widths; do not repeat the full app
-   matrix.
-5. Normal-load smoke the six affected canonical routes.
-6. Confirm the preview harness remains isolated and all protected production
-   systems remain untouched.
+2. Review only the ten footer substitutions and confirm no form state,
+   validation, payload, request, error, close, guard, or surrounding control
+   changed.
+3. Confirm all 40 focused tests and the full automated gate pass.
+4. Use mocked/non-destructive paths to target representative Money, Planning,
+   and Settings form footers at mobile and desktop widths: keyboard Save,
+   pending/double-submit protection, Cancel, conditional Delete visibility,
+   focus visibility, accessible names, and no horizontal overflow.
+5. Smoke representative normal-load routes without repeating the full
+   application browser matrix and without executing Delete against real data.
+6. Confirm preview-harness isolation and all protected systems remain untouched.
