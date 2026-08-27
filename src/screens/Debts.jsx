@@ -4,6 +4,7 @@ import { listAccounts } from '../lib/accounts'
 import { usePrefs } from '../lib/PrefsContext'
 import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
+import { ErrorState, LoadingState } from '../design-system'
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -95,7 +96,7 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
   const detail = debts.find((d) => d.id === detailId) ?? null
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
+    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   // Linked balances are converted before being summed: adding a USD card
@@ -125,9 +126,7 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
       </div>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
+        <div className="mb-4"><ErrorState title={error} /></div>
       )}
 
       {debts.length === 0 ? (

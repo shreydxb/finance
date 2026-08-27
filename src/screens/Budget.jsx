@@ -10,6 +10,7 @@ import { usePrefs } from '../lib/PrefsContext'
 import BudgetLimitForm from '../components/BudgetLimitForm'
 import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
+import { ErrorState, LoadingState } from '../design-system'
 
 export default function Budget() {
   // One FX source for compute and display alike — see MONEY-01.
@@ -66,7 +67,7 @@ export default function Budget() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
+    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   const actualByCategory = new Map()
@@ -145,9 +146,7 @@ export default function Budget() {
           </div>
 
           {error && (
-            <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-              {error}
-            </p>
+            <div className="mb-4"><ErrorState title={error} /></div>
           )}
 
           {BUDGET_GROUPS.map((group) => {

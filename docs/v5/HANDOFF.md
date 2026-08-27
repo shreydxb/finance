@@ -1,145 +1,149 @@
-# Our Money v5 handoff — SHR-117 Phase 1 design-system foundation
+# Our Money v5 handoff — SHR-117 Phase 2 Batch 1
 
-Date: 24 August 2026
+Date: 27 August 2026
 
-Branch: `shreydxb1/shr-117-phase-1-design-system-foundation`
+Branch: `shreydxb1/shr-117-phase-2-batch-1-feedback`
 
-Base: `33cad0ef772497f7a0dd76c6d41b8ea554141e25`
+Base: `d0f80119f5b9d7f9c963938d0a94317ea6a799e0`
 
-Production application: **NOT APPLIED**
+Production application: **UNCHANGED**
 
 Production Supabase / Edge Functions / RLS / SHR-113 scheduler: **UNTOUCHED**
 
 Production Netlify configuration and site: **UNCHANGED**
 
 The immutable final head SHA, PR URL, exact-head Netlify Deploy Preview URL,
-and deploy ID are recorded in the final SHR-117 Linear handoff after the last
-commit. They cannot be embedded in that commit without changing its SHA.
+deploy ID, CI result, and final validation totals are recorded in the SHR-117
+Linear implementation handoff after the final commit. They cannot be embedded
+in that commit without changing its SHA.
 
 ## Scope and outcome
 
-This branch implements only the independently approved SHR-117 Phase 1
-foundation. It adds a semantic token layer, deterministic standalone preview,
-presentation primitives, an accessible Radix Dialog foundation, fixture-only
-ChartFrame accessibility infrastructure, and automated UI/accessibility/visual
-coverage.
+This branch implements only the independently approved SHR-117 Phase 2 Batch 1
+passive page-feedback convergence.
 
-It does not activate an AppShell, desktop sidebar, mobile bottom navigation,
-SHR-116 Phase 2, responsive screen migration, production chart rewrite,
-Sankey change, capability relocation, SHR-118 Overview, financial arithmetic,
-canonical metrics, Supabase, Edge Functions, RLS, Netlify configuration, or
-SHR-113 scheduler/history changes.
+The existing visible `Loading…` and caller-supplied load-error strings now use
+the shipped design-system `LoadingState` and `ErrorState` on:
 
-## Foundation inventory
+- Budget;
+- Debts;
+- Goals;
+- Recurring;
+- Settings;
+- Transactions.
 
-- Semantic light/dark roles for canvas/surfaces, text, borders, action/focus,
-  financial positive/negative, success/warning/danger/info/attention, and
-  matching soft/contrast roles.
-- Inter type aliases, 4 px spacing-compatible control sizes, named radii,
-  three elevation levels, 120/180/240 ms motion variables, reduced-motion
-  parity, named copy/form/detail/content/dense/shell widths, and the global
-  focus-visible contract.
-- `Button`, `IconButton`, `Field`, `Input`, `Select`, `Textarea`, `Checkbox`,
-  `Panel`, `Card`, `Amount`, `Percentage`, `MissingValue`, `Badge`, `Status`,
-  `EmptyState`, `LoadingState`, and `ErrorState`.
-- `OverlayRoot`, `OverlayTrigger`, `OverlayBackdrop`, `OverlaySurface`,
-  `Dialog`, and `ConfirmDialog` backed by `@radix-ui/react-dialog` for portal,
-  modal focus containment, Escape, inert background behavior, and focus
-  restoration. ConfirmDialog deliberately focuses Cancel first.
-- `QualityIndicator`, `FreshnessIndicator`, `ProvenanceDisclosure`, and
-  `AttentionIndicator`. Every quality/freshness/attention state, timestamp,
-  label, reason, and severity is caller-supplied; no inference is present.
-- `ChartFrame` and `ChartDataAlternative` with a named region, summary, and
-  keyboard-operable semantic data table. The preview chart uses deterministic
-  hard-coded fixture strings and geometry only.
-- `design-system.html` is a separate Vite build entry and does not enter the
-  production route registry or authentication flow.
+Six copied loading recipes and six copied error-alert recipes were removed.
+Every error state remains inline and passive. No retry/action or new request
+was added.
 
-No layout DSL, production shell primitive activation, icon library, global
-locale behavior, financial formatter, calculation, or data hook was added.
+## Behavior preserved
 
-## Dependencies
+- Loader functions, Promise/request counts, effect ordering, state machines,
+  catches, error assignment, and loaded/error render ordering are unchanged.
+- Existing loading and error wording is byte-for-byte unchanged.
+- Existing route/query state, detail behavior, realtime refresh behavior,
+  screen composition outside the 12 presentation nodes, and mutation handlers
+  are unchanged.
+- Financial calculations, canonical metrics, formatting semantics, accepted
+  precision/currency behavior, and data queries are unchanged.
+- No adjacent buttons, fields, cards, empty states, dialogs, confirmations,
+  progress bars, quality indicators, values, or charts were migrated.
+- Home/Overview and SHR-118 are untouched.
+- SHR-116 Phase 2 shell/navigation remains unstarted.
 
-- Runtime: `@radix-ui/react-dialog@1.1.23`.
-- Development: `vitest@4.1.11`, `jsdom@30.0.1`, Testing Library,
-  `vitest-axe@0.1.0`, Playwright `1.62.1`, and `@axe-core/playwright@4.13.0`.
-- The compatible transitive `nanoid` lock entry moved to the patched release;
-  final `npm audit --audit-level=high` reports zero vulnerabilities.
-- No icon dependency was added.
+## Focused regression coverage
 
-## Bundle comparison
+`src/screens/feedback-convergence.ui.test.jsx` contains three deterministic
+checks for each of the six screens (18 total):
 
-Baseline production build at the base SHA:
+1. initial loading exposes one shared status while preserving the exact
+   pre-existing loader/request count;
+2. a rejected load keeps the exact error inline, supplies one passive alert,
+   has no action, preserves loaded screen structure, makes no extra request,
+   and passes axe;
+3. a successful load preserves normal composition with no passive feedback
+   left visible and the same request count.
 
-- JS: 689.30 kB raw / 177.84 kB gzip.
-- CSS: 39.04 kB raw / 7.80 kB gzip.
+Settings coverage includes its existing four primary settings reads plus the
+four Telegram child reads after the main screen becomes renderable. The tests
+therefore lock the pre-existing eight-call error/normal-load behavior rather
+than hiding it behind the presentation migration.
 
-Phase 1 multi-entry build effective production app load:
+## First-consumer bundle isolation
 
-- JS: 689.85 kB raw / 178.59 kB gzip (+0.55 kB raw / +0.75 kB gzip).
-- Shared CSS: 53.28 kB raw / 10.42 kB gzip (+14.24 kB raw / +2.62 kB gzip).
-- Standalone preview entry: 62.91 kB raw / 19.60 kB gzip, loaded only by
-  `design-system.html`.
+The production screens intentionally import `LoadingState` and `ErrorState`
+from the approved `src/design-system/index.js` public surface.
 
-The existing large single-application bundle is split into a 498.00 kB app
-entry and 191.85 kB shared runtime by the multi-page build; the effective
-comparison above sums the loaded JS rather than presenting that split as a
-false reduction.
+The first build showed that the two-entry graph would otherwise place the
+preview's broad design-system dependency graph in the normal application's
+shared chunk. `vite.config.js` now marks only `src/design-system/**` modules
+as side-effect-free for tree-shaking. Those files are pure React presentation
+modules; no component API or style changed.
+
+Exact base build:
+
+- normal app JS: 498.00 kB app + 191.85 kB shared =
+  **689.85 kB raw / 178.59 kB gzip**;
+- shared CSS: **53.28 kB raw / 10.42 kB gzip**;
+- standalone preview entry: **62.91 kB raw / 19.60 kB gzip**.
+
+Batch 1 build:
+
+- normal app JS: 497.73 kB app + 195.61 kB shared =
+  **693.34 kB raw / 179.87 kB gzip**;
+- delta: **+3.49 kB raw / +1.28 kB gzip**;
+- shared CSS: **53.28 kB raw / 10.42 kB gzip**, unchanged;
+- standalone preview entry: **59.30 kB raw / 18.76 kB gzip**, with the used
+  state dependencies now in the shared chunk.
+
+`index.html` loads only the app and `States` chunks. It does not reference
+the `designSystem` preview entry. The fixture-only strings “SHR-117 · PHASE
+1”, “Design-system foundation”, and “Deterministic fixture data only” occur
+only in the `designSystem` entry and are absent from both normal app-loaded
+JS chunks.
 
 ## Validation
 
-- `npm run lint`: PASS with the same five pre-existing warnings and no new
-  warning or error.
-- `npm test`: PASS, 524 existing Node/application/Edge tests plus 7 new UI
-  tests (531 total).
-- `npm run build`: PASS, 199 modules and both `index.html` and
-  `design-system.html` outputs.
-- `npm run test:visual`: PASS, 3 browser tests. Six deterministic baselines
-  cover 390×844, 768×1024, and 1440×900 in light and dark themes.
-- Browser axe: PASS across the full harness in light and dark themes with zero
-  violations. The initial dark danger-button contrast failure was corrected
-  with a theme-specific danger contrast token before baselines were accepted.
-- Overlay assertions: PASS for focus entry, modal focus containment, keyboard
-  Tab behavior, Escape, trigger focus restoration, and ConfirmDialog safe
-  default focus.
-- Form assertions: PASS for labels, help/error descriptions, required,
-  invalid, disabled, and loading semantics.
-- Browser assertions: PASS for 44 px default Button/IconButton targets,
-  2 px focus-visible ring, no mobile horizontal overflow with long labels,
-  reduced-motion overlay duration, and keyboard-opened chart data table.
-- Fixture assertions: PASS for long labels, large and negative values, missing
-  values, Complete/Provisional/Incomplete, stale, and review/attention states.
-- `npm audit --audit-level=high`: PASS, zero vulnerabilities.
-- `git diff --check`: PASS.
+Local validation completed before the immutable implementation commit:
 
-## Invariance evidence
+- focused feedback suite: **PASS — 18/18**;
+- `npm run lint`: PASS at the implementation stage with the same five
+  pre-existing warnings and no new warning/error;
+- `npm test`: **PASS — 524/524 Node/application/Edge tests and 25/25 UI
+  tests**;
+- `npm run build`: **PASS — 199 modules**, both application entries;
+- `npm run test:visual`: deterministic mobile/tablet/desktop light/dark
+  screenshots, browser axe, focus/target/reduced-motion checks — **PASS —
+  3/3**;
+- `git diff --check`: **PASS**;
+- exact-head GitHub Actions CI and targeted Deploy Preview verification are
+  recorded in the SHR-117 Linear handoff after push.
 
-- Production route registry, `App.jsx`, route helpers/tests, screen code, and
-  canonical/financial helpers are unchanged.
-- Financial calculations, accepted display-currency/source precision, and
-  application-wide locale behavior are unchanged. Primitives render supplied
-  strings and supplied semantic state only.
-- Existing Supabase data calls and mutation paths are unchanged.
-- No file under `supabase/` changed; no migration was added or applied.
-- Edge Functions, RLS, grants, production data, `nw_daily`, snapshot capture,
-  SHR-113 scheduling/history, Vault, and scheduler configuration are untouched.
-- `netlify.toml` and production Netlify configuration are unchanged. The only
-  deployment authorized is the one exact-head Deploy Preview recorded in
-  Linear. Production state remains **NOT APPLIED**.
+## Explicit protected-state confirmation
 
-## Independent QA checks
+- No file under `supabase/` changed.
+- No migration, schema, RLS, grant, Auth, Storage, production data, or secret
+  change was made.
+- No Edge Function or Netlify Function changed.
+- `netlify.toml` and production Netlify configuration are unchanged.
+- No financial query, calculation, canonical contract, data call, or mutation
+  changed.
+- `App.jsx`, route helpers/tests, navigation, aliases, query-state handling,
+  and dirty guards are unchanged.
+- SHR-113 snapshot tables, capture, history, scheduler, cron, Vault, and
+  operational evidence are untouched.
+- No production deployment, merge, or production action is authorized by this
+  handoff. The PR must remain open and unmerged for lightweight independent QA.
 
-1. Verify the base/head SHAs, PR scope, and exact-head deploy ID/URL in Linear.
-2. Open `/design-system.html` on the preview and inspect light/dark at mobile,
-   tablet, and desktop widths.
-3. Keyboard-test controls, quality/provenance disclosures, Dialog focus trap,
-   Escape/focus restoration, ConfirmDialog Cancel-first focus, and ChartFrame
-   data-table disclosure.
-4. Confirm long/large/negative/missing and quality/freshness/attention fixtures
-   remain legible without relying on color alone.
-5. Confirm canonical routes and authenticated production screens behave as at
-   the base SHA and that no production data request is made by the harness.
-6. Confirm no Supabase, Edge, RLS, Netlify configuration, SHR-113, calculation,
-   or production action occurred.
-7. Keep the PR unmerged and production unchanged. Phase 2 requires a separate
-   review gate.
+## Lightweight independent QA entry points
+
+1. Verify exact base/head, changed-file scope, CI, and Deploy Preview commit.
+2. Review the 12 presentation-node replacements and confirm no state/effect/
+   loader/data/mutation code changed.
+3. Confirm all 18 focused regression tests and full validation pass.
+4. Inspect representative Money, Planning, and Settings loading/error states
+   at targeted mobile/desktop light/dark widths; do not repeat the full app
+   matrix.
+5. Normal-load smoke the six affected canonical routes.
+6. Confirm the preview harness remains isolated and all protected production
+   systems remain untouched.

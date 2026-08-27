@@ -16,6 +16,7 @@ import { formatMoney } from '../lib/money'
 import { supabase } from '../lib/supabaseClient'
 import CategoryForm from '../components/CategoryForm'
 import { usePrefs } from '../lib/PrefsContext'
+import { ErrorState, LoadingState } from '../design-system'
 
 function formatRelativeTime(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -202,15 +203,13 @@ export default function Settings() {
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
+    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
-          {error}
-        </p>
+        <div className="mb-4"><ErrorState title={error} /></div>
       )}
 
       <div className="mb-6 rounded-2xl border border-ink-200 bg-surface shadow-card p-5">
