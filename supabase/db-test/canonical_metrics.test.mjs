@@ -482,7 +482,7 @@ test('041 split identity reconciles new RPC writes; legacy identity gaps and sub
     const { rows: split } = await client.query(
       `select * from replace_category_split(null, null, $1::jsonb, $2::jsonb)`,
       [
-        JSON.stringify({ date: START, currency: 'AED', account_id: cash }),
+        JSON.stringify({ date: START, currency: 'AED', account_id: cash, owner: 'Shrey' }),
         JSON.stringify([{ amount: 60, category: 'Groceries' }, { amount: 40, category: 'Dining' }]),
       ]
     )
@@ -506,10 +506,10 @@ test('041 split identity reconciles new RPC writes; legacy identity gaps and sub
 
     await assert.rejects(
       () => client.query(`select * from replace_category_split(null,null,$1::jsonb,$2::jsonb)`, [
-        JSON.stringify({ date: START, currency: 'AED', account_id: cash }),
+        JSON.stringify({ date: START, currency: 'AED', account_id: cash, owner: 'Shrey' }),
         JSON.stringify([{ amount: 1.005, category: 'Groceries' }]),
       ]),
-      /2-decimal precision/
+      /SHR126_AMOUNT_INVALID/
     )
   })
 })
