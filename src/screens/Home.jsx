@@ -81,7 +81,7 @@ export default function Home({ onNavigate }) {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <div>
         <p role="alert" className="rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
           {error}
         </p>
@@ -125,7 +125,7 @@ export default function Home({ onNavigate }) {
   const isEmpty = data.accounts.length === 0 && data.recent.length === 0
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div>
       {/* Desktop-first dashboard: hero + month stats span the top, then the
           three feeds sit side by side instead of stacking into a long phone
           column. Collapses to one column under lg. */}

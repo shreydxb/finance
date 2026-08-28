@@ -16,6 +16,7 @@ import RecurringForm from '../components/RecurringForm'
 import IncomeForm from '../components/IncomeForm'
 import { useRouteQueryState } from '../lib/useRouteQueryState'
 import { ErrorState, LoadingState } from '../design-system'
+import DetailShell from '../shell/RouteDetailShell'
 
 const CURRENT_MONTH = new Date()
 const ROUTE_DEFAULTS = {
@@ -87,11 +88,14 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
       if (editingEntry && editingEntry !== 'new') setEditingEntry(null)
       return
     }
-    if (entries.length === 0) return
+    if (entries.length === 0) {
+      setEditingEntry(null)
+      return
+    }
     const entry = entries.find((item) => item.id === detailId)
     if (entry) {
       setEditingEntry(entry)
-    }
+    } else setEditingEntry(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, detailId])
 
@@ -141,7 +145,9 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
   }
 
   if (loading) {
-    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
+    return detailId
+      ? <DetailShell title="Recurring details" backLabel="Recurring" loading onRequestClose={() => closeEntry()} />
+      : <LoadingState label="Loading…" />
   }
 
   // "Bills & EMIs" means things you pay. Recurring income rows were mixed in
@@ -160,7 +166,7 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
   const filteredIncome = income.filter((i) => (!personFilter || i.person === personFilter) && (!kindFilter || i.kind === kindFilter))
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
           <button
@@ -274,7 +280,7 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
             </div>
           )}
 
-          {editingEntry && (
+          {!detailId && editingEntry && (
             <RecurringForm
               entry={editingEntry === 'new' ? null : editingEntry}
               accounts={accounts}
@@ -384,6 +390,27 @@ export default function Recurring({ routeQuery, onRouteQueryChange, detailId, on
           )}
         </>
       )}
+
+      {detailId ? (
+        <DetailShell
+          title={editingEntry?.name ?? 'Recurring details'}
+          backLabel="Recurring"
+          error={error}
+          unavailable={!editingEntry}
+          onRequestClose={() => closeEntry()}
+        >
+          {editingEntry ? (
+            <RecurringForm
+              embedded
+              entry={editingEntry}
+              accounts={accounts}
+              onSave={handleSaveEntry}
+              onCancel={() => closeEntry()}
+              onDelete={handleDeleteEntry}
+            />
+          ) : null}
+        </DetailShell>
+      ) : null}
     </div>
   )
 }

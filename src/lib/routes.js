@@ -16,6 +16,66 @@ export const CANONICAL_DESTINATIONS = Object.freeze([
   '/settings',
 ])
 
+export const PRIMARY_NAV_ITEMS = Object.freeze([
+  { key: 'overview', label: 'Overview', href: '/overview' },
+  { key: 'money', label: 'Money', href: '/money/activity' },
+  { key: 'wealth', label: 'Wealth', href: '/wealth/net-worth' },
+  { key: 'planning', label: 'Planning', href: '/planning' },
+])
+
+export const SECONDARY_NAV_ITEMS = Object.freeze({
+  money: Object.freeze([
+    { key: 'activity', label: 'Activity', href: '/money/activity' },
+    { key: 'budget', label: 'Budget', href: '/money/budget' },
+    { key: 'recurring', label: 'Recurring', href: '/money/recurring' },
+    { key: 'insights', label: 'Insights', href: '/money/insights' },
+  ]),
+  wealth: Object.freeze([
+    { key: 'net-worth', label: 'Net worth', href: '/wealth/net-worth' },
+    { key: 'accounts', label: 'Accounts', href: '/wealth/accounts' },
+    { key: 'investments', label: 'Investments', href: '/wealth/investments' },
+  ]),
+  planning: Object.freeze([
+    { key: 'plan', label: 'Plan', href: '/planning' },
+    { key: 'goals', label: 'Goals', href: '/planning/goals' },
+    { key: 'debt', label: 'Debt payoff', href: '/planning/debt' },
+    { key: 'forecasts', label: 'Forecasts', href: '/planning/forecasts' },
+  ]),
+})
+
+const ROUTE_PRESENTATION = Object.freeze({
+  '/overview': { primary: 'overview', title: 'Overview', width: 'content' },
+  '/money/activity': { primary: 'money', secondary: 'activity', title: 'Activity', width: 'content' },
+  '/money/budget': { primary: 'money', secondary: 'budget', title: 'Budget', width: 'content' },
+  '/money/recurring': { primary: 'money', secondary: 'recurring', title: 'Recurring', width: 'detail' },
+  '/money/insights': { primary: 'money', secondary: 'insights', title: 'Insights', width: 'content' },
+  '/wealth/net-worth': { primary: 'wealth', secondary: 'net-worth', title: 'Net worth', width: 'content' },
+  '/wealth/accounts': { primary: 'wealth', secondary: 'accounts', title: 'Accounts', width: 'content' },
+  '/wealth/investments': { primary: 'wealth', secondary: 'investments', title: 'Investments', width: 'content' },
+  '/planning': { primary: 'planning', secondary: 'plan', title: 'Plan', width: 'detail' },
+  '/planning/goals': { primary: 'planning', secondary: 'goals', title: 'Goals', width: 'detail' },
+  '/planning/debt': { primary: 'planning', secondary: 'debt', title: 'Debt payoff', width: 'detail' },
+  '/planning/forecasts': { primary: 'planning', secondary: 'forecasts', title: 'Forecasts', width: 'content' },
+  '/settings': { utility: 'settings', title: 'Settings', width: 'detail' },
+})
+
+export function presentationForRoute(route) {
+  if (route?.kind === 'not-found') {
+    return { title: 'Page not found', width: 'detail', primary: null, secondary: null, secondaryItems: [] }
+  }
+  if (route?.kind !== 'screen') return null
+  const navigationPath = route.detail?.parentPath ?? route.pathname
+  const metadata = ROUTE_PRESENTATION[navigationPath]
+    ?? (SETTINGS_PATHS.has(navigationPath) ? ROUTE_PRESENTATION['/settings'] : null)
+  if (!metadata) return null
+  return {
+    ...metadata,
+    navigationPath,
+    secondaryItems: metadata.primary ? SECONDARY_NAV_ITEMS[metadata.primary] ?? [] : [],
+    detail: route.detail ?? null,
+  }
+}
+
 export const LEGACY_ALIASES = Object.freeze({
   '/': '/overview',
   '/home': '/overview',

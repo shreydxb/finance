@@ -269,7 +269,7 @@ export default function Reports({ routeQuery, onRouteQueryChange }) {
   if (loading) return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading…</div>
 
   if (!data || !headline || !stats) {
-    return <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6"><p role="alert" className="rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">{error}</p></div>
+    return <div><p role="alert" className="rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">{error}</p></div>
   }
 
   const sections = [
@@ -280,10 +280,9 @@ export default function Reports({ routeQuery, onRouteQueryChange }) {
   const maxFlow = Math.max(1, ...[headline.income, headline.consumption, headline.savingsMovement, headline.cashRetained, headline.cashFlow].filter((value) => value !== null).map(Math.abs))
 
   return (
-    <div className="stagger mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="stagger">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold tracking-tight text-ink-900">Reports</h2>
           <CanonicalQualityIndicator metrics={data.metrics} />
         </div>
         <div className="flex items-center gap-2">

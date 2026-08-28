@@ -3,9 +3,12 @@ import assert from 'node:assert/strict'
 import {
   CANONICAL_DESTINATIONS,
   LEGACY_ALIASES,
+  PRIMARY_NAV_ITEMS,
+  SECONDARY_NAV_ITEMS,
   detailHref,
   hrefWithQuery,
   parentHrefForDetail,
+  presentationForRoute,
   resolveAppHref,
   routeForScreen,
   safeInternalReturnTo,
@@ -45,6 +48,31 @@ test('every canonical destination direct-opens an existing production screen', (
     assert.equal(route.kind, 'screen', href)
     assert.equal(route.screen, screen, href)
     assert.equal(route.href, href, href)
+  }
+})
+
+test('shell exposes exactly four primary destinations and route-aware secondary hierarchy', () => {
+  assert.deepEqual(PRIMARY_NAV_ITEMS.map(({ label, href }) => [label, href]), [
+    ['Overview', '/overview'],
+    ['Money', '/money/activity'],
+    ['Wealth', '/wealth/net-worth'],
+    ['Planning', '/planning'],
+  ])
+  assert.deepEqual(Object.keys(SECONDARY_NAV_ITEMS), ['money', 'wealth', 'planning'])
+
+  const expectations = {
+    '/overview': ['Overview', 'overview', undefined, 0],
+    '/money/budget': ['Budget', 'money', 'budget', 4],
+    '/wealth/investments': ['Investments', 'wealth', 'investments', 3],
+    '/planning/debt': ['Debt payoff', 'planning', 'debt', 4],
+    '/settings/preferences': ['Settings', undefined, undefined, 0],
+  }
+  for (const [href, [title, primary, secondary, itemCount]] of Object.entries(expectations)) {
+    const presentation = presentationForRoute(resolveAppHref(href))
+    assert.equal(presentation.title, title, href)
+    assert.equal(presentation.primary, primary, href)
+    assert.equal(presentation.secondary, secondary, href)
+    assert.equal(presentation.secondaryItems.length, itemCount, href)
   }
 })
 
@@ -129,6 +157,9 @@ test('immutable-ID details direct-open without background state', () => {
     assert.equal(route.kind, 'screen', href)
     assert.equal(route.screen, screen, href)
     assert.deepEqual(route.detail, { kind, id: ID, parentPath }, href)
+    const presentation = presentationForRoute(route)
+    assert.equal(presentation.navigationPath, parentPath, href)
+    assert.equal(presentation.detail.id, ID, href)
   }
   assert.equal(resolveAppHref('/planning/goals/not-a-database-id').kind, 'not-found')
 })

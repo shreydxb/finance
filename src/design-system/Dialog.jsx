@@ -10,9 +10,9 @@ export const OverlayBackdrop = forwardRef(function OverlayBackdrop({ className, 
   return <DialogPrimitive.Overlay ref={ref} className={classes('ds-dialog-overlay', className)} {...props} />
 })
 
-export const OverlaySurface = forwardRef(function OverlaySurface({ children, className, ...props }, ref) {
+export const OverlaySurface = forwardRef(function OverlaySurface({ children, className, positionerClassName, ...props }, ref) {
   return (
-    <div className="ds-dialog-positioner">
+    <div className={classes('ds-dialog-positioner', positionerClassName)}>
       <DialogPrimitive.Content ref={ref} className={classes('ds-dialog-content', className)} {...props}>
         {children}
       </DialogPrimitive.Content>

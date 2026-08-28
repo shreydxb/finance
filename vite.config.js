@@ -17,6 +17,7 @@ export default defineConfig({
       input: {
         app: resolve(import.meta.dirname, 'index.html'),
         designSystem: resolve(import.meta.dirname, 'design-system.html'),
+        shellPreview: resolve(import.meta.dirname, 'shell-preview.html'),
       },
     },
   },

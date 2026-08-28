@@ -24,6 +24,7 @@ import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
 import { useRouteQueryState } from '../lib/useRouteQueryState'
 import { ErrorState, LoadingState } from '../design-system'
+import DetailShell from '../shell/RouteDetailShell'
 
 const EMPTY_FILTERS = {
   search: '',
@@ -118,11 +119,15 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
       if (editing && editing !== 'new') setEditing(null)
       return
     }
-    if (transactions.length === 0) return
+    if (transactions.length === 0) {
+      setEditing(null)
+      return
+    }
     const entry = groupEntries(transactions).find((e) =>
       e.kind === 'single' ? e.transaction.id === detailId : e.lines.some((line) => line.id === detailId)
     )
     if (entry) openEdit(entry)
+    else setEditing(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, detailId])
 
@@ -357,13 +362,14 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
   }
 
   if (loading) {
-    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
+    return detailId
+      ? <DetailShell title="Transaction details" backLabel="Activity" loading onRequestClose={() => closeEdit()} />
+      : <LoadingState label="Loading…" />
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold tracking-tight text-ink-900">Transactions</h2>
+    <div>
+      <div className="mb-4 flex items-center justify-end gap-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -472,7 +478,28 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
         </aside>
       </div>
 
-      {editing && (
+      {detailId ? (
+        <DetailShell
+          title="Transaction details"
+          backLabel="Activity"
+          error={error}
+          unavailable={!editing}
+          onRequestClose={() => closeEdit()}
+        >
+          {editing ? <TransactionForm
+            embedded
+            transaction={editing}
+            accounts={accounts}
+            categories={categories}
+            goals={goals}
+            rules={rules}
+            onSave={handleSave}
+            onCancel={() => closeEdit()}
+            onDelete={handleDelete}
+            onCreateRule={handleCreateRule}
+          /> : null}
+        </DetailShell>
+      ) : editing && (
         <TransactionForm
           transaction={editing === 'new' ? null : editing}
           accounts={accounts}

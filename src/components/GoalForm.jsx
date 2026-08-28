@@ -8,7 +8,7 @@ import ProtectedForm from './ProtectedForm'
  * you're creating is implied by which screen you're on, not a choice inside
  * the form.
  */
-export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAccounts = [], onSave, onCancel, onDelete }) {
+export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAccounts = [], onSave, onCancel, onDelete, embedded = false }) {
   const isEdit = Boolean(goal)
   const [kind, setKind] = useState(goal?.kind ?? fixedKind ?? 'save_up')
   const [name, setName] = useState(goal?.name ?? '')
@@ -76,12 +76,11 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAcco
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-ink-900">
+  const content = (
+    <>
+        {!embedded && <h2 className="mb-4 text-lg font-semibold text-ink-900">
           {isEdit ? `Edit ${kind === 'save_up' ? 'goal' : 'debt'}` : fixedKind === 'pay_down' ? 'Add debt' : 'Add goal'}
-        </h2>
+        </h2>}
         <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           {!isEdit && !fixedKind && (
             <div>
@@ -286,6 +285,15 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAcco
             )}
           </div>
         </ProtectedForm>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )
