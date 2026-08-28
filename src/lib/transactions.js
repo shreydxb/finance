@@ -82,6 +82,10 @@ export function ordinaryTransactionFields(transaction, patch = {}) {
   }
 }
 
+export function canEditExistingActivitySplit(editing) {
+  return Boolean(editing && editing !== 'new' && editing.splitGroup?.length)
+}
+
 export async function runCommittedTransactionFollowUps({ rule, createRule, refresh }) {
   const warnings = []
   if (rule && createRule) {
@@ -104,18 +108,29 @@ export function newManualRequestKey() {
   return `manual:${crypto.randomUUID()}`
 }
 
-export function manualTransactionError(error) {
+function transactionError(error, fallbackMessage) {
   const match = Object.entries(MANUAL_ERROR_MESSAGES).find(([code]) =>
     error?.message?.includes(code) || error?.details?.includes(code)
   )
-  const [field, message] = match?.[1] ?? [
-    'general',
-    'The save result could not be confirmed. Retrying this form is safe and will not create a second transaction.',
-  ]
+  const [field, message] = match?.[1] ?? ['general', fallbackMessage]
   const translated = new Error(message)
   translated.field = field
   translated.cause = error
   return translated
+}
+
+export function manualTransactionError(error) {
+  return transactionError(
+    error,
+    'The save result could not be confirmed. Retrying this form is safe and will not create a second transaction.',
+  )
+}
+
+export function splitTransactionError(error) {
+  return transactionError(
+    error,
+    'The split save result could not be confirmed. Check Activity before trying again.',
+  )
 }
 
 export async function createTransaction(fields, requestKey) {
@@ -131,7 +146,7 @@ export async function correctTransaction(id, fields) {
 }
 
 /**
- * Create, or atomically replace, a set of category-split lines.
+ * Atomically replace an existing set of category-split lines.
  *
  * Goes through a Postgres function rather than a delete followed by an insert
  * (DATA-02). The old sequence removed the original rows first, so a dropped
@@ -139,13 +154,19 @@ export async function correctTransaction(id, fields) {
  * nothing in its place. Inside the function both steps share one transaction:
  * either the replacement exists or the original still does.
  *
- * @param replaces  { groupId } to replace a whole split, { transactionId } to
- *                  convert a single row into one, or nothing to create anew.
+ * New split creation and single-row conversion are intentionally unavailable
+ * until this RPC has a durable replay identity. Existing grouped corrections
+ * retain their all-or-nothing behavior.
  */
 export async function replaceCategorySplit(baseFields, splitLines, replaces = {}) {
+  if (!replaces.groupId) {
+    const unavailable = new Error('New split entry is temporarily unavailable. Save one category for now.')
+    unavailable.field = 'general'
+    throw unavailable
+  }
   const { data, error } = await supabase.rpc('replace_category_split', {
     p_group_id: replaces.groupId ?? null,
-    p_transaction_id: replaces.transactionId ?? null,
+    p_transaction_id: null,
     p_base: {
       date: baseFields.date,
       currency: baseFields.currency ?? 'AED',
@@ -156,7 +177,7 @@ export async function replaceCategorySplit(baseFields, splitLines, replaces = {}
     },
     p_lines: splitLines.map((line) => ({ category: line.category, amount: line.amount })),
   })
-  if (error) throw manualTransactionError(error)
+  if (error) throw splitTransactionError(error)
   return data
 }
 

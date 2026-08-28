@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
+  createTransaction,
+  canEditExistingActivitySplit,
   manualTransactionError,
   newManualRequestKey,
   ordinaryTransactionFields,
+  replaceCategorySplit,
   runCommittedTransactionFollowUps,
+  splitTransactionError,
 } from './transactions'
+import { supabase } from './supabaseClient'
 
 describe('manual transaction client contract', () => {
   it('uses a UUID-backed durable manual request namespace', () => {
@@ -22,10 +27,49 @@ describe('manual transaction client contract', () => {
     expect(transfer.message).toMatch(/Transfers cannot be created or corrected as expenses/)
   })
 
-  it('states that retry is safe when the response outcome is unknown', () => {
+  it('retains durable safe-replay guidance for an unknown ordinary manual save outcome', () => {
     const error = manualTransactionError({ message: 'network interrupted' })
     expect(error.field).toBe('general')
     expect(error.message).toMatch(/Retrying this form is safe/)
+  })
+
+  it('never claims an unknown non-idempotent split outcome is safe to retry', () => {
+    const error = splitTransactionError({ message: 'network interrupted' })
+    expect(error.field).toBe('general')
+    expect(error.message).toBe('The split save result could not be confirmed. Check Activity before trying again.')
+    expect(error.message).not.toMatch(/safe|will not create/i)
+  })
+
+  it('allows Activity split controls only for an existing split group', () => {
+    expect(canEditExistingActivitySplit('new')).toBe(false)
+    expect(canEditExistingActivitySplit({ id: 'single-1' })).toBe(false)
+    expect(canEditExistingActivitySplit({ splitGroup: [{ id: 'line-1' }] })).toBe(true)
+  })
+
+  it('refuses a fresh split before the non-idempotent RPC can be called', async () => {
+    await expect(replaceCategorySplit({}, [], {})).rejects.toMatchObject({
+      field: 'general',
+      message: 'New split entry is temporarily unavailable. Save one category for now.',
+    })
+  })
+
+  it('keeps unknown split RPC failures truthful while ordinary keyed retry remains safe', async () => {
+    const rpc = vi.spyOn(supabase, 'rpc')
+      .mockResolvedValueOnce({ data: null, error: { message: 'network interrupted' } })
+      .mockResolvedValueOnce({ data: null, error: { message: 'network interrupted' } })
+    const fields = {
+      date: '2026-08-28', amount: 12.34, currency: 'AED', account_id: 'account-1', category: 'Dining',
+      owner: 'Shrey', note: 'Cafe', tags: [], assigned_to: null, goal_id: null,
+    }
+
+    await expect(replaceCategorySplit(fields, [{ category: 'Dining', amount: 12.34 }], { groupId: 'split-group-1' }))
+      .rejects.toMatchObject({ message: 'The split save result could not be confirmed. Check Activity before trying again.' })
+    await expect(createTransaction(fields, 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6'))
+      .rejects.toMatchObject({ message: expect.stringMatching(/Retrying this form is safe/) })
+
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_group_id: 'split-group-1', p_transaction_id: null })
+    expect(rpc.mock.calls[1][1]).toMatchObject({ p_request_key: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6' })
+    rpc.mockRestore()
   })
 
   it('copies only the complete allowlisted fact into a correction', () => {

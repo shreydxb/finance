@@ -33,6 +33,7 @@ const account = {
 }
 
 const category = { id: 'category-1', name: 'Groceries', group: 'Needs', icon: null }
+const diningCategory = { id: 'category-2', name: 'Dining', group: 'Flexible', icon: null }
 const budget = { id: 'budget-1', group: 'Flexible', monthly_limit: 500 }
 const event = {
   id: 'event-1',
@@ -339,7 +340,7 @@ describe.each(cases)('$name action footer', ({
 describe('TransactionForm safety contract', () => {
   const baseProps = {
     accounts: [account],
-    categories: [category, { id: 'transfer', name: 'Transfer', icon: null }],
+    categories: [category, diningCategory, { id: 'transfer', name: 'Transfer', icon: null }],
     goals: [],
     rules: [],
     onCancel: vi.fn(),
@@ -403,12 +404,47 @@ describe('TransactionForm safety contract', () => {
     }))
   })
 
-  it('truthfully removes split submission from account-detail entry', () => {
+  it('keeps a fresh Activity-style entry out of split-create mode with truthful guidance', () => {
     renderForm(TransactionForm, {
       ...baseProps,
       allowSplit: false,
       onSave: vi.fn(),
     })
     expect(screen.queryByRole('button', { name: 'Split across categories' })).not.toBeInTheDocument()
+    expect(screen.getByText(/New split entry is temporarily unavailable/)).toBeInTheDocument()
+  })
+
+  it('keeps existing split correction on the intentional atomic edit shape', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    renderForm(TransactionForm, {
+      ...baseProps,
+      allowSplit: true,
+      transaction: {
+        ...transaction,
+        transaction_group_id: 'split-group-1',
+        splitGroup: [
+          { ...transaction, id: 'split-line-1', category: 'Groceries', amount: 30 },
+          { ...transaction, id: 'split-line-2', category: 'Dining', amount: 20 },
+        ],
+      },
+      onSave,
+      onDelete: vi.fn(),
+    })
+
+    expect(screen.getByText('Total: 50.00 AED')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use one category' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onSave).toHaveBeenCalledWith({
+      split: true,
+      baseFields: {
+        date: '2026-08-27', currency: 'AED', account_id: 'account-1', owner: 'Shrey', note: 'Lunch', tags: ['meal'],
+      },
+      splitLines: [
+        { category: 'Groceries', amount: 30 },
+        { category: 'Dining', amount: 20 },
+      ],
+    })
   })
 })

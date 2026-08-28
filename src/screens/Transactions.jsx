@@ -13,6 +13,7 @@ import {
   markReviewed,
   countUnreviewed,
   setReviewedMany,
+  canEditExistingActivitySplit,
 } from '../lib/transactions'
 import { listRules, createRule, deleteRule } from '../lib/categoryRules'
 import { listAccounts, OWNERS } from '../lib/accounts'
@@ -311,9 +312,13 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
     // (DATA-02). replace_category_split does both inside one database
     // transaction.
     if (result.split) {
+      if (!canEditExistingActivitySplit(editing)) {
+        const unavailable = new Error('New split entry is temporarily unavailable. Save one category for now.')
+        unavailable.field = 'general'
+        throw unavailable
+      }
       await replaceCategorySplit(result.baseFields, result.splitLines, {
-        groupId: isEditingExisting ? (editing.transaction_group_id ?? null) : null,
-        transactionId: isEditingExisting && !editing.splitGroup ? editing.id : null,
+        groupId: editing.transaction_group_id,
       })
     } else if (isEditingExisting && editing.splitGroup) {
       // Split collapsing back to one row: same all-or-nothing guarantee, with
@@ -537,6 +542,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
             onCancel={() => closeEdit()}
             onDelete={handleDelete}
             onCreateRule={handleCreateRule}
+            allowSplit={canEditExistingActivitySplit(editing)}
           /> : null}
         </DetailShell>
       ) : editing && (
@@ -550,6 +556,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
           onCancel={() => closeEdit()}
           onDelete={handleDelete}
           onCreateRule={handleCreateRule}
+          allowSplit={canEditExistingActivitySplit(editing)}
         />
       )}
 

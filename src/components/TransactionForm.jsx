@@ -366,9 +366,12 @@ export default function TransactionForm({
           )}
 
           {!isEdit && !split && (
-            <p className="text-xs text-ink-500">
-              Refunds and reimbursements are temporarily unsupported here. Do not record them as income.
-            </p>
+            <div className="space-y-1 text-xs text-ink-500">
+              {!allowSplit && (
+                <p>New split entry is temporarily unavailable while transaction safety is being hardened. Save one category for now.</p>
+              )}
+              <p>Refunds and reimbursements are temporarily unsupported here. Do not record them as income.</p>
+            </div>
           )}
 
           <div>
