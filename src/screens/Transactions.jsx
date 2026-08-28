@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   listTransactions,
   createTransaction,
+  correctTransaction,
+  ordinaryTransactionFields,
+  runCommittedTransactionFollowUps,
   replaceCategorySplit,
-  updateTransaction,
   deleteTransaction,
   deleteTransactionGroup,
+  restoreTransactions,
   countNeedsReview,
   markReviewed,
   countUnreviewed,
   setReviewedMany,
+  canEditExistingActivitySplit,
 } from '../lib/transactions'
 import { listRules, createRule, deleteRule } from '../lib/categoryRules'
 import { listAccounts, OWNERS } from '../lib/accounts'
@@ -75,6 +79,8 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [undoIds, setUndoIds] = useState([])
 
   async function refresh() {
     setError('')
@@ -99,8 +105,10 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
       setUnreviewedCount(unreviewed)
       setRules(ruleRows)
       setGoals(goalRows)
+      return true
     } catch {
       setError('Could not load transactions. Check your connection and try again.')
+      return false
     } finally {
       setLoading(false)
     }
@@ -179,8 +187,12 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
   async function bulkSetCategory(category) {
     setBulkBusy(true)
     try {
+      if (selectedEntries.some((entry) => entry.kind !== 'single')) {
+        setError('Grouped, split, and transfer facts cannot be bulk-corrected as ordinary expenses.')
+        return
+      }
       const singles = selectedEntries.filter((e) => e.kind === 'single')
-      await Promise.all(singles.map((e) => updateTransaction(e.transaction.id, { category })))
+      await Promise.all(singles.map((e) => correctTransaction(e.transaction.id, ordinaryTransactionFields(e.transaction, { category }))))
       setSelectedIds(new Set())
       await refresh()
     } finally {
@@ -191,13 +203,12 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
   async function bulkSetOwner(owner) {
     setBulkBusy(true)
     try {
-      await Promise.all(
-        selectedEntries.map((e) =>
-          e.kind === 'single'
-            ? updateTransaction(e.transaction.id, { owner })
-            : Promise.all(e.lines.map((l) => updateTransaction(l.id, { owner })))
-        )
-      )
+      if (selectedEntries.some((entry) => entry.kind !== 'single')) {
+        setError('Grouped, split, and transfer facts cannot be bulk-corrected as ordinary expenses.')
+        return
+      }
+      const singles = selectedEntries.filter((e) => e.kind === 'single')
+      await Promise.all(singles.map((e) => correctTransaction(e.transaction.id, ordinaryTransactionFields(e.transaction, { owner }))))
       setSelectedIds(new Set())
       await refresh()
     } finally {
@@ -257,10 +268,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
 
   function openEdit(entry) {
     if (entry.kind === 'transfer') {
-      // Editing a transfer through the split editor would rewrite both sides
-      // from one row's fields and lose the pairing. Until it has an editor of
-      // its own, open the outgoing row alone (DATA-01).
-      setEditing(entry.out ?? entry.lines[0])
+      setNotice('Transfers cannot be corrected in the expense editor. Transfer integrity is handled separately.')
       return
     }
     if (entry.kind === 'split') {
@@ -304,9 +312,13 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
     // (DATA-02). replace_category_split does both inside one database
     // transaction.
     if (result.split) {
+      if (!canEditExistingActivitySplit(editing)) {
+        const unavailable = new Error('New split entry is temporarily unavailable. Save one category for now.')
+        unavailable.field = 'general'
+        throw unavailable
+      }
       await replaceCategorySplit(result.baseFields, result.splitLines, {
-        groupId: isEditingExisting ? (editing.transaction_group_id ?? null) : null,
-        transactionId: isEditingExisting && !editing.splitGroup ? editing.id : null,
+        groupId: editing.transaction_group_id,
       })
     } else if (isEditingExisting && editing.splitGroup) {
       // Split collapsing back to one row: same all-or-nothing guarantee, with
@@ -315,13 +327,18 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
         groupId: editing.transaction_group_id,
       })
     } else if (isEditingExisting) {
-      await updateTransaction(editing.id, result.fields)
+      await correctTransaction(editing.id, result.fields)
     } else {
-      await createTransaction(result.fields)
+      await createTransaction(result.fields, result.requestKey)
     }
 
     closeEdit({ force: true })
-    await refresh()
+    const followUpFailures = await runCommittedTransactionFollowUps({
+      rule: result.rule,
+      createRule,
+      refresh,
+    })
+    setNotice(followUpFailures.join(' '))
   }
 
   async function handleMarkReviewed(id) {
@@ -347,18 +364,36 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
   }
 
   async function handleCategoryChange(id, category) {
-    await updateTransaction(id, { category: category || null })
+    const transaction = transactions.find((item) => item.id === id)
+    if (!transaction) throw new Error('Transaction no longer available.')
+    await correctTransaction(id, ordinaryTransactionFields(transaction, { category: category || null }))
     await refresh()
   }
 
   async function handleDelete() {
+    let deletedRows
     if (editing.splitGroup) {
-      await deleteTransactionGroup(editing.transaction_group_id)
+      deletedRows = await deleteTransactionGroup(editing.transaction_group_id)
     } else {
-      await deleteTransaction(editing.id)
+      deletedRows = [await deleteTransaction(editing.id)]
     }
+    setUndoIds(deletedRows.map((row) => row.id))
+    setNotice('Transaction deleted.')
     closeEdit({ force: true })
-    await refresh()
+    if (!(await refresh())) {
+      setNotice('Transaction deleted. Activity could not refresh, but Undo is still available.')
+    }
+  }
+
+  async function handleUndoDelete() {
+    const restoring = undoIds
+    if (restoring.length === 0) return
+    await restoreTransactions(restoring)
+    setUndoIds([])
+    setNotice('Transaction restored.')
+    if (!(await refresh())) {
+      setNotice('Transaction restored. Activity could not refresh yet.')
+    }
   }
 
   if (loading) {
@@ -414,6 +449,16 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
         <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
           Add an account first (Accounts tab) before logging transactions.
         </p>
+      )}
+
+      {notice && (
+        <div role="status" className="mb-4 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-brand-50 px-4 py-2 text-sm text-brand-800">
+          <span>{notice}</span>
+          <div className="flex shrink-0 gap-2">
+            {undoIds.length > 0 && <button type="button" className="min-h-11 font-semibold underline" onClick={handleUndoDelete}>Undo</button>}
+            <button type="button" className="min-h-11 text-xs underline" onClick={() => setNotice('')}>Dismiss</button>
+          </div>
+        </div>
       )}
 
       {/* Safety net for anything the Telegram Confirm/Fix prompt never got an answer to. */}
@@ -497,6 +542,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
             onCancel={() => closeEdit()}
             onDelete={handleDelete}
             onCreateRule={handleCreateRule}
+            allowSplit={canEditExistingActivitySplit(editing)}
           /> : null}
         </DetailShell>
       ) : editing && (
@@ -510,6 +556,7 @@ export default function Transactions({ routeQuery, onRouteQueryChange, detailId,
           onCancel={() => closeEdit()}
           onDelete={handleDelete}
           onCreateRule={handleCreateRule}
+          allowSplit={canEditExistingActivitySplit(editing)}
         />
       )}
 

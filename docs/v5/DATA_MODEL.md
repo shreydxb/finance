@@ -25,6 +25,7 @@ Account ownership labels are not authorization. Household membership/RLS control
 
 - `deleted_at` is the deletion mechanism.
 - `needs_review` describes confidence/data quality; `reviewed_at` records human review. They are related but distinct.
+- Migration `044` adds no transaction columns. It uses the existing `idempotency_key` for browser-manual request replay and adds the `SECURITY INVOKER` `save_manual_transaction` RPC. A successful ordinary manual create or correction is explicit human-confirmed truth: `source = 'manual'` on creates, `needs_review = false`, and `reviewed_at` set by database time. Corrections preserve existing source/provenance and change only the allowlisted transaction fact. Existing rows are not backfilled or reclassified.
 - `goal_id` is a display association only.
 - `assigned_to` is a review request only.
 - Zero amount is permitted only as an unresolved flagged placeholder.
@@ -115,7 +116,7 @@ The repository currently embeds known person names and Joint labels in several p
 - `pending_actions`: service-only propose-then-confirm coordination and audit state. `request_key` is the immutable idempotency identity for one proposal; `requested_by`, `chat_id`, and one-time-bound `prompt_msg_id` are Telegram identities supplied only by the trusted intake service and checked together on every transition. `claimed_at`/`claimed_by` form the atomic replay barrier before a handler runs. `resolved_at`/`resolution` record exactly one terminal outcome (`applied`, `cancelled`, or `expired`); terminal rows cannot reopen. Expiry uses database time and the half-open interval `[created_at, expires_at)`. Browser/API identities have no direct table or transition-RPC access; service role reads directly and writes only through the six guarded RPCs.
 - `v_transactions_aed`: `SECURITY INVOKER`, soft-delete-filtered, FX-normalized transaction view; underlying household RLS applies to its caller, and NULL conversion means missing FX and must be detected by aggregates.
 
-Atomic functions include media-group claiming, transfer creation, bulk transaction creation, pending-income application, pending-action creation/binding/transitions, category-split replacement, goal contribution, and Telegram settings updates.
+Atomic functions include validated/idempotent ordinary manual transaction saving, media-group claiming, transfer creation, bulk transaction creation, pending-income application, pending-action creation/binding/transitions, category-split replacement, goal contribution, and Telegram settings updates.
 
 ## Deprecated or historical structures
 

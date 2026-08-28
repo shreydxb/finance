@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { axe } from 'vitest-axe'
 import { describe, expect, it, vi } from 'vitest'
 import { NavigationSafetyProvider } from '../lib/NavigationSafety'
+import { todayLocal } from '../lib/dates'
 import AccountForm from './AccountForm'
 import BudgetLimitForm from './BudgetLimitForm'
 import CategoryForm from './CategoryForm'
@@ -32,6 +33,7 @@ const account = {
 }
 
 const category = { id: 'category-1', name: 'Groceries', group: 'Needs', icon: null }
+const diningCategory = { id: 'category-2', name: 'Dining', group: 'Flexible', icon: null }
 const budget = { id: 'budget-1', group: 'Flexible', monthly_limit: 500 }
 const event = {
   id: 'event-1',
@@ -218,16 +220,18 @@ const cases = [
   {
     name: 'TransactionForm',
     Component: TransactionForm,
-    createProps: (cb) => ({ ...cb, accounts: [account], categories: [category], goals: [], rules: [] }),
-    saveProps: (cb) => ({ ...cb, transaction, accounts: [account], categories: [category], goals: [], rules: [] }),
+    createProps: (cb) => ({ ...cb, requestKey: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6', accounts: [account], categories: [category], goals: [], rules: [] }),
+    saveProps: (cb) => ({ ...cb, requestKey: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6', transaction, accounts: [account], categories: [category], goals: [], rules: [] }),
     expectedPayload: {
       split: false,
       fields: {
         date: '2026-08-27', currency: 'AED', account_id: 'account-1', owner: 'Shrey', note: 'Lunch',
         tags: ['meal'], amount: 50, category: 'Groceries', assigned_to: null, goal_id: null,
       },
+      requestKey: null,
+      rule: null,
     },
-    deleteEvent: true,
+    confirmDelete: true,
   },
 ]
 
@@ -240,6 +244,7 @@ describe.each(cases)('$name action footer', ({
   expectedError = 'Could not save. Try again.',
   deleteArgs,
   deleteEvent,
+  confirmDelete,
 }) => {
   it('keeps the exact action order, types, conditional Delete visibility, and Cancel behavior', async () => {
     const user = userEvent.setup()
@@ -247,11 +252,11 @@ describe.each(cases)('$name action footer', ({
     renderForm(Component, saveProps(cb))
 
     const actions = within(footer()).getAllByRole('button')
-    expect(actions.map((button) => button.textContent)).toEqual(deleteArgs || deleteEvent ? ['Save', 'Cancel', 'Delete'] : ['Save', 'Cancel'])
+    expect(actions.map((button) => button.textContent)).toEqual(deleteArgs || deleteEvent || confirmDelete ? ['Save', 'Cancel', 'Delete'] : ['Save', 'Cancel'])
     expect(actions.filter((button) => button.type === 'submit')).toHaveLength(1)
     expect(actions[0]).toHaveAttribute('type', 'submit')
     expect(actions[1]).toHaveAttribute('type', 'button')
-    if (deleteArgs || deleteEvent) expect(actions[2]).toHaveAttribute('type', 'button')
+    if (deleteArgs || deleteEvent || confirmDelete) expect(actions[2]).toHaveAttribute('type', 'button')
     expect(await axe(footer())).toHaveNoViolations()
 
     actions[1].focus()
@@ -291,7 +296,7 @@ describe.each(cases)('$name action footer', ({
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
     createRender.unmount()
 
-    if (!deleteArgs && !deleteEvent) return
+    if (!deleteArgs && !deleteEvent && !confirmDelete) return
 
     const user = userEvent.setup()
     const editCallbacks = callbacks()
@@ -299,8 +304,14 @@ describe.each(cases)('$name action footer', ({
     const remove = screen.getByRole('button', { name: 'Delete' })
     remove.focus()
     await user.keyboard(' ')
+    if (confirmDelete) {
+      expect(editCallbacks.onDelete).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Delete transaction' }))
+    }
     expect(editCallbacks.onDelete).toHaveBeenCalledTimes(1)
-    if (deleteEvent) {
+    if (confirmDelete) {
+      expect(editCallbacks.onDelete.mock.calls[0]).toHaveLength(0)
+    } else if (deleteEvent) {
       expect(editCallbacks.onDelete.mock.calls[0]).toHaveLength(1)
       expect(editCallbacks.onDelete.mock.calls[0][0]).toMatchObject({ type: 'click' })
     } else {
@@ -323,5 +334,117 @@ describe.each(cases)('$name action footer', ({
     expect(cb.onSave).toHaveBeenCalledWith(expectedPayload)
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Saving…' })).not.toBeInTheDocument()
+  })
+})
+
+describe('TransactionForm safety contract', () => {
+  const baseProps = {
+    accounts: [account],
+    categories: [category, diningCategory, { id: 'transfer', name: 'Transfer', icon: null }],
+    goals: [],
+    rules: [],
+    onCancel: vi.fn(),
+  }
+
+  it.each([360, 390])('keeps required entry controls and actions usable at %ipx', async (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    renderForm(TransactionForm, {
+      ...baseProps,
+      requestKey: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6',
+      onSave,
+    })
+
+    expect(document.getElementById('date')).toHaveAttribute('max', todayLocal())
+    expect(document.getElementById('amount')).toHaveAttribute('inputmode', 'decimal')
+    expect(document.getElementById('account')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'Transfer' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' }).closest('.overscroll-contain')).not.toBeNull()
+  })
+
+  it('shows useful field errors before a write and maps a stale server category to its field', async () => {
+    const user = userEvent.setup()
+    const stale = new Error('That category is no longer available. Choose a current category.')
+    stale.field = 'category'
+    const onSave = vi.fn().mockRejectedValue(stale)
+    renderForm(TransactionForm, {
+      ...baseProps,
+      requestKey: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6',
+      onSave,
+    })
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form'))
+    expect(await screen.findByText('Enter a positive amount with no more than two decimal places.')).toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+
+    await user.type(document.getElementById('amount'), '12.34')
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form'))
+    expect(await screen.findByText(stale.message)).toBeInTheDocument()
+  })
+
+  it('returns a stable request key and optional rule intent only after the financial save payload', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    renderForm(TransactionForm, {
+      ...baseProps,
+      requestKey: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6',
+      onSave,
+      onCreateRule: vi.fn(),
+    })
+
+    await user.type(document.getElementById('amount'), '12.34')
+    await user.type(screen.getByLabelText('Merchant / payee or note'), 'Cafe')
+    await user.click(screen.getByRole('checkbox'))
+    fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form'))
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      requestKey: 'manual:6ec90a20-6d45-4fb1-8991-92e89ccfa6a6',
+      rule: { pattern: 'Cafe', category: 'Groceries' },
+    }))
+  })
+
+  it('keeps a fresh Activity-style entry out of split-create mode with truthful guidance', () => {
+    renderForm(TransactionForm, {
+      ...baseProps,
+      allowSplit: false,
+      onSave: vi.fn(),
+    })
+    expect(screen.queryByRole('button', { name: 'Split across categories' })).not.toBeInTheDocument()
+    expect(screen.getByText(/New split entry is temporarily unavailable/)).toBeInTheDocument()
+  })
+
+  it('keeps existing split correction on the intentional atomic edit shape', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    renderForm(TransactionForm, {
+      ...baseProps,
+      allowSplit: true,
+      transaction: {
+        ...transaction,
+        transaction_group_id: 'split-group-1',
+        splitGroup: [
+          { ...transaction, id: 'split-line-1', category: 'Groceries', amount: 30 },
+          { ...transaction, id: 'split-line-2', category: 'Dining', amount: 20 },
+        ],
+      },
+      onSave,
+      onDelete: vi.fn(),
+    })
+
+    expect(screen.getByText('Total: 50.00 AED')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use one category' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onSave).toHaveBeenCalledWith({
+      split: true,
+      baseFields: {
+        date: '2026-08-27', currency: 'AED', account_id: 'account-1', owner: 'Shrey', note: 'Lunch', tags: ['meal'],
+      },
+      splitLines: [
+        { category: 'Groceries', amount: 30 },
+        { category: 'Dining', amount: 20 },
+      ],
+    })
   })
 })
