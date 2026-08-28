@@ -66,7 +66,7 @@ test('replace_category_split soft-deletes the group it replaces (032, not a hard
 
     await client.query(`select * from replace_category_split($1, null, $2, $3)`, [
       groupId,
-      JSON.stringify({ date: '2026-08-01', account_id: accountId }),
+      JSON.stringify({ date: '2026-08-01', account_id: accountId, owner: 'Shrey' }),
       JSON.stringify([{ amount: 100, category: 'Groceries' }]),
     ])
 

@@ -22,13 +22,111 @@ export async function listTransactions(filters = {}) {
   return data
 }
 
-export async function createTransaction(fields) {
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert({ ...fields, source: 'manual', needs_review: false })
-    .select()
-    .single()
-  if (error) throw error
+const MANUAL_ERROR_MESSAGES = {
+  SHR126_REQUEST_KEY_INVALID: ['general', 'This save request is invalid. Close the form and try again.'],
+  SHR126_REQUEST_ALREADY_DELETED: ['general', 'This transaction was already saved and then deleted. Restore it instead of retrying.'],
+  SHR126_REQUEST_KEY_CONFLICT: ['general', 'This save request was already used with different details. Close the form and try again.'],
+  SHR126_DATE_REQUIRED: ['date', 'Choose a transaction date.'],
+  SHR126_DATE_FUTURE: ['date', 'Transaction date cannot be after today in Dubai.'],
+  SHR126_DATE_INVALID: ['date', 'Choose a valid transaction date.'],
+  SHR126_AMOUNT_INVALID: ['amount', 'Enter a positive amount with no more than two decimal places.'],
+  SHR126_CURRENCY_INVALID: ['currency', 'Choose a supported currency.'],
+  SHR126_ACCOUNT_REQUIRED: ['account', 'Choose an account.'],
+  SHR126_ACCOUNT_INVALID: ['account', 'That account is no longer available. Choose a current account.'],
+  SHR126_CATEGORY_REQUIRED: ['category', 'Choose a category.'],
+  SHR126_CATEGORY_INVALID: ['category', 'That category is no longer available. Choose a current category.'],
+  SHR126_OWNER_INVALID: ['owner', 'Choose a valid owner.'],
+  SHR126_ASSIGNEE_INVALID: ['assignedTo', 'Choose a valid person to review this transaction.'],
+  SHR126_GOAL_INVALID: ['linkedGoal', 'That goal is no longer available. Choose another goal or no goal.'],
+  SHR126_TRANSACTION_NOT_FOUND: ['general', 'This transaction no longer exists. Refresh Activity.'],
+  SHR126_TRANSACTION_DELETED: ['general', 'This transaction was deleted and cannot be edited. Restore it first.'],
+  SHR126_GROUPED_CORRECTION_UNSUPPORTED: ['general', 'Grouped and split transactions must be corrected from their group editor.'],
+  SHR126_TRANSFER_UNSUPPORTED: ['category', 'Transfers cannot be created or corrected as expenses. Transfer entry is temporarily unavailable here.'],
+  SHR126_SPLIT_LINES_REQUIRED: ['general', 'Add at least one split line.'],
+  SHR126_SPLIT_REPLACEMENT_INVALID: ['general', 'This split replacement is invalid. Refresh Activity and try again.'],
+  SHR126_SPLIT_BASE_INVALID: ['general', 'Check the split date and account.'],
+  SHR126_SPLIT_NOT_FOUND: ['general', 'This split no longer exists. Refresh Activity.'],
+  SHR126_SPLIT_SOURCE_INVALID: ['general', 'This transaction cannot be converted to a split. Refresh Activity.'],
+}
+
+function manualRpcArgs(transactionId, requestKey, fields) {
+  return {
+    p_transaction_id: transactionId ?? null,
+    p_request_key: requestKey ?? null,
+    p_date: fields.date,
+    p_amount: fields.amount,
+    p_currency: fields.currency ?? 'AED',
+    p_account_id: fields.account_id ?? null,
+    p_category: fields.category ?? null,
+    p_owner: fields.owner ?? null,
+    p_note: fields.note ?? null,
+    p_tags: fields.tags ?? [],
+    p_assigned_to: fields.assigned_to ?? null,
+    p_goal_id: fields.goal_id ?? null,
+  }
+}
+
+export function ordinaryTransactionFields(transaction, patch = {}) {
+  return {
+    date: transaction.date,
+    amount: transaction.amount,
+    currency: transaction.currency,
+    account_id: transaction.account_id,
+    category: transaction.category,
+    owner: transaction.owner,
+    note: transaction.note,
+    tags: transaction.tags ?? [],
+    assigned_to: transaction.assigned_to ?? null,
+    goal_id: transaction.goal_id ?? null,
+    ...patch,
+  }
+}
+
+export async function runCommittedTransactionFollowUps({ rule, createRule, refresh }) {
+  const warnings = []
+  if (rule && createRule) {
+    try {
+      await createRule(rule.pattern, rule.category)
+    } catch {
+      warnings.push('The transaction was saved, but its category rule was not created.')
+    }
+  }
+  try {
+    const refreshed = await refresh()
+    if (refreshed === false) throw new Error('refresh failed')
+  } catch {
+    warnings.push('The transaction was saved, but Activity could not refresh.')
+  }
+  return warnings
+}
+
+export function newManualRequestKey() {
+  return `manual:${crypto.randomUUID()}`
+}
+
+export function manualTransactionError(error) {
+  const match = Object.entries(MANUAL_ERROR_MESSAGES).find(([code]) =>
+    error?.message?.includes(code) || error?.details?.includes(code)
+  )
+  const [field, message] = match?.[1] ?? [
+    'general',
+    'The save result could not be confirmed. Retrying this form is safe and will not create a second transaction.',
+  ]
+  const translated = new Error(message)
+  translated.field = field
+  translated.cause = error
+  return translated
+}
+
+export async function createTransaction(fields, requestKey) {
+  const { data, error } = await supabase.rpc('save_manual_transaction', manualRpcArgs(null, requestKey, fields))
+  if (error) throw manualTransactionError(error)
+  return data
+}
+
+export async function correctTransaction(id, fields) {
+  const { data, error } = await supabase.rpc('save_manual_transaction', manualRpcArgs(id, null, fields))
+  if (error) throw manualTransactionError(error)
   return data
 }
 
@@ -58,7 +156,7 @@ export async function replaceCategorySplit(baseFields, splitLines, replaces = {}
     },
     p_lines: splitLines.map((line) => ({ category: line.category, amount: line.amount })),
   })
-  if (error) throw error
+  if (error) throw manualTransactionError(error)
   return data
 }
 
@@ -136,18 +234,28 @@ export async function updateTransaction(id, patch) {
  * the row survives as an audit trail.
  */
 export async function deleteTransaction(id) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('transactions')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .is('deleted_at', null)
+    .select('id')
+    .single()
   if (error) throw error
+  return data
 }
 
 /** Undo a soft delete. */
 export async function restoreTransaction(id) {
-  const { error } = await supabase.from('transactions').update({ deleted_at: null }).eq('id', id)
+  const { data, error } = await supabase.from('transactions').update({ deleted_at: null }).eq('id', id).select('id').single()
   if (error) throw error
+  return data
+}
+
+export async function restoreTransactions(ids) {
+  const { data, error } = await supabase.from('transactions').update({ deleted_at: null }).in('id', ids).select('id')
+  if (error) throw error
+  return data
 }
 
 /**
@@ -159,10 +267,12 @@ export async function restoreTransaction(id) {
  * because one row was selected destroys the others.
  */
 export async function deleteTransactionGroup(groupId) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('transactions')
     .update({ deleted_at: new Date().toISOString() })
     .eq('transaction_group_id', groupId)
     .is('deleted_at', null)
+    .select('id')
   if (error) throw error
+  return data
 }

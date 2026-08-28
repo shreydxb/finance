@@ -63,6 +63,7 @@ findings each one closes, and the verification evidence.
 | `041_canonical_financial_metrics_phase_a` | Additive canonical ledger/income/account/goal views, period/balance/investment/budget functions, split identity, quality metadata — applied; production QA found the debt-quality predicate fixed by `042` | SHR-111 Phase A |
 | `042_fix_canonical_debt_quality` | Recreates only the security-invoker goal-progress view so positive target is save-up-only and pay-down quality uses starting balance + linked liability — applied | SHR-111 / SHR-121 |
 | `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — applied and independently production-QA-passed | SHR-113 Phase A/B |
+| `044_manual_transaction_safety` | Validated SECURITY INVOKER manual create/correction with durable request replay, explicit reviewed truth, Transfer containment, and minimal validated split confirmation; no data rewrite or financial-engine change — repository only, not applied | SHR-126 |
 
 ## Rules
 

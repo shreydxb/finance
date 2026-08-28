@@ -10,7 +10,12 @@ import {
 } from '../lib/accounts'
 import { useAccountsAndFx } from '../lib/useAccountsAndFx'
 import { useCanonicalWealth } from '../lib/useCanonicalWealth'
-import { listTransactions, createTransaction, updateTransaction } from '../lib/transactions'
+import {
+  listTransactions,
+  createTransaction,
+  correctTransaction,
+  ordinaryTransactionFields,
+} from '../lib/transactions'
 import { listCategories } from '../lib/categories'
 import { listIncome } from '../lib/income'
 import { getSetting, upsertSetting } from '../lib/settings'
@@ -942,8 +947,10 @@ function AccountDetail({ account, onClose, onEdit, embedded = false }) {
       const [txns, cats] = await Promise.all([listTransactions({ accountId: account.id }), listCategories()])
       setTransactions(txns)
       setCategories(cats)
+      return true
     } catch {
       setError('Could not load this account’s transactions.')
+      return false
     } finally {
       setLoading(false)
     }
@@ -955,15 +962,17 @@ function AccountDetail({ account, onClose, onEdit, embedded = false }) {
   }, [account.id])
 
   async function handleCategoryChange(id, category) {
-    await updateTransaction(id, { category: category || null })
+    const transaction = transactions.find((item) => item.id === id)
+    if (!transaction) throw new Error('Transaction no longer available.')
+    await correctTransaction(id, ordinaryTransactionFields(transaction, { category: category || null }))
     await refresh()
   }
 
   async function handleAddTxn(result) {
-    if (result.split) return
-    await createTransaction(result.fields)
+    if (result.split) throw new Error('Split entry is available from Activity.')
+    await createTransaction(result.fields, result.requestKey)
     setAddingTxn(false)
-    await refresh()
+    if (!(await refresh())) setError('Transaction saved, but this account could not refresh. Do not submit it again.')
   }
 
   const content = (
@@ -1031,6 +1040,7 @@ function AccountDetail({ account, onClose, onEdit, embedded = false }) {
             prefill={{ account_id: account.id, currency: account.currency, owner: account.owner }}
             accounts={[account]}
             categories={categories}
+            allowSplit={false}
             onSave={handleAddTxn}
             onCancel={() => setAddingTxn(false)}
           />
@@ -1084,15 +1094,22 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
     : []
 
   async function handleCategoryChange(id, category) {
-    await updateTransaction(id, { category: category || null })
+    const transaction = transactions.find((item) => item.id === id)
+    if (!transaction) throw new Error('Transaction no longer available.')
+    await correctTransaction(id, ordinaryTransactionFields(transaction, { category: category || null }))
     await onRefresh()
   }
 
   async function handleAddTxn(result) {
-    if (result.split) return
-    await createTransaction(result.fields)
+    if (result.split) throw new Error('Split entry is available from Activity.')
+    await createTransaction(result.fields, result.requestKey)
     setAddingTxn(false)
-    await onRefresh()
+    try {
+      await onRefresh()
+    } catch {
+      // The durable write already committed. Keep the form closed so a refresh
+      // failure cannot invite a second financial effect.
+    }
   }
 
   const maxPastSpend = Math.max(s.cycleSpend ?? 0, ...past.map((c) => c.spend), 1)
@@ -1249,6 +1266,7 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
             prefill={{ account_id: account.id, currency: account.currency, owner: account.owner }}
             accounts={[account]}
             categories={categories}
+            allowSplit={false}
             onSave={handleAddTxn}
             onCancel={() => setAddingTxn(false)}
           />

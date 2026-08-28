@@ -31,6 +31,8 @@ Status: canonical invariants and current known semantics for SHR-108. An item ma
 - An investment purchase recorded as a cash-flow transaction is categorized as savings/investment movement under current behavior; it must not also create or modify an authoritative holding unless supported by broker-sourced facts.
 - Duplicate intake events must create one financial effect. Preserve idempotency keys and atomic intake functions.
 - Deletion uses `deleted_at` for transaction history. Group operations must preserve the same soft-delete semantics.
+- Ordinary browser-manual expense creates require a Dubai-local non-future date, a positive amount at currency precision, a current RLS-visible account, and a current category other than `Transfer`. A stable `manual:<uuid>` request key makes an exact replay return the original row. Manual correction uses the same authoritative validation, refuses deleted/grouped/transfer rows, preserves provenance, and records human confirmation without reclassifying historical rows.
+- Refund/reimbursement entry and transfer creation/editing are intentionally not part of the ordinary expense path. Refunds must never be represented as income; transfer integrity remains a separate typed two-sided contract.
 
 ## Income, spend, cash flow, and savings
 
