@@ -5,6 +5,7 @@ import { usePrefs } from '../lib/PrefsContext'
 import { toAED } from '../lib/money'
 import GoalForm from '../components/GoalForm'
 import { ErrorState, LoadingState } from '../design-system'
+import DetailShell from '../shell/RouteDetailShell'
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -59,10 +60,13 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
   useEffect(() => {
     if (!routeDetailId) {
       setDetailId(null)
+      setEditing((current) => current && current !== 'new' ? null : current)
       return
     }
+    setEditing((current) => current && current !== 'new' && current.id !== routeDetailId ? null : current)
     if (debts.some((debt) => debt.id === routeDetailId)) setDetailId(routeDetailId)
-  }, [debts, routeDetailId])
+    else if (!loading) setDetailId(null)
+  }, [debts, routeDetailId, loading])
 
   function openDebt(id) {
     if (onOpenDetail?.('debt', id)) return
@@ -71,7 +75,10 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
 
   function closeDebt(options) {
     if (routeDetailId) {
-      if (onCloseDetail?.(options)) setDetailId(null)
+      if (onCloseDetail?.(options)) {
+        setDetailId(null)
+        setEditing(null)
+      }
       return
     }
     setDetailId(null)
@@ -93,10 +100,12 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
 
   const liabilityAccounts = accounts.filter((a) => a.is_liability)
   const accountById = new Map(accounts.map((a) => [a.id, a]))
-  const detail = debts.find((d) => d.id === detailId) ?? null
+  const detail = debts.find((d) => d.id === (routeDetailId ?? detailId)) ?? null
 
   if (loading) {
-    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
+    return routeDetailId ? (
+      <DetailShell backLabel="Debts" title="Debt" loading onRequestClose={() => closeDebt()} />
+    ) : <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   // Linked balances are converted before being summed: adding a USD card
@@ -113,9 +122,9 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
   const debtFreeDate = targetDates.length > 0 ? targetDates.reduce((a, b) => (a > b ? a : b)) : null
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold tracking-tight text-ink-900">Debts</h2>
+    <div>
+      <span className="sr-only">Debts</span>
+      <div className="mb-4 flex items-center justify-end">
         <button
           type="button"
           onClick={() => setEditing('new')}
@@ -160,7 +169,7 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
         </>
       )}
 
-      {editing && (
+      {editing && !routeDetailId && (
         <GoalForm
           goal={editing === 'new' ? null : editing}
           fixedKind="pay_down"
@@ -171,7 +180,7 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
         />
       )}
 
-      {detail && !editing && (
+      {detail && !editing && !routeDetailId && (
         <DebtDetail
           debt={detail}
           account={accountById.get(detail.linked_account_id)}
@@ -180,6 +189,38 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
           fmt={fmt}
           fxRates={fxRates}
         />
+      )}
+
+      {routeDetailId && (
+        <DetailShell
+          backLabel="Debts"
+          title={editing ? `Edit ${detail?.name ?? 'debt'}` : detail ? `${detail.icon ?? ''} ${detail.name}`.trim() : 'Debt'}
+          error={error}
+          unavailable={!error && !detail}
+          onRequestClose={() => closeDebt()}
+        >
+          {editing && detail ? (
+            <GoalForm
+              embedded
+              goal={editing}
+              fixedKind="pay_down"
+              liabilityAccounts={liabilityAccounts}
+              onSave={handleSave}
+              onCancel={() => setEditing(null)}
+              onDelete={handleDelete}
+            />
+          ) : detail ? (
+            <DebtDetail
+              embedded
+              debt={detail}
+              account={accountById.get(detail.linked_account_id)}
+              onEdit={() => setEditing(detail)}
+              onClose={() => closeDebt()}
+              fmt={fmt}
+              fxRates={fxRates}
+            />
+          ) : null}
+        </DetailShell>
       )}
     </div>
   )
@@ -212,22 +253,21 @@ function DebtCard({ debt, account, onClick, fmt, fxRates }) {
   )
 }
 
-function DebtDetail({ debt, account, onEdit, onClose, fmt, fxRates }) {
+function DebtDetail({ debt, account, onEdit, onClose, fmt, fxRates, embedded = false }) {
   const starting = Number(debt.starting_balance) || 0
   const current = account ? toAED(Number(account.value) || 0, account.currency, fxRates) : starting
   const pct = starting > 0 ? ((starting - current) / starting) * 100 : 0
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
-        <div className="mb-1 flex items-center justify-between">
+  const content = (
+    <>
+        {!embedded && <div className="mb-1 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ink-900">
             {debt.icon} {debt.name}
           </h2>
           <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
             Close
           </button>
-        </div>
+        </div>}
 
         <div className="my-4">
           <ProgressBar pct={pct} />
@@ -263,6 +303,15 @@ function DebtDetail({ debt, account, onEdit, onClose, fmt, fxRates }) {
             This debt's linked account no longer exists — the value shown falls back to the starting balance.
           </p>
         )}
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { formatMoney, toAED } from '../lib/money'
 import AccountForm from '../components/AccountForm'
 import BreakdownBars from '../components/BreakdownBars'
 import { useRouteQueryState } from '../lib/useRouteQueryState'
+import DetailShell from '../shell/RouteDetailShell'
 
 const ROUTE_DEFAULTS = { ownerFilter: 'combined', groupMode: 'holding', allocationShape: 'donut' }
 const ROUTE_SCHEMA = { ownerFilter: 'owner', groupMode: 'group', allocationShape: 'shape' }
@@ -65,6 +66,7 @@ export default function Investments({ routeQuery, onRouteQueryChange, detailId, 
     }
     const holding = allHoldings.find((account) => account.id === detailId)
     if (holding) setEditing(holding)
+    else setEditing(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts, detailId])
 
@@ -132,7 +134,9 @@ export default function Investments({ routeQuery, onRouteQueryChange, detailId, 
   }
 
   if (loading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading investments…</div>
+    return detailId
+      ? <DetailShell title="Investment details" backLabel="Investments" loading onRequestClose={() => closeHolding()} />
+      : <div className="py-10 text-center text-sm text-ink-500">Loading investments…</div>
   }
 
   const rows = holdings
@@ -176,10 +180,9 @@ export default function Investments({ routeQuery, onRouteQueryChange, detailId, 
   )
 
   return (
-    <div className="stagger mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="stagger">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-ink-900">Investments</h2>
           <p className="text-sm text-ink-500">
             {allHoldings.length} holdings · manual entry, prices refreshed on demand
           </p>
@@ -375,7 +378,19 @@ export default function Investments({ routeQuery, onRouteQueryChange, detailId, 
         </>
       )}
 
-      {editing && (
+      {detailId ? (
+        <DetailShell
+          title={editing?.name ?? 'Investment details'}
+          backLabel="Investments"
+          error={error}
+          unavailable={!editing}
+          onRequestClose={() => closeHolding()}
+        >
+          {editing ? (
+            <AccountForm embedded account={editing} onSave={handleSave} onCancel={() => closeHolding()} onDelete={handleDelete} />
+          ) : null}
+        </DetailShell>
+      ) : editing && (
         <AccountForm account={editing} onSave={handleSave} onCancel={() => closeHolding()} onDelete={handleDelete} />
       )}
 

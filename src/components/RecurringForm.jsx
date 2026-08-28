@@ -4,7 +4,7 @@ import { OWNERS } from '../lib/accounts'
 import { Button } from '../design-system'
 import ProtectedForm from './ProtectedForm'
 
-export default function RecurringForm({ entry, accounts, onSave, onCancel, onDelete }) {
+export default function RecurringForm({ entry, accounts, embedded = false, onSave, onCancel, onDelete }) {
   const [name, setName] = useState(entry?.name ?? '')
   const [kind, setKind] = useState(entry?.kind ?? 'expense')
   const [amount, setAmount] = useState(entry ? String(entry.amount) : '')
@@ -58,10 +58,9 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-ink-900">{entry ? 'Edit recurring' : 'Add recurring'}</h2>
+  const content = (
+    <>
+        {!embedded && <h2 className="mb-4 text-lg font-semibold text-ink-900">{entry ? 'Edit recurring' : 'Add recurring'}</h2>}
         <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="r-name" className="mb-1 block text-sm font-medium text-ink-700">
@@ -259,6 +258,15 @@ export default function RecurringForm({ entry, accounts, onSave, onCancel, onDel
             )}
           </div>
         </ProtectedForm>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )

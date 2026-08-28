@@ -17,6 +17,7 @@ import ContributionForm from '../components/ContributionForm'
 import { useRealtimeRefresh } from '../lib/useRealtime'
 import { REALTIME_TABLES } from '../lib/realtime'
 import { ErrorState, LoadingState } from '../design-system'
+import DetailShell from '../shell/RouteDetailShell'
 
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -77,10 +78,13 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
   useEffect(() => {
     if (!detailId) {
       setDetailGoalId(null)
+      setEditingGoal((current) => current && current !== 'new' ? null : current)
       return
     }
+    setEditingGoal((current) => current && current !== 'new' && current.id !== detailId ? null : current)
     if (goals.some((goal) => goal.id === detailId)) setDetailGoalId(detailId)
-  }, [goals, detailId])
+    else if (!loading) setDetailGoalId(null)
+  }, [goals, detailId, loading])
 
   function openGoal(id) {
     if (onOpenDetail?.('goal', id)) return
@@ -89,7 +93,10 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
 
   function closeGoal(options) {
     if (detailId) {
-      if (onCloseDetail?.(options)) setDetailGoalId(null)
+      if (onCloseDetail?.(options)) {
+        setDetailGoalId(null)
+        setEditingGoal(null)
+      }
       return
     }
     setDetailGoalId(null)
@@ -154,16 +161,18 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
     return toAED(Number(linked.value) || 0, linked.currency, fxRates)
   }
 
-  const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null
+  const detailGoal = goals.find((g) => g.id === (detailId ?? detailGoalId)) ?? null
 
   if (loading) {
-    return <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
+    return detailId ? (
+      <DetailShell backLabel="Goals" title="Goal" loading onRequestClose={() => closeGoal()} />
+    ) : <div className="px-6 py-10"><LoadingState label="Loading…" /></div>
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold tracking-tight text-ink-900">Goals</h2>
+    <div>
+      <span className="sr-only">Goals</span>
+      <div className="mb-4 flex items-center justify-end">
         <button
           type="button"
           onClick={() => setEditingGoal('new')}
@@ -189,7 +198,7 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
         </div>
       )}
 
-      {editingGoal && (
+      {editingGoal && !detailId && (
         <GoalForm
           goal={editingGoal === 'new' ? null : editingGoal}
           fixedKind="save_up"
@@ -201,7 +210,7 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
         />
       )}
 
-      {detailGoal && !editingGoal && (
+      {detailGoal && !editingGoal && !detailId && (
         <GoalDetail
           fmt={fmt}
           goal={detailGoal}
@@ -212,6 +221,41 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
           onClose={() => closeGoal()}
           onAddContribution={() => setAddingContribution(true)}
         />
+      )}
+
+      {detailId && (
+        <DetailShell
+          backLabel="Goals"
+          title={editingGoal ? `Edit ${detailGoal?.name ?? 'goal'}` : detailGoal ? `${detailGoal.icon ?? ''} ${detailGoal.name}`.trim() : 'Goal'}
+          error={error}
+          unavailable={!error && !detailGoal}
+          onRequestClose={() => closeGoal()}
+        >
+          {editingGoal && detailGoal ? (
+            <GoalForm
+              embedded
+              goal={editingGoal}
+              fixedKind="save_up"
+              liabilityAccounts={[]}
+              assetAccounts={assetAccounts}
+              onSave={handleSaveGoal}
+              onCancel={() => setEditingGoal(null)}
+              onDelete={handleDeleteGoal}
+            />
+          ) : detailGoal ? (
+            <GoalDetail
+              embedded
+              fmt={fmt}
+              goal={detailGoal}
+              saved={savedFor(detailGoal)}
+              linkedAccount={accountById.get(detailGoal.linked_account_id)}
+              contributions={contributions.filter((c) => c.goal_id === detailGoal.id)}
+              onEdit={() => setEditingGoal(detailGoal)}
+              onClose={() => closeGoal()}
+              onAddContribution={() => setAddingContribution(true)}
+            />
+          ) : null}
+        </DetailShell>
       )}
 
       {addingContribution && (
@@ -255,7 +299,7 @@ function StatTile({ label, value }) {
   )
 }
 
-function GoalDetail({ goal, saved, linkedAccount, contributions, onEdit, onClose, onAddContribution, fmt }) {
+function GoalDetail({ goal, saved, linkedAccount, contributions, onEdit, onClose, onAddContribution, fmt, embedded = false }) {
   const pct = goal.target_amount > 0 ? (saved / goal.target_amount) * 100 : 0
   const remaining = Math.max(0, goal.target_amount - saved)
   const isFD = linkedAccount?.type === 'fixed_deposit' && linkedAccount?.interest_rate
@@ -264,17 +308,16 @@ function GoalDetail({ goal, saved, linkedAccount, contributions, onEdit, onClose
     : null
   const projected = isFD ? fdProjection?.date ?? null : projectedCompletionDate(remaining, goal.monthly_plan)
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
-        <div className="mb-1 flex items-center justify-between">
+  const content = (
+    <>
+        {!embedded && <div className="mb-1 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ink-900">
             {goal.icon} {goal.name}
           </h2>
           <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
             Close
           </button>
-        </div>
+        </div>}
 
         {linkedAccount && (
           <p className="text-xs text-ink-400">
@@ -345,6 +388,15 @@ function GoalDetail({ goal, saved, linkedAccount, contributions, onEdit, onClose
             </ul>
           )}
         </div>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )

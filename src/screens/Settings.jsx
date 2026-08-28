@@ -207,7 +207,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <div>
       {error && (
         <div className="mb-4"><ErrorState title={error} /></div>
       )}

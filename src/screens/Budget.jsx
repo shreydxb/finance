@@ -115,7 +115,7 @@ export default function Budget() {
   // Investments, Reports, Transactions). Budget was the only one at 5xl, which
   // cost the category table ~130px it needs for five columns.
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div>
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] lg:items-start">
         <div className="min-w-0">
           <div className="mb-6 flex items-center justify-between rounded-2xl border border-ink-200 bg-surface shadow-card px-4 py-3">

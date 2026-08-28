@@ -19,7 +19,7 @@ const EMPTY = {
   due_day: '',
 }
 
-export default function AccountForm({ account, onSave, onCancel, onDelete }) {
+export default function AccountForm({ account, embedded = false, onSave, onCancel, onDelete }) {
   const [form, setForm] = useState(() =>
     account
       ? {
@@ -105,12 +105,11 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-ink-900">
+  const content = (
+    <>
+        {!embedded && <h2 className="mb-4 text-lg font-semibold text-ink-900">
           {account ? 'Edit account' : 'Add account'}
-        </h2>
+        </h2>}
 
         <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -386,6 +385,15 @@ export default function AccountForm({ account, onSave, onCancel, onDelete }) {
             )}
           </div>
         </ProtectedForm>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-xl sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )

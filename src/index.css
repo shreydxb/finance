@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./design-system/tokens.css";
 @import "./design-system/foundation.css";
+@import "./shell/shell.css";
 
 /* ── Legacy compatibility ramps ──────────────────────────────────────────
    New foundation components consume semantic aliases from tokens.css.

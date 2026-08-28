@@ -35,6 +35,7 @@ import ForecastSetup from '../components/ForecastSetup'
 import ForecastEventForm from '../components/ForecastEventForm'
 import AnimatedNumber from '../components/AnimatedNumber'
 import { useRouteQueryState } from '../lib/useRouteQueryState'
+import DetailShell from '../shell/RouteDetailShell'
 
 const FORECAST_SETTING_KEY = 'forecast_assumptions'
 const FORECAST_YEARS = 25
@@ -210,10 +211,18 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
     if (!detailId) {
       setViewingAccount(null)
       setViewingCard(null)
+      setEditing((current) => current && current !== 'new' ? null : current)
       return
     }
+    setEditing((current) => current && current !== 'new' && current.id !== detailId ? null : current)
     const account = listed.find((item) => item.id === detailId)
-    if (!account) return
+    if (!account) {
+      if (!accountsLoading) {
+        setViewingAccount(null)
+        setViewingCard(null)
+      }
+      return
+    }
     if (account.type === 'credit_card') {
       setViewingCard(account)
       setViewingAccount(null)
@@ -222,7 +231,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
       setViewingCard(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts, detailId])
+  }, [accounts, accountsLoading, detailId])
 
   function openAccount(account) {
     if (onOpenDetail?.('account', account.id)) return
@@ -232,6 +241,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
 
   function closeAccount(options) {
     if (detailId && !onCloseDetail?.(options)) return
+    if (detailId) setEditing(null)
     setViewingAccount(null)
     setViewingCard(null)
   }
@@ -278,13 +288,14 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
   }
 
   if (accountsLoading || wealthLoading) {
-    return <div className="px-6 py-10 text-center text-sm text-ink-500">Loading accounts…</div>
+    return detailId ? (
+      <DetailShell backLabel="Accounts" title="Account" loading onRequestClose={() => closeAccount()} />
+    ) : <div className="px-6 py-10 text-center text-sm text-ink-500">Loading accounts…</div>
   }
 
   return (
-    <div className="stagger mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold tracking-tight text-ink-900">Accounts</h2>
+    <div className="stagger">
+      <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
           onClick={() => setEditing('new')}
@@ -458,7 +469,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         Investments aren’t listed here — they live on the Investments tab. They still count toward net worth above.
       </p>
 
-      {viewingAccount && !editing && (
+      {viewingAccount && !editing && !detailId && (
         <AccountDetail
           account={viewingAccount}
           onClose={() => closeAccount()}
@@ -466,7 +477,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         />
       )}
 
-      {viewingCard && !editing && (
+      {viewingCard && !editing && !detailId && (
         <CardDetail
           account={viewingCard}
           transactions={recentTxns}
@@ -479,13 +490,58 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         />
       )}
 
-      {editing && (
+      {editing && !detailId && (
         <AccountForm
           account={editing === 'new' ? null : editing}
           onSave={handleSave}
           onCancel={() => setEditing(null)}
           onDelete={handleDelete}
         />
+      )}
+
+      {detailId && (
+        <DetailShell
+          backLabel="Accounts"
+          title={editing
+            ? `Edit ${viewingAccount?.name ?? cardDisplayName(viewingCard?.name ?? '') ?? 'account'}`
+            : viewingCard
+              ? `💳 ${cardDisplayName(viewingCard.name)}`
+              : viewingAccount
+                ? `${typeIcon(viewingAccount.type)} ${viewingAccount.name}`
+                : 'Account'}
+          error={error}
+          unavailable={!error && !viewingAccount && !viewingCard}
+          onRequestClose={() => closeAccount()}
+        >
+          {editing && (viewingAccount || viewingCard) ? (
+            <AccountForm
+              embedded
+              account={editing}
+              onSave={handleSave}
+              onCancel={() => setEditing(null)}
+              onDelete={handleDelete}
+            />
+          ) : viewingAccount ? (
+            <AccountDetail
+              embedded
+              account={viewingAccount}
+              onClose={() => closeAccount()}
+              onEdit={() => setEditing(viewingAccount)}
+            />
+          ) : viewingCard ? (
+            <CardDetail
+              embedded
+              account={viewingCard}
+              transactions={recentTxns}
+              fxRates={fxRates}
+              fmt={fmt}
+              today={today}
+              onClose={() => closeAccount()}
+              onEdit={() => setEditing(viewingCard)}
+              onRefresh={refreshRecentTxns}
+            />
+          ) : null}
+        </DetailShell>
       )}
 
       {showForecastSetup && (
@@ -873,7 +929,7 @@ function AccountGroupList({ title, groups, onSelect, fmt, canonicalById }) {
   )
 }
 
-function AccountDetail({ account, onClose, onEdit }) {
+function AccountDetail({ account, onClose, onEdit, embedded = false }) {
   const [transactions, setTransactions] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -910,10 +966,9 @@ function AccountDetail({ account, onClose, onEdit }) {
     await refresh()
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-pop sm:rounded-2xl">
-        <div className="mb-1 flex items-start justify-between">
+  const content = (
+    <>
+        {!embedded && <div className="mb-1 flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink-900">
               {typeIcon(account.type)} {account.name}
@@ -925,7 +980,8 @@ function AccountDetail({ account, onClose, onEdit }) {
           <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
             Close
           </button>
-        </div>
+        </div>}
+        {embedded && <p className="text-xs text-ink-400">{typeLabel(account.type)} · {account.owner}</p>}
 
         <p className="tnum my-3 text-2xl font-semibold text-ink-900">
           {formatMoney(Number(account.value), account.currency, { decimals: 2 })}
@@ -979,6 +1035,15 @@ function AccountDetail({ account, onClose, onEdit }) {
             onCancel={() => setAddingTxn(false)}
           />
         )}
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-pop sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )
@@ -993,7 +1058,7 @@ function AccountDetail({ account, onClose, onEdit }) {
  * itself: it is a floor, not a statement total, since it only counts what
  * was actually captured (see cards.js).
  */
-function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdit, onRefresh }) {
+function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdit, onRefresh, embedded = false }) {
   const [categories, setCategories] = useState([])
   const [addingTxn, setAddingTxn] = useState(false)
 
@@ -1032,10 +1097,9 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
 
   const maxPastSpend = Math.max(s.cycleSpend ?? 0, ...past.map((c) => c.spend), 1)
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-pop sm:rounded-2xl">
-        <div className="mb-4 flex items-start justify-between">
+  const content = (
+    <>
+        {!embedded && <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink-900">💳 {cardDisplayName(account.name)}</h2>
             <p className="text-xs text-ink-400">
@@ -1051,7 +1115,13 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
           <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-600">
             Close
           </button>
-        </div>
+        </div>}
+        {embedded && (
+          <p className="mb-4 text-xs text-ink-400">
+            {account.owner} · {last4 ? `···· ${last4}` : account.currency}
+            {s.cycle ? ` · ${s.daysToClose === 0 ? 'closes today' : `closes in ${s.daysToClose}d`}` : ''}
+          </p>
+        )}
 
         {s.limit == null ? (
           <p className="mb-5 text-sm text-ink-500">
@@ -1183,6 +1253,15 @@ function CardDetail({ account, transactions, fxRates, fmt, today, onClose, onEdi
             onCancel={() => setAddingTxn(false)}
           />
         )}
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-black/40 p-0 sm:items-center sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-6 shadow-pop sm:rounded-2xl">
+        {content}
       </div>
     </div>
   )
