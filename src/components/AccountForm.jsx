@@ -114,7 +114,7 @@ export default function AccountForm({ account, embedded = false, onSave, onCance
         <ProtectedForm onSubmit={handleSubmit} className="space-y-4">
           <div>
             <span className="mb-1 block text-sm font-medium text-ink-700">Asset or liability?</span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => setKind('asset')}
@@ -173,7 +173,7 @@ export default function AccountForm({ account, embedded = false, onSave, onCance
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="owner" className="mb-1 block text-sm font-medium text-ink-700">
                 Owner
@@ -227,7 +227,7 @@ export default function AccountForm({ account, embedded = false, onSave, onCance
           </div>
 
           {form.type === 'investment' && (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label htmlFor="ticker" className="mb-1 block text-sm font-medium text-ink-700">
                   Ticker
@@ -275,7 +275,7 @@ export default function AccountForm({ account, embedded = false, onSave, onCance
           {isCard && (
             <div className="rounded-lg border border-ink-200 bg-ink-50/50 p-3">
               <p className="mb-2 text-sm font-medium text-ink-700">Card details</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
                   <label htmlFor="credit_limit" className="mb-1 block text-xs font-medium text-ink-600">
                     Credit limit

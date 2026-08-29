@@ -85,7 +85,7 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAcco
           {!isEdit && !fixedKind && (
             <div>
               <span className="mb-1 block text-sm font-medium text-ink-700">Type</span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setKind('save_up')}
@@ -221,7 +221,7 @@ export default function GoalForm({ goal, fixedKind, liabilityAccounts, assetAcco
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="g-monthly" className="mb-1 block text-sm font-medium text-ink-700">
                 Monthly plan (optional)

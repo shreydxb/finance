@@ -80,7 +80,7 @@ function participatingCanonicalNetWorth(canonicalAccounts, participatingIds) {
   )
 }
 
-export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, detailId, onOpenDetail, onCloseDetail }) {
+export default function Accounts({ onNavigate, routePath, routeQuery, onRouteQueryChange, detailId, onOpenDetail, onCloseDetail }) {
   const { accounts, fxRates, loading: accountsLoading, error, refresh } = useAccountsAndFx()
   const { wealth, history, loading: wealthLoading, error: wealthError } = useCanonicalWealth()
   const { fmt } = usePrefs()
@@ -298,9 +298,15 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
     ) : <div className="px-6 py-10 text-center text-sm text-ink-500">Loading accounts…</div>
   }
 
+  const pageView = routePath === '/planning/forecasts'
+    ? 'forecast'
+    : routePath === '/wealth/net-worth'
+      ? 'net-worth'
+      : 'accounts'
+
   return (
     <div className="stagger">
-      <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
+      {pageView === 'accounts' ? <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
           onClick={() => setEditing('new')}
@@ -308,7 +314,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         >
           + Add account
         </button>
-      </div>
+      </div> : null}
 
       {error && (
         <p role="alert" className="mb-4 rounded-lg bg-neg-50 px-4 py-3 text-sm text-neg-600">
@@ -321,7 +327,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+      {pageView === 'net-worth' ? <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
         <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
           <div className="mb-3 flex items-baseline justify-between">
             <div className="flex items-center gap-2">
@@ -356,7 +362,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         <aside className="space-y-4">
           <div className="rounded-2xl border border-ink-200 bg-surface p-5 shadow-card">
             <h3 className="mb-3 text-sm font-semibold text-ink-900">Summary</h3>
-            <SummaryRow label="Assets" value={displayCanonicalMoney(totals.assets, fmt)} onClick={() => scrollToGroup(assetGroups[0]?.type)} />
+            <SummaryRow label="Assets" value={displayCanonicalMoney(totals.assets, fmt)} onClick={() => onNavigate?.('Accounts')} />
             <div className="my-2 h-2 w-full overflow-hidden rounded-full bg-ink-100">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-pos-500 to-brand-500"
@@ -369,7 +375,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
               label="Liabilities"
               value={displayCanonicalMoney(totals.liabilities, fmt)}
               tone="neg"
-              onClick={() => scrollToGroup(liabilityGroups[0]?.type)}
+              onClick={() => onNavigate?.('Accounts')}
             />
             <div className="mt-3 space-y-1.5 border-t border-ink-100 pt-3 text-xs">
               <SummaryRow small label="Investments" value={displayCanonicalMoney(totals.investments, fmt)} onClick={() => onNavigate?.('Investments')} />
@@ -412,7 +418,7 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
                         groupBy === 'type'
                           ? g.key === 'investment'
                             ? onNavigate?.('Investments')
-                            : scrollToGroup(g.key)
+                            : onNavigate?.('Accounts')
                           : undefined
                       }
                       className={`mb-1 flex w-full items-center justify-between text-xs ${
@@ -434,9 +440,14 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
             </ul>
           </div>
         </aside>
-      </div>
+      </div> : null}
 
-      <ForecastSection
+      {pageView === 'forecast' ? <div className="mb-5 rounded-panel border border-border bg-surface-subtle px-4 py-4 text-body text-text-secondary sm:px-5">
+        <p className="m-0 font-semibold text-text-primary">Projection, not a promise</p>
+        <p className="mb-0 mt-1">This view uses the existing forecast assumptions and recorded events. It does not fabricate uncertainty ranges or future history.</p>
+      </div> : null}
+
+      {pageView === 'forecast' ? <ForecastSection
         loaded={forecastLoaded}
         assumptions={forecastAssumptions}
         projection={forecastProjection}
@@ -445,9 +456,9 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         onSetup={() => setShowForecastSetup(true)}
         onAddEvent={() => setEditingForecastEvent('new')}
         onEventClick={(ev) => setEditingForecastEvent(ev)}
-      />
+      /> : null}
 
-      <CardsSection
+      {pageView === 'accounts' ? <CardsSection
         cards={cards}
         transactions={recentTxns}
         fxRates={fxRates}
@@ -455,24 +466,24 @@ export default function Accounts({ onNavigate, routeQuery, onRouteQueryChange, d
         today={today}
         onEdit={setEditing}
         onSelect={openAccount}
-      />
+      /> : null}
 
-      <BankSection accounts={bankAccounts} fmt={fmt} canonicalById={canonicalById} onSelect={openAccount} onAdd={() => setEditing('new')} />
+      {pageView === 'accounts' ? <BankSection accounts={bankAccounts} fmt={fmt} canonicalById={canonicalById} onSelect={openAccount} onAdd={() => setEditing('new')} /> : null}
 
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
+      {pageView === 'accounts' ? <div className="mt-6 grid gap-5 md:grid-cols-2">
         <AccountGroupList title="Assets" groups={assetGroups} onSelect={openAccount} fmt={fmt} canonicalById={canonicalById} />
         <AccountGroupList title="Liabilities" groups={liabilityGroups} onSelect={openAccount} fmt={fmt} canonicalById={canonicalById} />
-      </div>
+      </div> : null}
 
-      {listed.length === 0 && (
+      {pageView === 'accounts' && listed.length === 0 && (
         <p className="py-10 text-center text-sm text-ink-500">
           No spending accounts yet. Add your first one — manual entry only, no bank connection needed.
         </p>
       )}
 
-      <p className="mt-4 text-xs text-ink-400">
+      {pageView === 'accounts' ? <p className="mt-4 text-xs text-ink-400">
         Investments aren’t listed here — they live on the Investments tab. They still count toward net worth above.
-      </p>
+      </p> : null}
 
       {viewingAccount && !editing && !detailId && (
         <AccountDetail

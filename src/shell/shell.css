@@ -1,5 +1,6 @@
 .mobile-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -12px 32px -24px rgb(18 22 32 / 0.55);
 }
 
 .utility-dialog {
@@ -41,6 +42,13 @@
   .detail-shell-content {
     width: min(100%, 36rem);
     border-radius: 0;
+  }
+}
+
+@media (min-width: 75rem) {
+  aside[aria-label='Application sidebar'] {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-action-soft) 34%, var(--color-surface)) 0, var(--color-surface) 14rem);
   }
 }
 

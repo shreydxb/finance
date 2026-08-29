@@ -144,7 +144,7 @@ export default function Debts({ detailId: routeDetailId, onOpenDetail, onCloseDe
         </p>
       ) : (
         <>
-          <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-ink-200 bg-surface p-4 shadow-card">
               <p className="text-xs text-ink-500">Total Principal</p>
               <p className="tnum mt-1 text-lg font-semibold text-ink-900">{fmt(totalPrincipal)}</p>

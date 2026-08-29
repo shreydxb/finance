@@ -42,7 +42,7 @@ function ProgressBar({ pct }) {
  * mixing the two under one "Goals" label was confusing what this screen was
  * even for. See Debts.jsx for that half.
  */
-export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
+export default function Goals({ detailId, navigateHref, routePath, onOpenDetail, onCloseDetail }) {
   const { fmt, fxRates } = usePrefs()
   const [goals, setGoals] = useState([])
   const [contributions, setContributions] = useState([])
@@ -162,6 +162,7 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
   }
 
   const detailGoal = goals.find((g) => g.id === (detailId ?? detailGoalId)) ?? null
+  const isPlanView = routePath === '/planning'
 
   if (loading) {
     return detailId ? (
@@ -172,6 +173,27 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
   return (
     <div>
       <span className="sr-only">Goals</span>
+      {isPlanView ? (
+        <section className="mb-6 rounded-feature border border-border bg-surface p-5 shadow-elevation-1 sm:p-6" aria-labelledby="plan-map-title">
+          <div className="max-w-copy">
+            <p className="m-0 text-micro font-semibold uppercase tracking-[0.14em] text-action">Planning map</p>
+            <h2 id="plan-map-title" className="mb-0 mt-2 text-title-2 font-semibold text-text-primary">Three views, one household plan</h2>
+            <p className="mb-0 mt-2 text-body text-text-secondary">Use goals for what you are building, debt payoff for obligations you are reducing, and forecasts to explore the existing long-range projection.</p>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              ['/planning/goals', 'Goals', 'Build toward milestones'],
+              ['/planning/debt', 'Debt payoff', 'Reduce obligations'],
+              ['/planning/forecasts', 'Forecasts', 'Explore the projection'],
+            ].map(([href, label, copy]) => (
+              <button key={href} type="button" onClick={() => navigateHref?.(href)} className="min-h-24 rounded-panel border border-border bg-surface-subtle p-4 text-left transition hover:border-border-strong hover:bg-surface">
+                <span className="block text-body font-semibold text-text-primary">{label} <span aria-hidden="true">→</span></span>
+                <span className="mt-1 block text-body-sm text-text-tertiary">{copy}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <div className="mb-4 flex items-center justify-end">
         <button
           type="button"
@@ -185,6 +207,8 @@ export default function Goals({ detailId, onOpenDetail, onCloseDetail }) {
       {error && (
         <div className="mb-4"><ErrorState title={error} /></div>
       )}
+
+      {isPlanView && goals.length > 0 ? <h2 className="mb-3 text-title-3 font-semibold text-text-primary">Savings goals</h2> : null}
 
       {goals.length === 0 ? (
         <p className="py-10 text-center text-sm text-ink-500">

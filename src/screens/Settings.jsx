@@ -625,7 +625,7 @@ function TelegramIntake({ accounts }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {people.map((person, i) => (
-          <div key={PERSON_KEYS[i]} className="grid grid-cols-2 gap-3">
+          <div key={PERSON_KEYS[i]} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor={`tg-person-${i}`} className="mb-1 block text-xs font-medium text-ink-700">
                 Person {i + 1}
@@ -656,7 +656,7 @@ function TelegramIntake({ accounts }) {
           </div>
         ))}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="tg-threshold" className="mb-1 block text-xs font-medium text-ink-700">
               Auto-log above

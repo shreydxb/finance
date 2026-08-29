@@ -83,6 +83,8 @@ function Dashboard({ router }) {
 
   const screenProps = {
     onNavigate: navigateToScreen,
+    navigateHref: navigate,
+    routePath: route.detail?.parentPath ?? route.pathname,
     routeQuery,
     onRouteQueryChange: updateQuery,
     detailId: route.kind === 'screen' ? route.detail?.id ?? null : null,

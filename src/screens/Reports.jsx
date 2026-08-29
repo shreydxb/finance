@@ -285,17 +285,17 @@ export default function Reports({ routeQuery, onRouteQueryChange }) {
         <div className="flex items-center gap-2">
           <CanonicalQualityIndicator metrics={data.metrics} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid w-full grid-cols-[2.75rem_1fr_2.75rem] items-center gap-2 sm:flex sm:w-auto">
           <button type="button" onClick={() => shift(-1)} aria-label="Previous period" className="rounded-lg border border-ink-300 px-2.5 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100">←</button>
-          <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+          <span className="min-w-0 text-center text-sm font-semibold text-ink-900 sm:min-w-[7rem]">{label}</span>
+          <button type="button" onClick={() => shift(1)} aria-label="Next period" className="rounded-lg border border-ink-300 px-2.5 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100">→</button>
+          <div className="col-span-3 grid grid-cols-3 rounded-lg bg-ink-100 p-0.5 text-xs sm:flex">
             {['month', 'quarter', 'year'].map((value) => <button key={value} type="button" onClick={() => setMode(value)} className={`rounded-md px-2 py-1 font-medium capitalize transition-colors ${mode === value ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}>{value}</button>)}
           </div>
-          <span className="min-w-[7rem] text-center text-sm font-semibold text-ink-900">{label}</span>
-          <button type="button" onClick={() => shift(1)} aria-label="Next period" className="rounded-lg border border-ink-300 px-2.5 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100">→</button>
         </div>
       </div>
 
-      <div className="mb-5 flex w-fit rounded-lg bg-ink-100 p-0.5 text-sm">
+      <div className="mb-5 grid w-full grid-cols-3 rounded-lg bg-ink-100 p-0.5 text-sm sm:flex sm:w-fit">
         {sections.map((item) => <button key={item.key} type="button" onClick={() => setSection(item.key)} className={`rounded-md px-3.5 py-1.5 font-medium transition-colors ${section === item.key ? 'bg-surface text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-900'}`}>{item.label}</button>)}
       </div>
 

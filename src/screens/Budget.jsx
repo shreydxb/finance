@@ -156,7 +156,7 @@ export default function Budget() {
               <div key={group} className="mb-6">
                 <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-500">{group}</h3>
                 <div className="rounded-2xl border border-ink-200 bg-surface shadow-card">
-                  <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+                  <div className="budget-table-header grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
                     <span>Category</span>
                     <span className="w-20 text-right">Planned</span>
                     <span className="w-20 text-right">Actual</span>
@@ -167,14 +167,14 @@ export default function Budget() {
                       key={r.category.id}
                       type="button"
                       onClick={() => setEditingCategory(r.category)}
-                      className="grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
+                      className="budget-row grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-ink-50"
                     >
                       <span className="truncate font-medium text-ink-900">
                         {r.category.icon} {r.category.name}
                       </span>
-                      <span className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
-                      <span className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
-                      <span className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
+                      <span data-label="Planned" className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
+                      <span data-label="Actual" className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
+                      <span data-label="Remaining" className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
                         {fmt(r.remaining)}
                       </span>
                     </button>
@@ -254,20 +254,20 @@ function ContributionSubsection({ title, rows, fmt }) {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+          <div className="budget-table-header grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-ink-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
             <span>Goal</span>
             <span className="w-20 text-right">Planned</span>
             <span className="w-20 text-right">Actual</span>
             <span className="w-20 text-right">Remaining</span>
           </div>
           {rows.map((r) => (
-            <div key={r.goal.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-sm last:border-b-0">
+            <div key={r.goal.id} className="budget-row grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-ink-100 px-4 py-3 text-sm last:border-b-0">
               <span className="truncate font-medium text-ink-900">
                 {r.goal.icon} {r.goal.name}
               </span>
-              <span className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
-              <span className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
-              <span className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
+              <span data-label="Planned" className="tnum w-20 text-right text-ink-600">{fmt(r.planned)}</span>
+              <span data-label="Actual" className="tnum w-20 text-right text-ink-600">{fmt(r.actual)}</span>
+              <span data-label="Remaining" className={`tnum w-20 text-right font-medium ${r.remaining < 0 ? 'text-neg-600' : 'text-ink-900'}`}>
                 {fmt(r.remaining)}
               </span>
             </div>

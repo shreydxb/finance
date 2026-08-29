@@ -456,37 +456,35 @@ function CalendarView({ entries, cursor, setCursor, onSelect }) {
           Next →
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-ink-400">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <div key={d}>{d}</div>
+      <div className="space-y-2 md:hidden" aria-label="Monthly agenda">
+        {Array.from(byDay.entries()).sort(([a], [b]) => a - b).map(([day, dayEntries]) => (
+          <section key={day} className="rounded-panel border border-border bg-surface" aria-labelledby={`agenda-day-${day}`}>
+            <h3 id={`agenda-day-${day}`} className="border-b border-border px-4 py-2 text-body-sm font-semibold text-text-secondary">
+              {day} {MONTH_NAMES_FULL[cursor.month - 1]}
+            </h3>
+            {dayEntries.map((entry) => (
+              <button key={entry.id} type="button" onClick={() => onSelect(entry)} className="flex w-full items-center justify-between gap-3 border-b border-border px-4 py-3 text-left last:border-b-0">
+                <span className="min-w-0 truncate text-body font-medium text-text-primary">{entry.name}</span>
+                <span className="tnum shrink-0 text-body-sm text-text-secondary">{formatMoney(entry.amount, entry.currency)}</span>
+              </button>
+            ))}
+          </section>
         ))}
+        {byDay.size === 0 ? <p className="py-10 text-center text-body text-text-secondary">No scheduled obligations in this month.</p> : null}
       </div>
-      <div className="mt-1 grid grid-cols-7 gap-1">
-        {cells.map((day, i) => (
-          <div
-            key={i}
-            className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-ink-200 bg-surface' : 'border-transparent'}`}
-          >
-            {day && (
-              <>
-                <span className="text-[11px] text-ink-400">{day}</span>
-                <div className="mt-0.5 space-y-0.5">
-                  {(byDay.get(day) || []).map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      onClick={() => onSelect(entry)}
-                      className="block w-full truncate rounded bg-ink-100 px-1 py-0.5 text-left text-[10px] font-medium text-ink-700 hover:bg-ink-200"
-                      title={entry.name}
-                    >
-                      {entry.name}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+      <div className="hidden md:block">
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-ink-400">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d}>{d}</div>)}
+        </div>
+        <div className="mt-1 grid grid-cols-7 gap-1">
+          {cells.map((day, i) => (
+            <div key={i} className={`min-h-[4.5rem] rounded-lg border p-1 text-left ${day ? 'border-ink-200 bg-surface' : 'border-transparent'}`}>
+              {day ? <><span className="text-[11px] text-ink-400">{day}</span><div className="mt-0.5 space-y-0.5">{(byDay.get(day) || []).map((entry) => (
+                <button key={entry.id} type="button" onClick={() => onSelect(entry)} className="block w-full truncate rounded bg-ink-100 px-1 py-0.5 text-left text-[10px] font-medium text-ink-700 hover:bg-ink-200" title={entry.name}>{entry.name}</button>
+              ))}</div></> : null}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -73,6 +73,7 @@ test('shell exposes exactly four primary destinations and route-aware secondary 
     assert.equal(presentation.primary, primary, href)
     assert.equal(presentation.secondary, secondary, href)
     assert.equal(presentation.secondaryItems.length, itemCount, href)
+    assert.ok(presentation.description, `${href} has route context`)
   }
 })
 

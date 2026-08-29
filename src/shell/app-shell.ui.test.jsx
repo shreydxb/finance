@@ -41,7 +41,7 @@ describe('application shell', () => {
     expect(primaryNavs).toHaveLength(2)
     for (const nav of primaryNavs) {
       expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
-        'OOverview', 'MMoney', 'WWealth', 'PPlanning',
+        'Overview', 'Money', 'Wealth', 'Planning',
       ])
       expect(within(nav).getByRole('link', { name: /Money/ })).toHaveAttribute('aria-current', 'page')
     }
@@ -53,6 +53,7 @@ describe('application shell', () => {
     expect(within(secondary).getByRole('link', { name: 'Budget' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Budget')
+    expect(screen.getByText('Give this month a plan and see where it is drifting.')).toBeInTheDocument()
     expect(screen.getByText('Preserved screen body')).toBeInTheDocument()
   })
 

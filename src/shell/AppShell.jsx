@@ -42,9 +42,9 @@ export default function AppShell({ children, identity, navigate, onSignOut, pres
             <SecondaryNav activeKey={presentation.secondary} items={presentation.secondaryItems} navigate={navigate} />
           </div>
 
-          <main id="main-content" aria-labelledby="page-title" className="shell-main min-w-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          <main id="main-content" aria-labelledby="page-title" className="portal-v1 shell-main min-w-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-10">
             <ContentFrame width={presentation.width}>
-              <PageHeader title={presentation.title} />
+              <PageHeader title={presentation.title} description={presentation.description} eyebrow={presentation.eyebrow} />
               {children}
             </ContentFrame>
           </main>

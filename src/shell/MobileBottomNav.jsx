@@ -1,5 +1,6 @@
 import { PRIMARY_NAV_ITEMS } from '../lib/routes'
 import AppLink from './AppLink'
+import NavIcon from './NavIcon'
 
 export default function MobileBottomNav({ activeKey, navigate }) {
   return (
@@ -17,8 +18,8 @@ export default function MobileBottomNav({ activeKey, navigate }) {
                   active ? 'text-action' : 'text-text-tertiary hover:text-text-primary'
                 }`}
               >
-                <span aria-hidden="true" className={`mb-0.5 flex size-5 items-center justify-center rounded-full text-label ${active ? 'bg-action-soft' : ''}`}>
-                  {item.label.slice(0, 1)}
+                <span aria-hidden="true" className={`mb-1 flex size-7 items-center justify-center rounded-control ${active ? 'bg-action-soft' : ''}`}>
+                  <NavIcon name={item.key} className="size-[1.125rem]" />
                 </span>
                 <span>{item.label}</span>
                 {active ? <span aria-hidden="true" className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-action" /> : null}

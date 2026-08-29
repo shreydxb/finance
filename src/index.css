@@ -209,10 +209,145 @@ select option {
 
 /* Every interactive element gets a consistent, visible focus ring rather
    than the per-component `focus:border-*` the app used before. */
-:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+:where(button, a, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* SHR-138 UI/UX v1 — a single presentation layer over the shipped SHR-117
+   token contract. This intentionally changes composition and rhythm only;
+   financial values and feature modules remain authoritative. */
+body {
+  min-width: 360px;
+  overflow-x: clip;
+}
+
+.shell-main {
+  background:
+    radial-gradient(circle at 80% -10%, color-mix(in srgb, var(--color-action-soft) 62%, transparent) 0, transparent 28rem),
+    var(--color-canvas);
+}
+
+.portal-v1 {
+  min-height: calc(100dvh - 3.5rem);
+}
+
+.portal-v1 :where(h2, h3) {
+  letter-spacing: -0.012em;
+}
+
+.portal-v1 :where(button, [role='button'], input:not([type='checkbox']):not([type='radio']), select) {
+  min-height: 2.75rem;
+}
+
+.portal-v1 :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  border-color: var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.portal-v1 :where(input, textarea)::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.portal-v1 [class*='shadow-card'] {
+  box-shadow: 0 1px 1px rgb(18 22 32 / 0.035);
+}
+
+.dark .portal-v1 [class*='shadow-card'] {
+  box-shadow: none;
+}
+
+.portal-v1 [class*='rounded-2xl'][class*='border'] {
+  border-color: var(--color-border);
+}
+
+.portal-v1 [class*='bg-gradient-to-r'] {
+  background-image: none !important;
+  background-color: var(--color-action);
+}
+
+.portal-v1 :where(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.portal-v1 :where(th) {
+  color: var(--color-text-tertiary);
+}
+
+.portal-v1 p[class*='py-10'][class*='text-center'] {
+  min-height: 12rem;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  padding: 2rem;
+  color: var(--color-text-secondary);
+}
+
+.portal-v1 [class*='fixed'][class*='inset-0'][class*='bg-black'] {
+  backdrop-filter: blur(4px);
+}
+
+.page-header {
+  position: relative;
+}
+
+.brand-mark {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 20px -12px rgb(18 22 32 / 0.75);
+}
+
+.budget-row [data-label]::before {
+  display: none;
+}
+
+@media (max-width: 47.999rem) {
+  .portal-v1 {
+    min-height: calc(100dvh - 7.5rem);
+  }
+
+  .portal-v1 > div {
+    min-width: 0;
+  }
+
+  .portal-v1 [class*='rounded-2xl'] {
+    border-radius: var(--radius-panel);
+  }
+
+  .budget-table-header {
+    display: none;
+  }
+
+  .budget-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .budget-row > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .budget-row [data-label] {
+    width: auto;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.8125rem;
+  }
+
+  .budget-row [data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--color-text-tertiary);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
 }
 
 /* Respect the OS setting — motion is decoration here, never information. */

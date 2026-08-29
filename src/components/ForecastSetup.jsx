@@ -75,7 +75,7 @@ export default function ForecastSetup({ accounts, defaultMonthlyIncome, defaultM
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="monthlyIncome" className="mb-1 block text-sm font-medium text-ink-700">
                 Monthly income (AED)
@@ -104,7 +104,7 @@ export default function ForecastSetup({ accounts, defaultMonthlyIncome, defaultM
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="growthRate" className="mb-1 block text-sm font-medium text-ink-700">
                 Annual growth rate (%)

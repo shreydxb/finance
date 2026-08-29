@@ -44,19 +44,19 @@ export const SECONDARY_NAV_ITEMS = Object.freeze({
 })
 
 const ROUTE_PRESENTATION = Object.freeze({
-  '/overview': { primary: 'overview', title: 'Overview', width: 'content' },
-  '/money/activity': { primary: 'money', secondary: 'activity', title: 'Activity', width: 'content' },
-  '/money/budget': { primary: 'money', secondary: 'budget', title: 'Budget', width: 'content' },
-  '/money/recurring': { primary: 'money', secondary: 'recurring', title: 'Recurring', width: 'detail' },
-  '/money/insights': { primary: 'money', secondary: 'insights', title: 'Insights', width: 'content' },
-  '/wealth/net-worth': { primary: 'wealth', secondary: 'net-worth', title: 'Net worth', width: 'content' },
-  '/wealth/accounts': { primary: 'wealth', secondary: 'accounts', title: 'Accounts', width: 'content' },
-  '/wealth/investments': { primary: 'wealth', secondary: 'investments', title: 'Investments', width: 'content' },
-  '/planning': { primary: 'planning', secondary: 'plan', title: 'Plan', width: 'detail' },
-  '/planning/goals': { primary: 'planning', secondary: 'goals', title: 'Goals', width: 'detail' },
-  '/planning/debt': { primary: 'planning', secondary: 'debt', title: 'Debt payoff', width: 'detail' },
-  '/planning/forecasts': { primary: 'planning', secondary: 'forecasts', title: 'Forecasts', width: 'content' },
-  '/settings': { utility: 'settings', title: 'Settings', width: 'detail' },
+  '/overview': { primary: 'overview', eyebrow: 'Your household', title: 'Overview', description: 'The important numbers, upcoming commitments, and anything that needs attention.', width: 'content' },
+  '/money/activity': { primary: 'money', secondary: 'activity', eyebrow: 'Money', title: 'Activity', description: 'Review, search, and maintain the household ledger.', width: 'content' },
+  '/money/budget': { primary: 'money', secondary: 'budget', eyebrow: 'Money', title: 'Budget', description: 'Give this month a plan and see where it is drifting.', width: 'content' },
+  '/money/recurring': { primary: 'money', secondary: 'recurring', eyebrow: 'Money', title: 'Recurring', description: 'Upcoming bills, EMIs, and expected household income.', width: 'detail' },
+  '/money/insights': { primary: 'money', secondary: 'insights', eyebrow: 'Money', title: 'Insights', description: 'Understand where money came from, where it went, and what remained.', width: 'content' },
+  '/wealth/net-worth': { primary: 'wealth', secondary: 'net-worth', eyebrow: 'Wealth', title: 'Net worth', description: 'Your household position and its recorded history.', width: 'content' },
+  '/wealth/accounts': { primary: 'wealth', secondary: 'accounts', eyebrow: 'Wealth', title: 'Accounts', description: 'The accounts and balances that make up your financial life.', width: 'content' },
+  '/wealth/investments': { primary: 'wealth', secondary: 'investments', eyebrow: 'Wealth', title: 'Investments', description: 'Holdings, allocation, cost basis, and recorded performance.', width: 'content' },
+  '/planning': { primary: 'planning', secondary: 'plan', eyebrow: 'Planning', title: 'Plan', description: 'Connect today’s balances to the outcomes you are working toward.', width: 'detail' },
+  '/planning/goals': { primary: 'planning', secondary: 'goals', eyebrow: 'Planning', title: 'Goals', description: 'Track the household milestones you are saving toward.', width: 'detail' },
+  '/planning/debt': { primary: 'planning', secondary: 'debt', eyebrow: 'Planning', title: 'Debt payoff', description: 'See obligations clearly and keep payoff progress in view.', width: 'detail' },
+  '/planning/forecasts': { primary: 'planning', secondary: 'forecasts', eyebrow: 'Planning', title: 'Forecasts', description: 'Explore the existing long-range projection and its stated assumptions.', width: 'content' },
+  '/settings': { utility: 'settings', eyebrow: 'Household', title: 'Settings', description: 'Preferences, categories, integrations, and planning assumptions.', width: 'detail' },
 })
 
 export function presentationForRoute(route) {

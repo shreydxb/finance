@@ -1,12 +1,13 @@
 import { PRIMARY_NAV_ITEMS } from '../lib/routes'
 import AppLink from './AppLink'
+import NavIcon from './NavIcon'
 
 export default function DesktopSidebar({ activeKey, navigate, onOpenUtility }) {
   return (
     <aside className="sticky top-0 hidden h-screen min-h-[36rem] flex-col border-r border-border bg-surface md:flex" aria-label="Application sidebar">
       <div className="flex h-20 items-center gap-3 border-b border-border px-3 min-[1200px]:px-5">
-        <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-feature bg-text-primary text-body font-bold text-text-inverse">
-          ◈
+        <span aria-hidden="true" className="brand-mark flex size-10 shrink-0 items-center justify-center rounded-feature bg-text-primary text-body font-bold text-text-inverse">
+          <span className="size-2.5 rotate-45 rounded-[3px] border-2 border-current" />
         </span>
         <span className="hidden min-w-0 min-[1200px]:block">
           <span className="block truncate text-title-3 font-semibold text-text-primary">Our Money</span>
@@ -30,7 +31,7 @@ export default function DesktopSidebar({ activeKey, navigate, onOpenUtility }) {
                       : 'text-text-secondary hover:bg-surface-subtle hover:text-text-primary'
                   }`}
                 >
-                  <span aria-hidden="true" className="text-title-3 leading-none min-[1200px]:w-5">{item.label.slice(0, 1)}</span>
+                  <NavIcon name={item.key} className="size-5 shrink-0 min-[1200px]:w-5" />
                   <span className="mt-1 text-micro min-[1200px]:mt-0 min-[1200px]:text-body">{item.label}</span>
                   {active ? <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-action" /> : null}
                 </AppLink>
@@ -46,7 +47,7 @@ export default function DesktopSidebar({ activeKey, navigate, onOpenUtility }) {
           navigate={navigate}
           className="flex min-h-control flex-col items-center justify-center rounded-control px-1 text-micro font-semibold text-text-secondary hover:bg-surface-subtle hover:text-text-primary min-[1200px]:flex-row min-[1200px]:justify-start min-[1200px]:px-3 min-[1200px]:text-body"
         >
-          <span aria-hidden="true" className="text-title-3 min-[1200px]:mr-3">S</span>
+          <NavIcon name="settings" className="size-5 min-[1200px]:mr-3" />
           <span>Settings</span>
         </AppLink>
         <button
@@ -54,7 +55,7 @@ export default function DesktopSidebar({ activeKey, navigate, onOpenUtility }) {
           onClick={onOpenUtility}
           className="flex min-h-control w-full flex-col items-center justify-center rounded-control px-1 text-micro font-semibold text-text-secondary hover:bg-surface-subtle hover:text-text-primary min-[1200px]:flex-row min-[1200px]:justify-start min-[1200px]:px-3 min-[1200px]:text-body"
         >
-          <span aria-hidden="true" className="text-title-3 min-[1200px]:mr-3">P</span>
+          <NavIcon name="preferences" className="size-5 min-[1200px]:mr-3" />
           <span>Preferences</span>
         </button>
       </div>
