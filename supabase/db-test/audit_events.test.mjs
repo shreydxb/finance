@@ -503,9 +503,15 @@ test('encrypted-backup manifest includes audit evidence and a restore preserves 
   await withTx(async (client) => {
     const inserted = await appendAsService(client)
     await client.query('reset role')
-    const { rows: sourceRows } = await client.query('select * from public.audit_events where event_id = $1', [
-      inserted.rows[0].event_id,
-    ])
+    // PostgREST exports each row as JSON, so timestamptz values remain exact
+    // strings. Fetch to_jsonb here as well; selecting scalar columns through
+    // node-postgres would coerce them to JS Date and truncate microseconds,
+    // which is not the production backup transport.
+    const { rows: sourceJson } = await client.query(
+      'select to_jsonb(e) as row from public.audit_events e where event_id = $1',
+      [inserted.rows[0].event_id]
+    )
+    const sourceRows = sourceJson.map(({ row }) => row)
 
     const backup = await buildBackup(
       async (table) => (table === 'audit_events' ? sourceRows : []),
