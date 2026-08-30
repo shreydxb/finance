@@ -61,6 +61,14 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   idempotent creation, one-time prompt binding, requester/chat/prompt isolation,
   database-time expiry, non-reopenable terminal states, contradictory-row
   constraints, and a real two-connection claim race with exactly one winner.
+- **`audit-upgrade-path.mjs` + `audit_events.test.mjs`** — SHR-191 fresh,
+  through-044 upgrade and restart/rerun paths; exact ACL/RLS/function matrix;
+  raw client denial; trusted QA append; owner/accidentally-granted immutability;
+  four actor kinds; no actor-to-owner/party/category inference; typed
+  action/target/evidence/causation; forbidden payload rejection; redaction and
+  household isolation; exact replay/collision/distinct-action semantics;
+  append failure atomicity; backup manifest and representative restore with
+  immutable evidence preserved.
 - **`rpc.test.ts`** — every RPC added in 026/027/030/032 against the real
   schema: `replace_category_split`, `create_goal_contribution`,
   `create_transfer`, `create_bulk_transactions`, `apply_pending_income`,

@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `043`. Production is verified through migration `043`. The repository-only Phase-C scheduler configuration adds no financial table or publication semantic and remains inactive pending review.
+Status: semantic map of the schema represented by `supabase/schema/001` through `045`. Production is verified through migration `044`; `045` is repository-only pending independent Tier-3 review and production apply remains unauthorized.
 
 ## Reading this document
 
@@ -106,6 +106,20 @@ Phase C proposes no new financial entity. Its operational configuration creates 
 ### First-class household/party model — planned
 
 The repository currently embeds known person names and Joint labels in several places. Replacing those strings with a generalized household/party model would be a separate migration and compatibility project, not an assumption for current code.
+
+## Immutable audit evidence — current in repository, not production
+
+Migration `045` adds one public durable table, `audit_events`, as append-only evidence of who/what performed an allowlisted action. It is deliberately not economic ownership, provenance, financial/data quality, attention state, integration observation, notification delivery, or generic telemetry.
+
+- Actor shape is exclusive and typed: authenticated access user, private irreversible Telegram sender reference, stable service code, or stable system code. No actor field is an economic party/owner/category field, and none participates in RLS authorization.
+- Action, target, evidence, surface, outcome, logical versions, change evidence, producer/version, sensitivity, redaction/version, and history scope are constrained at the database boundary. The initial allowlist contains only `audit.qa_fixture.recorded` and `audit.qa_fixture.verified`; their target/evidence kind and exact change projection are derived rather than caller-supplied.
+- Request, correlation, causation, and hashed idempotency references are explicit. Same action + same safe idempotency reference + identical canonical payload returns the original successful event; changed payload fails. A distinct action or distinct request reference remains a distinct event.
+- `history_scope = post_cutover_only`; no historical events are inferred or backfilled.
+- Raw INSERT/UPDATE/DELETE is unavailable to all API roles. Service role receives raw SELECT only for the encrypted export and can execute only the QA reference writer. The private generic append function is executable by no API role.
+- `audit_history_v1` is the only authenticated read contract. It authorizes through `private.is_household_member()` and redacts the private Telegram reference. Anonymous and authenticated outsiders are denied.
+- UPDATE/DELETE triggers protect rows through ordinary and accidentally over-granted application paths. A database owner can deliberately alter/disable those controls and is the documented administrative trust boundary.
+
+Economic-party context is intentionally absent until the separately reviewed party foundation exists. It must be added as an independent nullable typed reference later; actor identity must never populate it implicitly.
 
 ## Intake, automation, and operations
 

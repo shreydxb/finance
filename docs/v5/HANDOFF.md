@@ -1,39 +1,68 @@
-# Our Money v5 handoff — SHR-126 transaction capture and correction safety
+# Our Money v6 handoff — SHR-191 immutable audit substrate
 
-Date: 28 August 2026
+Date: 31 August 2026
 
-Branch: `shreydxb1/shr-126-transaction-capture-correction-safety`
+Branch: `shreydxb1/shr-191-immutable-audit-substrate-and-typed-reference-boundary`
 
-Exact production base: `e71fac23892214bd02d839b2587702700531f32a`
+Exact reviewed base: `53195835d9f22de328ec7c0073b325525c85a7fa`
 
-The immutable PR head, PR URL, and CI conclusions are recorded in the SHR-126 Linear implementation handoff because embedding a commit's own SHA would change it.
+The immutable PR head, PR URL, and final CI conclusions are recorded in the SHR-191 Linear implementation handoff because embedding a commit's own SHA would change it.
 
 ## Outcome
 
-This bounded Tier-3 change makes ordinary manual expense recording and correction server-authoritative. Valid creates use a durable `manual:<uuid>` request key, return the original row on an exact replay, and record `source = 'manual'`, `needs_review = false`, and database-authored `reviewed_at`. Valid corrections preserve source and intake provenance while confirming the corrected fact.
+This bounded Tier-3 package introduces the first V6.0 audit substrate: immutable action evidence in `public.audit_events`, a private typed append function, a redacted authenticated household-member read function, and a service-only QA reference flow. It does not connect any production financial writer.
 
-The UI reports the committed transaction as successful before optional category-rule creation or list refresh. Single deletion uses a confirmation dialog, remains a soft delete, and exposes immediate exact-row Undo. New split entry is temporarily disabled in Activity, Account detail, and Card detail because the existing split RPC has no durable replay identity. Existing split rows remain readable and their existing atomic group correction stays available. Ordinary entry and correction exclude `Transfer`.
+Audit evidence records who or what performed an allowed action. It is deliberately separate from economic ownership, provenance, financial quality, attention, integration observations, and generic telemetry.
 
 ## Database contract
 
-Migration `044_manual_transaction_safety.sql` adds one `SECURITY INVOKER` function with an empty search path: `save_manual_transaction(uuid,text,date,numeric,text,uuid,text,text,text,text[],text,uuid)`. Execution is revoked from `public`/`anon` and granted to `authenticated`/`service_role`; existing household RLS remains authoritative.
+Migration `045_immutable_audit_substrate.sql` creates:
 
-The migration also replaces the body of the existing four-argument `replace_category_split` function without changing its PostgREST signature. It adds current account/category validation, positive two-decimal amounts, Dubai-local date validation, transfer rejection, and explicit confirmed-review state on new split lines.
+- `public.audit_events`, with exclusive actor representations for authenticated access user, private hashed Telegram sender reference, service actor, or system actor;
+- typed/versioned action, target, and evidence references;
+- request, correlation, causation, and hashed idempotency references;
+- typed outcomes, minimized allowlisted change evidence, schema/redaction/history versions, and a canonical payload digest;
+- an update/delete rejection trigger protecting ordinary and accidentally privileged application paths;
+- `private.append_audit_event_v1(...)`, an owner-controlled `SECURITY DEFINER` append boundary with exact-replay return, conflicting-replay rejection, and race-safe uniqueness;
+- `public.audit_history_v1(...)`, an authenticated redacted read boundary whose authorization root remains `private.is_household_member(...)`; and
+- `public.record_audit_qa_fixture_v1(...)`, a service-only fixture/reference flow used solely by QA.
 
-There are no new tables, columns, triggers, RLS policies, `SECURITY DEFINER` helpers, backfills, or canonical financial SQL changes. Existing production transactions are untouched.
+The initial allowlist contains only `audit.qa_fixture.recorded` and `audit.qa_fixture.verified`, with fixed `audit.qa_fixture` target/evidence types. Evidence shapes are exact and versioned; unknown fields, unrestricted bodies, secrets, raw Telegram identifiers, and arbitrary JSON are rejected.
 
-## Scope decisions and boundaries
+## Security and immutability
 
-- No concurrency/version framework, fuzzy/near-duplicate subsystem, refund flow, transfer implementation, audit/history tables, toast infrastructure, party normalization, category normalization, Budget migration, Activity redesign, or broad responsive convergence.
-- Refund/reimbursement entry truthfully remains unsupported and is never redirected to income.
-- New split submission is removed instead of acquiring a second idempotency protocol. Existing Activity split groups retain their atomic correction behavior. Unknown split outcomes tell the user to check Activity and never claim that retry cannot duplicate a transaction.
-- Transfer facts cannot enter the generic expense create/correction path; SHR-127 owns transfer integrity.
-- Canonical classification/calculation views, account semantics, Supabase Auth/RLS, snapshots, Netlify configuration, SHR-113, and production data/configuration are protected and unchanged.
+The table grants no DML to `anon` or `authenticated`. `service_role` has table `SELECT` only for the backup path. The private append function is not executable by API roles, and the QA wrapper is executable only by `service_role`. The member history function is executable only by `authenticated` and derives the caller from `auth.uid()` rather than accepting an actor or household override.
 
-## Tests and release
+RLS is enabled with an explicit deny-all raw-table policy for `anon` and `authenticated`. Household authorization remains rooted exclusively in the existing private membership helper. Actor, owner, economic party, category, and Telegram sender are never authorization predicates. Economic party is not present in the audit schema and is never inferred from actor identity.
 
-Database integration coverage exercises confirmed create semantics, exact replay and request-key conflict, invalid/future date, invalid/sub-cent amount, stale account/category, transfer rejection, provenance-preserving correction, refusal of deleted/grouped/transfer correction, RLS/privilege metadata, and canonical split reconciliation. Application/UI coverage exercises ordinary request-key/error contracts, split outcome truthfulness, fresh Activity split-create containment, preserved existing split correction, post-commit follow-up failure truth, field validation, delete confirmation, account/card split removal, and functional 360/390-width controls.
+The mutation trigger makes inserted evidence append-only through ordinary SQL and application roles, including an accidentally over-granted role. As with all PostgreSQL trigger-based immutability, the database owner remains the ultimate trust root and can deliberately alter or disable the protection; this package does not claim an impossible guarantee against that owner.
 
-Migration `044` must be applied before deploying the frontend. Rollback order is frontend first, then drop `save_manual_transaction` and restore the migration-041 split function body. No stored data needs reversal because the migration has no backfill; manual rows created after release remain valid ordinary transaction facts.
+## Backup, restore, and migration safety
 
-No migration was applied to production and no production deploy was performed. The PR remains unmerged for independent QA.
+The backup manifest now includes `audit_events` as financial data. Focused database coverage exports a representative row through the manifest contract, restores it to an isolated table with the immutability trigger, compares the complete JSON representation, and proves update/delete rejection after restore.
+
+The migration is additive, has no historical backfill, and uses guarded/restart-safe object creation or replacement. Upgrade coverage builds schema through migration 044, preserves a representative existing transaction byte-for-byte and at the same tuple identity, applies and reapplies migration 045, and confirms no audit synthesis. Fresh-path coverage uses the complete migration sequence.
+
+## Validation
+
+Local validation completed:
+
+- `npm ci` — pass; 184 packages, zero vulnerabilities reported;
+- `npm run lint` — pass with six pre-existing warnings and zero errors;
+- `npm run test:node` — pass, 526/526 tests;
+- `npm run test:ui` — pass, 9 files and 89/89 tests;
+- `npm run build` — pass, 215 modules transformed;
+- `npm audit --omit=dev --audit-level=high` — pass, zero vulnerabilities;
+- syntax checks for both new database test runners — pass; and
+- `git diff --check` — pass.
+
+This host has no local PostgreSQL runtime, so the fresh, upgrade, restart, ACL/RLS, replay, immutability, isolation, and restore database proofs run in the repository's isolated GitHub database job. Exact-head CI evidence is recorded in Linear before independent review.
+
+## Protected boundaries
+
+- No transaction, category, economic-party/mapping, or other production writer integration.
+- No attention, integration-observation, provenance, UI, Telegram behavior, notification, historical audit synthesis, retention purge, financial calculation, or classification change.
+- No production migration, data change, deployment, or merge.
+- No existing consumer behavior change.
+
+The PR remains unmerged and is labeled `[skip netlify]` because this package has no site change.

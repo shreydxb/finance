@@ -15,6 +15,13 @@ const schemaDir = join(here, '..', 'schema')
 const adminUrl =
   process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:5432/postgres'
 const dbName = process.env.TEST_DB_NAME || 'our_money_test'
+const schemaMaxNumber = process.env.SCHEMA_MAX_NUMBER
+  ? Number.parseInt(process.env.SCHEMA_MAX_NUMBER, 10)
+  : null
+
+if (schemaMaxNumber !== null && !Number.isInteger(schemaMaxNumber)) {
+  throw new Error('SCHEMA_MAX_NUMBER must be an integer migration prefix')
+}
 
 function withDatabase(url, database) {
   const u = new URL(url)
@@ -139,6 +146,7 @@ async function applySchema() {
 
     const files = readdirSync(schemaDir)
       .filter((f) => f.endsWith('.sql'))
+      .filter((f) => schemaMaxNumber === null || Number.parseInt(f.slice(0, 3), 10) <= schemaMaxNumber)
       .sort()
 
     for (const file of files) {

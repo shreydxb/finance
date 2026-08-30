@@ -24,9 +24,25 @@ test('the dump covers every table exactly once', () => {
   const names = BACKUP_TABLES.map((t) => t.name)
   assert.equal(new Set(names).size, names.length, 'no duplicates')
   // The tables holding the household's actual records.
-  for (const required of ['accounts', 'transactions', 'goals', 'budgets', 'recurring', 'income', 'settings']) {
+  for (const required of [
+    'accounts',
+    'transactions',
+    'goals',
+    'budgets',
+    'recurring',
+    'income',
+    'settings',
+    'audit_events',
+  ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
   }
+})
+
+test('immutable audit evidence is classified as financial and restore-order independent', () => {
+  const audit = BACKUP_TABLES.find((table) => table.name === 'audit_events')
+  assert.ok(audit)
+  assert.equal(audit.financial, true)
+  assert.deepEqual((audit as { dependsOn?: readonly string[] }).dependsOn ?? [], [])
 })
 
 test('a backup records row counts and separates financial from operational rows', async () => {
@@ -34,14 +50,15 @@ test('a backup records row counts and separates financial from operational rows'
     fakeFetcher({
       accounts: [{ id: 'a' }, { id: 'b' }],
       transactions: [{ id: 't' }],
+      audit_events: [{ event_id: 'e' }],
       intake_logs: [{ id: 'l' }, { id: 'l2' }, { id: 'l3' }],
     }),
     '20260811201631',
     NOW
   )
 
-  assert.equal(doc.meta.total_rows, 6)
-  assert.equal(doc.meta.financial_rows, 3, 'intake_logs is operational, not financial')
+  assert.equal(doc.meta.total_rows, 7)
+  assert.equal(doc.meta.financial_rows, 4, 'audit is financial evidence; intake_logs is operational')
   assert.equal(doc.meta.row_counts.accounts, 2)
   assert.equal(doc.meta.schema_version, '20260811201631')
   assert.deepEqual(doc.tables.accounts, [{ id: 'a' }, { id: 'b' }])
