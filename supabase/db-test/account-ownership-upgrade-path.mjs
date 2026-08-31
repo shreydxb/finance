@@ -171,8 +171,13 @@ async function canonicalContracts() {
   const { rows: period } = await client.query(
     `select * from public.canonical_period_metrics('2026-08-01', '2026-08-31', 'household')`
   )
+  // Every column of the canonical account view except valuation_age_seconds,
+  // which is `now() - valuation_as_of` and therefore moves with the wall clock
+  // rather than with anything this migration could change. Comparing it would
+  // make the assertion pass or fail on how fast the runner happens to be.
   const { rows: accounts } = await client.query(
-    `select * from public.v_canonical_accounts_aed order by id`
+    `select to_jsonb(v) - 'valuation_age_seconds' as row
+       from public.v_canonical_accounts_aed v order by v.id`
   )
   return { balance, person, investment, period, accounts }
 }

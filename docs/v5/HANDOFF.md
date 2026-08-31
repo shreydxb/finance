@@ -90,6 +90,8 @@ Run on this branch against Postgres 16, from a clean `npm ci`:
 
 The shared-database `test:db` suite was run six additional consecutive times with zero failures after a lock-ordering fix (see "Reviewer hotspots").
 
+One CI-only failure was found and fixed on the first exact-head run: the upgrade runner compared `v_canonical_accounts_aed` wholesale, including `valuation_age_seconds`, which is `now() - valuation_as_of` and therefore moves with the wall clock rather than with anything the migration changes. Reproduced locally by injecting a two-second delay between the before/after snapshots, fixed by excluding that one column, and re-verified: the pre-fix runner fails under the injected skew and the fixed one passes.
+
 `npm run parity:canonical` was **not run**: it requires `PARITY_DATABASE_URL` against a live database and is a production parity harness, not part of `test:db`. No production credentials were used in this session beyond read-only inspection.
 
 ## Production state — re-verified read-only
