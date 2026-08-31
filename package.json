@@ -19,7 +19,7 @@
     "test:db:reconciliation-upgrade": "node supabase/db-test/access-party-reconciliation-upgrade-path.mjs",
     "test:db:ownership-upgrade": "node supabase/db-test/account-ownership-upgrade-path.mjs",
     "test:db:category-reconciliation-upgrade": "node supabase/db-test/category-reconciliation-upgrade-path.mjs",
-    "test:db": "npm run test:db:setup && npm run test:db:audit-upgrade && npm run test:db:category-upgrade && npm run test:db:economic-upgrade && npm run test:db:reconciliation-upgrade && npm run test:db:ownership-upgrade && npm run test:db:category-reconciliation-upgrade && node --test \"supabase/db-test/**/*.test.mjs\"",
+    "test:db": "npm run test:db:setup && npm run test:db:audit-upgrade && npm run test:db:category-upgrade && npm run test:db:economic-upgrade && npm run test:db:reconciliation-upgrade && npm run test:db:ownership-upgrade && npm run test:db:category-reconciliation-upgrade && node --test --test-concurrency=1 \"supabase/db-test/**/*.test.mjs\"",
     "parity:canonical": "node supabase/db-test/canonical-parity.mjs",
     "demo:telegram": "node supabase/functions/telegram-intake/demo.ts"
   },

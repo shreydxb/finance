@@ -453,7 +453,23 @@ test('a late evidence failure rolls back system codes, references and the run at
 test('reconciliation evidence is append-only and cannot be updated, deleted or truncated', async () => {
   await withTx(async (client) => {
     const f = await fixture(client)
-    await reconcile(client, f)
+    const pre = await preflight(client)
+    const manifestRef = `SHR197-${crypto.randomUUID()}`
+    await reconcile(client, f, { manifestRef })
+    await reconcile(client, f, {
+      manifestRef,
+      expected: {
+        digest: pre.source_state_digest,
+        categoryCount: pre.category_count,
+        transactionCount: pre.transaction_count,
+        ruleCount: pre.category_rule_count,
+        nullCount: pre.null_transaction_category_count,
+        softDeletedCount: pre.soft_deleted_transaction_count,
+        labelCount: pre.distinct_legacy_label_count,
+        unknownCount: pre.unknown_label_count,
+        runCount: pre.reconciliation_run_count,
+      },
+    })
     for (const table of [
       'category_reconciliation_runs',
       'category_reconciliation_system_entries',
