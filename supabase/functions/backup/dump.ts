@@ -35,7 +35,10 @@ export const BACKUP_TABLES = [
   { name: 'income', financial: true },
   { name: 'settings', financial: true },
   // Depend on the above.
-  { name: 'transactions', financial: true, dependsOn: ['accounts'] },
+  // SHR-197 adds a real FK from both transactions and category rules to the
+  // stable category identity. Categories therefore remain ahead of both.
+  { name: 'transactions', financial: true, dependsOn: ['accounts', 'categories'] },
+  { name: 'category_rules', financial: false, dependsOn: ['categories'] },
   { name: 'budgets', financial: true, dependsOn: ['categories'] },
   { name: 'recurring', financial: true, dependsOn: ['accounts'] },
   { name: 'goals', financial: true, dependsOn: ['accounts'] },
@@ -97,8 +100,36 @@ export const BACKUP_TABLES = [
     financial: true,
     dependsOn: ['economic_households'],
   },
+  // SHR-197's run, exact manifest, system-code assignment and per-row outcomes
+  // are one evidence set. The row subject IDs are deliberate logical
+  // references, but restoring them after transactions/rules makes the drill
+  // reviewable and the category FKs on every evidence row remain load-bearing.
+  {
+    name: 'category_reconciliation_runs',
+    financial: true,
+    dependsOn: ['categories', 'transactions', 'category_rules'],
+  },
+  {
+    name: 'category_reconciliation_system_entries',
+    financial: true,
+    dependsOn: ['category_reconciliation_runs', 'categories'],
+  },
+  {
+    name: 'category_reconciliation_manifest_entries',
+    financial: true,
+    dependsOn: ['category_reconciliation_runs', 'categories'],
+  },
+  {
+    name: 'category_reconciliation_row_evidence',
+    financial: true,
+    dependsOn: ['category_reconciliation_runs', 'categories', 'transactions', 'category_rules'],
+  },
+  {
+    name: 'category_reconciliation_replay_evidence',
+    financial: true,
+    dependsOn: ['category_reconciliation_runs'],
+  },
   { name: 'forecast_events', financial: false },
-  { name: 'category_rules', financial: false },
   { name: 'notifications', financial: false },
   { name: 'media_groups', financial: false },
   { name: 'pending_income', financial: false },

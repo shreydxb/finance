@@ -125,8 +125,9 @@ raising it later does not orphan older backups.
 ## What is and is not covered
 
 Backed up by current repository source: every allowlisted table, including
-`settings`, immutable `audit_events`, and the SHR-196 durable category
-lifecycle evidence (`category_name_history`, `category_aliases`). The deployed
+`settings`, immutable `audit_events`, the SHR-196 durable category lifecycle
+evidence (`category_name_history`, `category_aliases`), nullable SHR-197 stable
+references, and the SHR-197 reconciliation evidence ledger. The deployed
 backup function must be checked separately; repository coverage does not prove
 a production deployment.
 
@@ -182,6 +183,17 @@ Restore order matters for these two as well. `access_party_mapping_history`
 holds composite foreign keys into `access_party_mappings` and
 `economic_parties`, and the run records reference `economic_households`, so the
 manifest lists both after those tables and the dependency test enforces it.
+
+SHR-197 adds stable category references and five append-only reconciliation
+tables. The export includes active and soft-deleted transactions, category
+rules, NULL reference values, category system codes, archived category state,
+the reviewed manifest, per-row resolution evidence, and accepted exact-content
+replay evidence. Restore ordering is
+explicit: categories precede transactions and rules; those source rows precede
+the run, system-entry, label-manifest and row-evidence tables in foreign-key
+order. The manifest dependency test enforces this graph. This makes a restored
+exact-content replay distinguishable from a new or conflicting reconciliation
+without turning legacy category text into a restore-time lookup key.
 
 **Not** backed up: Edge Function secrets, the Supabase project configuration,
 Auth users, and the database schema itself (migrations live in

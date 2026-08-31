@@ -1,13 +1,12 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. Production is verified through `044` as of 31 August 2026. Migrations
-`045` (SHR-191 immutable audit foundation) and `046` (SHR-196 category
-lifecycle and system-code protection foundation) are repository-only pending
-independent Tier-3 review; neither is applied. `045` additionally carries its
+order. Production is verified through `044` as of 1 September 2026. Migrations
+`045` through `050` are repository-only pending their independent reviews and
+production release gates; none is applied. `045` additionally carries its
 own release condition — it must not be applied before the reviewed
 backup-source deployment is coordinated, so audit evidence cannot begin
-accumulating without backup coverage — and `046` does not alter that gate. The
+accumulating without backup coverage — and later migrations do not alter that gate. The
 separately gated SHR-113 Phase-C operational configuration lives under
 `supabase/scheduler/`.
 
@@ -72,6 +71,8 @@ findings each one closes, and the verification evidence.
 | `046_category_lifecycle_protection` | `categories.system_code` / `archived_at` / `updated_at`, a closed `transfer \| savings_investment` vocabulary, database-level system-code immutability and system-category archive/delete protection, a no-hard-delete guard, **fully fail-closed rename, archive and reactivation for every role including the database owner's ordinary DML**, immutable `category_name_history`, explicitly separate `category_aliases` with a compatibility-active → history-only lifecycle, least-privilege ACL/RLS, and backup coverage; **no system code is seeded, no reference is backfilled, and no rename/archive path exists at all** — repository only, not applied | SHR-196 |
 | `047_economic_identity_foundation` | Empty N-party economic household/party/access-mapping substrate, lifecycle and immutability guards, an explicit per-row restore boundary, least-privilege ACL/RLS; **no party, mapping or production row is created** — repository only, not applied | SHR-193 |
 | `048_access_party_reconciliation` | Read-only access-roster preflight with a roster-evidence digest, a transactional evidence-gated manifest reconciliation path, the ordinary mapping create/change/deactivate lifecycle with database-authored decision times, immutable `access_party_mapping_history`, immutable `access_party_reconciliation_runs`, the SHR-194 typed audit policy registered on the SHR-191 substrate, the `access_scope_context_v1` context API, least-privilege ACL/RLS and backup coverage; **the migration creates no household, party, decision or audit row — a separately approved manifest does** — repository only, not applied | SHR-194 |
+| `049_account_ownership_reconciliation` | Additive account ownership kind/party references, read-only roster preflight and deterministic evidence digest, explicit evidence-reviewed manifest reconciliation, immutable run/row evidence, exact replay/conflict behavior, and backup coverage; **no account is inferred or reconciled by the migration** — repository only, not applied | SHR-154 |
+| `050_category_stable_reference_reconciliation` | Nullable stable category references on transactions and rules, deterministic category/label/count preflight, an exhaustive evidence-reviewed manifest path, exact two-code system seeding, active and soft-deleted reconciliation, immutable run/manifest/row evidence, replay/conflict behavior, parity reporting, least-privilege ACL/RLS, and backup coverage; **no production UUID mapping is embedded and no consumer reads the references** — repository only, not applied | SHR-197 |
 
 ## Rules
 
