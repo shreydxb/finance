@@ -33,9 +33,28 @@ test('the dump covers every table exactly once', () => {
     'income',
     'settings',
     'audit_events',
+    'category_name_history',
+    'category_aliases',
   ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
   }
+})
+
+test('durable category lifecycle evidence is financial and restores after its references', () => {
+  // Losing rename history or alias state would leave a restored database
+  // unable to prove which label a category used to carry, or which former
+  // label a resolver is still allowed to accept.
+  const history = BACKUP_TABLES.find((table) => table.name === 'category_name_history')
+  const aliases = BACKUP_TABLES.find((table) => table.name === 'category_aliases')
+  assert.ok(history)
+  assert.ok(aliases)
+  assert.equal(history.financial, true)
+  assert.equal(aliases.financial, true)
+  assert.deepEqual((history as { dependsOn?: readonly string[] }).dependsOn, ['categories'])
+  assert.deepEqual((aliases as { dependsOn?: readonly string[] }).dependsOn, [
+    'categories',
+    'category_name_history',
+  ])
 })
 
 test('immutable audit evidence is classified as financial and restore-order independent', () => {

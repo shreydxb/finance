@@ -125,14 +125,32 @@ raising it later does not orphan older backups.
 ## What is and is not covered
 
 Backed up by current repository source: every allowlisted table, including
-`settings` and immutable `audit_events`. The deployed backup function must be
-checked separately; repository coverage does not prove a production deployment.
+`settings`, immutable `audit_events`, and the SHR-196 durable category
+lifecycle evidence (`category_name_history`, `category_aliases`). The deployed
+backup function must be checked separately; repository coverage does not prove
+a production deployment.
 
 SHR-191 adds an automated representative audit restore: one exported raw audit
 row is inserted into a clean table with the production constraints, compared
 exactly, and then proven immutable under UPDATE/DELETE. This is evidence for the
 new table's export/restore shape, not a claim that a full production re-import
 of every table has been rehearsed.
+
+SHR-196 extends the same drill to category identity. A category carrying a
+system code, a renamed category, its immutable rename history and a retired
+alias are exported through the manifest, restored into clean tables with the
+production constraints, and compared exactly — ids, names, system codes,
+archive state, history and alias lifecycle all survive. The restored copy is
+then re-checked: an unapproved system code and a duplicate system anchor are
+still rejected, an archived system category is still impossible, history is
+still immutable, and — once the lifecycle guard is re-attached — `history_only`
+is still terminal and alias evidence is still undeletable. Both new tables are
+classified `financial`: losing them would leave restored category identity
+unverifiable.
+
+Restore order matters for these two. `category_name_history` references
+`categories`, and `category_aliases` references both, so the manifest lists
+them after `categories` and the dependency test enforces it.
 
 **Not** backed up: Edge Function secrets, the Supabase project configuration,
 Auth users, and the database schema itself (migrations live in

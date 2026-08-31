@@ -170,3 +170,13 @@ Raw browser DML is absent. An owner-only private append primitive is reachable o
 
 Successful replay returns the original event only when the canonical payload is identical. A collision fails and distinct actions do not collapse. UPDATE/DELETE triggers protect immutable evidence even after accidental application-role grants, while the database owner remains the explicit DDL/administrative trust boundary. No historical audit is synthesized and V1 has no purge.
 
+
+## ADR-019 — Category identity is a UUID; system meaning is a protected code, not a name
+
+Status: accepted and implemented in repository migration `046`; independent Tier-3 review and production apply pending — 31 August 2026 — SHR-196
+
+`categories.id` is the authoritative category identity and `categories.name` is presentation text. A category's financial meaning is carried by a controlled `system_code` whose vocabulary is closed to `transfer` and `savings_investment`. No category receives a code in this package, none is inferred from the current `Transfer` or `Savings & Investments` labels, and no name-based semantic classification is added beyond the legacy text compatibility already in production. Uncategorized remains the absence of a classification rather than a row, and `Other` stays an ordinary category.
+
+Protection is at the database boundary, not in a client. Assignment is reachable only from the database-owner/migration authority; an assigned code is immutable to every path the guard can see; a registered system category cannot be archived, deleted, or renamed by an application role. Category hard delete is refused for every role, because v6 removal semantics are archive and historical identity must survive lifecycle changes. Archive itself is deliberately unavailable: application roles are refused outright and the operator path fails closed while a budget or rule reference exists, since SHR-167 owns the current-plan predicate and SHR-160 owns atomic rule lifecycle. Inventing either here would have created budget or rule semantics that no review approved.
+
+Rename history and resolver aliases are separate on purpose. History is immutable, database-written evidence and confers no resolution behavior; a former label becomes resolvable only when an alias is explicitly registered, and retiring that alias to terminal `history_only` releases the label. Ordinary former names are therefore not permanently reserved, which stays a later explicit product decision. Authorization remains `private.is_household_member()`; category lifecycle and `system_code` are never RLS predicates and no taxonomy administrator role exists. As with ADR-018, trigger-based protection binds application paths while the database owner remains the explicit administrative trust root.

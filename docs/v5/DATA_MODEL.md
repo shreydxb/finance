@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `045`. Production is verified through migration `044`; `045` is repository-only pending independent Tier-3 review and production apply remains unauthorized.
+Status: semantic map of the schema represented by `supabase/schema/001` through `046`. Production is verified through migration `044`; `045` and `046` are repository-only pending independent Tier-3 review and production apply remains unauthorized.
 
 ## Reading this document
 
@@ -120,6 +120,24 @@ Migration `045` adds one public durable table, `audit_events`, as append-only ev
 - UPDATE/DELETE triggers protect rows through ordinary and accidentally over-granted application paths. A database owner can deliberately alter/disable those controls and is the documented administrative trust boundary.
 
 Economic-party context is intentionally absent until the separately reviewed party foundation exists. It must be added as an independent nullable typed reference later; actor identity must never populate it implicitly.
+
+## Category lifecycle and system-code protection — current in repository, not production
+
+Migration `046` adds identity and lifecycle substrate to `categories` and two durable evidence tables. It is deliberately dormant: it seeds no system code, backfills no reference, enables no rename or archive path, and changes no classification, budget actual, canonical view, Telegram behavior or consumer read.
+
+- `categories.id` remains the authoritative category identity. `categories.name` remains mutable presentation text and is deliberately not turned into a durable financial key; no name-based semantic classification is introduced beyond the legacy text compatibility that already exists.
+- `categories.system_code` is nullable, uniquely indexed where present, and constrained to exactly `transfer` and `savings_investment`. It is NULL on every row after this migration. Assignment is possible only from the database-owner/migration authority — in practice `private.assign_category_system_code_v1(...)`, which no API role may execute — and is one-way: once set, no path visible to the guard can change or clear it. It is not an authorization concept and never appears in an RLS predicate.
+- `categories.archived_at` is the canonical lifecycle field; NULL is active. There is no user, API or product archive path. `anon`, `authenticated` and `service_role` are refused; the operator path additionally fails closed while any `budgets` row references the category or any `category_rules` row targets its current name. That block is a conservative placeholder until SHR-167 defines a real current-plan predicate and SHR-160 supplies deterministic, atomic rule enable/disable — it is not the final eligibility rule, and historical references must not block lifecycle forever.
+- A registered system category can never be archived or deleted, enforced by both the guard trigger and `categories_system_not_archivable_check`, and cannot be renamed by an application role while text consumers remain.
+- Category hard delete is refused for every role and TRUNCATE is refused on all three tables. v6 removal semantics are archive, not destruction; historical identity must survive lifecycle changes.
+- `categories.updated_at` is database-authored: the guard overwrites any caller-supplied value on UPDATE. Rows that predate the migration are seeded from their own `created_at`, so a row that has never changed does not look changed.
+- `category_name_history` is immutable rename evidence: category reference, previous and new name, timestamp, the access identity from `auth.uid()` where one exists, and a closed reason vocabulary. It is written by a trigger, not by a caller, so a rename cannot omit its own evidence. UPDATE and DELETE are rejected. A historical label is never globally reserved and never becomes an active resolver candidate on its own.
+- `category_aliases` is the separate compatibility surface. An alias is registered explicitly, starts `compatibility_active`, and may be retired exactly once to terminal `history_only`. Only `compatibility_active` aliases participate in the unique-name constraint and in current-name collision blocking, so retirement releases the label. Whether an ordinary retired label should ever be permanently reserved remains a later explicit product decision.
+- Uncategorized is unchanged: it stays the absence of a classification, not a category row and not a system code. `Other` remains an ordinary category and is not redefined.
+- Both new tables enable RLS with a single member `SELECT` policy rooted in `private.is_household_member()`. No API role holds INSERT/UPDATE/DELETE; `service_role` holds raw `SELECT` for the encrypted export only. Every new function lives in `private`, pins an empty `search_path`, and is executable by no API role. No taxonomy administrator role is invented, and category identity stays independent of economic-party identity.
+- As with `045`, trigger-based protection binds ordinary and accidentally over-granted application paths. The database owner can deliberately alter or disable it and remains the documented administrative trust root.
+
+`transactions.category` and `category_rules.category` remain text and gain no UUID reference here; that is SHR-197's manifest-reviewed work.
 
 ## Intake, automation, and operations
 
