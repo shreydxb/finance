@@ -75,7 +75,7 @@ try {
   const { rows: categories } = await client.query(`insert into public.categories(name,"group") values
     ('SHR197 Upgrade Transfer','Wants'),
     ('SHR197 Upgrade Savings','Savings'),
-    ('SHR197 Upgrade Ordinary','Wants') returning id,name order by name`)
+    ('SHR197 Upgrade Ordinary','Wants') returning id,name`)
   const byName = Object.fromEntries(categories.map((row) => [row.name, row.id]))
   await client.query(`insert into public.transactions(date,amount,account_id,category,deleted_at) values
     ('2026-08-01',10,$1,'SHR197 Upgrade Transfer',null),
