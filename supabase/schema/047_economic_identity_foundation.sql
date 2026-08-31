@@ -37,6 +37,20 @@
 --     API role may write these rows at all; the migration/operator authority is
 --     the only writer, exactly as for 046.
 --
+-- Two boundaries are worth finding before reading the guards, because both were
+-- tightened by independent Tier-3 review:
+--
+--   * a reviewed mapping decision cannot be hard-deleted by any role, the
+--     database owner included. It is durable household evidence that outlives
+--     access revocation and authentication-identity replacement, and rollback
+--     here is additive rather than destructive;
+--   * reproducing a *historical* mapping decision — its original decided_at, and
+--     a party archived long afterwards — is an explicit, named, per-row
+--     capability (private.restore_access_party_mapping_v1), never an inference
+--     from a caller-supplied timestamp. Every ordinary INSERT, from every role,
+--     has its decision time authored by the database and can never select an
+--     archived party.
+--
 -- Cross-household containment is worth stating once, because a reviewer will
 -- look for it in the wrong place. It is enforced *structurally* — by the
 -- composite foreign key below, a mapping cannot reference a party in another
@@ -353,7 +367,44 @@ set search_path = ''
 as $$
 declare
   v_archived timestamptz;
+  v_restore_for text;
+  v_is_restore boolean := false;
 begin
+  if tg_op = 'DELETE' then
+    -- A reviewed mapping decision is durable household evidence. It survives
+    -- access revocation and authentication-identity replacement by contract, so
+    -- there is no ordinary DML path that erases it — for any role, the database
+    -- owner included. Rollback for this package is additive: stop consumers and
+    -- retain the rows. Nothing references this table, and both foreign keys it
+    -- holds are ON DELETE RESTRICT against tables whose own DELETE is refused,
+    -- so no cascade can reach these rows either.
+    raise exception 'SHR193_MAPPING_DELETE_FORBIDDEN' using errcode = '55000';
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- The restore boundary.
+    --
+    -- A backup re-import has to reproduce a decision made in the past, including
+    -- its original decided_at and a party archived long afterwards. An ordinary
+    -- write must never be able to claim that status. The earlier version of this
+    -- guard inferred "restore" from a caller-supplied old timestamp, which the
+    -- Tier-3 review correctly rejected: SHR-194's ordinary mapping writer runs
+    -- with the same operator authority, so it could have made a brand-new
+    -- archived-party mapping simply by passing an old date.
+    --
+    -- So restore is now an explicit, named, per-row capability instead of an
+    -- inference. private.restore_access_party_mapping_v1() issues a token bound
+    -- to one exact mapping_id; this guard consumes it, so a single issuance
+    -- admits exactly one row and cannot unlock a bulk insert. Everything else —
+    -- every ordinary INSERT, from every role — has its timestamps authored by
+    -- the database below and can never select an archived party.
+    v_restore_for := nullif(pg_catalog.current_setting('shr193.restore_mapping_id', true), '');
+    if v_restore_for is not null and v_restore_for = new.mapping_id::text then
+      v_is_restore := true;
+      perform pg_catalog.set_config('shr193.restore_mapping_id', '', true);
+    end if;
+  end if;
+
   if tg_op = 'UPDATE' then
     if new.mapping_id is distinct from old.mapping_id then
       raise exception 'SHR193_MAPPING_IDENTITY_IMMUTABLE' using errcode = '55000';
@@ -372,43 +423,45 @@ begin
     end if;
   end if;
 
-  -- The decision time is database-authored, so
-  -- access_party_mappings_decision_evidence_check can never be tripped by a
-  -- caller that simply forgot the timestamp, and so a *changed* decision — a
-  -- different status, or a different party — is stamped as the new decision it
-  -- actually is rather than inheriting the old one's date.
-  --
-  -- A restore is the one writer that legitimately supplies its own decided_at:
-  -- it is reproducing a decision that was made in the past, not making one.
-  if new.status in ('mapped', 'access_only') then
-    if tg_op = 'INSERT' then
-      if new.decided_at is null then
-        new.decided_at := now();
-      end if;
-    elsif new.status is distinct from old.status
-       or new.economic_party_id is distinct from old.economic_party_id then
+  -- Decision time is authored by the database on every path except an explicit
+  -- restore, so no caller — operator included — can choose it.
+  if v_is_restore then
+    -- Preserved exactly as the backup recorded it: decided_at,
+    -- decided_by_access_user_id, decision_evidence_ref, created_at, updated_at.
+    null;
+  elsif tg_op = 'INSERT' then
+    new.created_at := now();
+    new.updated_at := now();
+    if new.status in ('mapped', 'access_only') then
       new.decided_at := now();
     end if;
+  else
+    -- On UPDATE a changed decision — a different status, or a different party —
+    -- is stamped as the new decision it actually is; an unchanged one keeps its
+    -- original date rather than accepting a caller's edit. A regression to
+    -- unreviewed therefore keeps its decided_at and is refused by
+    -- access_party_mappings_decision_evidence_check: a decision cannot be
+    -- silently un-made.
+    if (new.status is distinct from old.status
+        or new.economic_party_id is distinct from old.economic_party_id)
+       and new.status in ('mapped', 'access_only')
+    then
+      new.decided_at := now();
+    else
+      new.decided_at := old.decided_at;
+    end if;
+    new.updated_at := now();
   end if;
 
   -- New writes fail closed on an archived party; an existing mapping whose
   -- party is archived afterwards is untouched, which is the historical-stability
   -- half of the same rule.
   --
-  -- "New" is decided by the decision time rather than by the acting role, and
-  -- that is deliberate. A role-based carve-out would have to trust the operator
-  -- path — the very path SHR-194 will use to create real mappings — and would
-  -- therefore stop enforcing the rule exactly where it matters. Comparing
-  -- decided_at to archived_at instead says the thing the contract actually
-  -- means: a decision reached before a party was archived is history and
-  -- restores faithfully, while a decision reached after it is a new selection of
-  -- an archived party and is refused for every role, the database owner
-  -- included. (That owner can still drop these triggers by DDL; that real trust
-  -- root is documented rather than claimed away, exactly as in 046.)
-  --
-  -- Reactivation is handled correctly by the same comparison: a party archived,
-  -- reactivated, mapped and archived again has a decision that predates its
-  -- current archived_at, and stays valid.
+  -- On every ordinary path this is absolute: decided_at was just authored above,
+  -- so there is nothing a caller can supply to make the write look historical.
+  -- Only an explicit restore may reproduce such a mapping, and even then only
+  -- when the decision genuinely predates the archival — a restore cannot invent
+  -- a historical decision that never happened.
   if new.economic_party_id is not null
      and (tg_op = 'INSERT' or new.economic_party_id is distinct from old.economic_party_id)
   then
@@ -416,17 +469,87 @@ begin
       from public.economic_parties p
      where p.party_id = new.economic_party_id;
 
-    if v_archived is not null and new.decided_at >= v_archived then
-      raise exception 'SHR193_MAPPING_TO_ARCHIVED_PARTY_FORBIDDEN' using errcode = '55000';
+    if v_archived is not null then
+      if not v_is_restore then
+        raise exception 'SHR193_MAPPING_TO_ARCHIVED_PARTY_FORBIDDEN' using errcode = '55000';
+      end if;
+      if new.decided_at is null or new.decided_at >= v_archived then
+        raise exception 'SHR193_RESTORE_DECISION_NOT_HISTORICAL' using errcode = '55000';
+      end if;
     end if;
   end if;
 
-  if tg_op = 'UPDATE' then
-    new.updated_at := now();
-  end if;
   return new;
 end;
 $$;
+
+-- The one sanctioned way to reproduce a historical mapping decision.
+--
+-- SECURITY INVOKER on purpose: current_user must be the role that actually
+-- called it, so the operator check below is real rather than a self-assertion by
+-- a definer-owned function. EXECUTE is revoked from every API role, and no API
+-- role holds INSERT on the table either, so this is doubly out of reach from a
+-- browser or an Edge Function.
+--
+-- It is deliberately not, and must not become, SHR-194's ordinary mapping
+-- writer: it exists to re-import rows that already existed, it takes a caller-
+-- supplied mapping_id and decision time that an ordinary write has no business
+-- choosing, and it refuses any archived-party row whose decision does not
+-- genuinely predate the archival. SHR-194's writer creates *new* decisions and
+-- must use ordinary INSERT, where the database authors the decision time and an
+-- archived party is refused outright.
+create or replace function private.restore_access_party_mapping_v1(
+  p_mapping_id uuid,
+  p_household_id uuid,
+  p_auth_user_id uuid,
+  p_economic_party_id uuid,
+  p_status text,
+  p_decided_at timestamptz,
+  p_decided_by_access_user_id uuid,
+  p_decision_evidence_ref text,
+  p_created_at timestamptz,
+  p_updated_at timestamptz
+)
+returns public.access_party_mappings
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row public.access_party_mappings%rowtype;
+begin
+  if not private.economic_identity_operator_authority() then
+    raise exception 'SHR193_RESTORE_FORBIDDEN' using errcode = '42501';
+  end if;
+  if p_mapping_id is null then
+    raise exception 'SHR193_RESTORE_REQUIRES_MAPPING_ID' using errcode = '22023';
+  end if;
+
+  -- Bound to this one row and consumed by the guard, so it can never admit a
+  -- second row or a bulk insert.
+  perform pg_catalog.set_config('shr193.restore_mapping_id', p_mapping_id::text, true);
+
+  insert into public.access_party_mappings (
+    mapping_id, household_id, auth_user_id, economic_party_id, status,
+    decided_at, decided_by_access_user_id, decision_evidence_ref,
+    created_at, updated_at
+  ) values (
+    p_mapping_id, p_household_id, p_auth_user_id, p_economic_party_id, p_status,
+    p_decided_at, p_decided_by_access_user_id, p_decision_evidence_ref,
+    coalesce(p_created_at, now()), coalesce(p_updated_at, now())
+  ) returning * into v_row;
+
+  -- Belt and braces: if the row never reached the guard, the token must not
+  -- survive to meet the next statement.
+  perform pg_catalog.set_config('shr193.restore_mapping_id', '', true);
+  return v_row;
+end;
+$$;
+
+comment on function private.restore_access_party_mapping_v1(
+  uuid, uuid, uuid, uuid, text, timestamptz, uuid, text, timestamptz, timestamptz) is
+  'SHR-193 restore-only boundary. Operator authority, invoker-mode, uncallable by any API role, and the only path that may reproduce a historical decided_at or a mapping to an already-archived party. Every structural constraint still applies, and the decision must genuinely predate the archival. It is not SHR-194''s mapping writer: new decisions use ordinary INSERT, where the database authors the decision time and an archived party is refused.';
 
 create or replace function private.reject_economic_identity_truncate()
 returns trigger
@@ -442,7 +565,7 @@ $$;
 comment on function private.guard_economic_party_lifecycle() is
   'SHR-193 party identity boundary: UUID, household, kind and created_at immutable; legacy label frozen; display name and archive state freely mutable; deletion refused.';
 comment on function private.guard_access_party_mapping_lifecycle() is
-  'SHR-193 mapping decision boundary: decision subject immutable, decision time database-authored, and archived-party selection fail-closed for every role by comparing the decision time to the archival time rather than trusting the acting role.';
+  'SHR-193 mapping decision boundary: decision subject immutable, hard delete refused for every role, decision time authored by the database on every ordinary path, and archived-party selection fail-closed except through the explicit per-row restore boundary.';
 
 drop trigger if exists economic_households_lifecycle_guard on public.economic_households;
 create trigger economic_households_lifecycle_guard
@@ -466,7 +589,7 @@ for each statement execute function private.reject_economic_identity_truncate();
 
 drop trigger if exists access_party_mappings_lifecycle_guard on public.access_party_mappings;
 create trigger access_party_mappings_lifecycle_guard
-before insert or update on public.access_party_mappings
+before insert or update or delete on public.access_party_mappings
 for each row execute function private.guard_access_party_mapping_lifecycle();
 
 drop trigger if exists access_party_mappings_no_truncate on public.access_party_mappings;
@@ -530,7 +653,9 @@ revoke all on function
   private.guard_economic_party_lifecycle(),
   private.guard_access_party_mapping_lifecycle(),
   private.reject_economic_identity_truncate(),
-  private.economic_identity_operator_authority()
+  private.economic_identity_operator_authority(),
+  private.restore_access_party_mapping_v1(
+    uuid, uuid, uuid, uuid, text, timestamptz, uuid, text, timestamptz, timestamptz)
   from public, anon, authenticated, service_role;
 
 commit;
@@ -538,4 +663,6 @@ commit;
 -- Rollback is route-level, exactly as for 045 and 046: stop any future consumer
 -- while retaining these objects, which are harmless while empty. Never roll back
 -- by deleting economic identity — a party UUID is the stable reference every
--- later attribution package depends on.
+-- later attribution package depends on, and a mapping decision is the reviewed
+-- evidence of who that party is. Destructive cleanup is not a rollback path
+-- here, and the database refuses it outright rather than relying on convention.

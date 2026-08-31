@@ -53,6 +53,23 @@ async function newMapping(client, householdId, authUserId, opts = {}) {
   return rows[0]
 }
 
+/**
+ * The sanctioned restore path. Ordinary DML cannot reproduce a historical
+ * decision, so every restore assertion below goes through this function — which
+ * is exactly the point of the boundary.
+ */
+async function restoreMapping(client, row) {
+  const { rows } = await client.query(
+    `select * from private.restore_access_party_mapping_v1($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      row.mappingId, row.householdId, row.authUserId, row.partyId ?? null,
+      row.status, row.decidedAt ?? null, row.decidedBy ?? null,
+      row.evidenceRef ?? null, row.createdAt ?? null, row.updatedAt ?? null,
+    ]
+  )
+  return rows[0]
+}
+
 // ── Foundation: the package ships empty ──────────────────────────────────
 
 test('the substrate exists and is completely empty — no party or mapping is ever seeded', async () => {
@@ -517,23 +534,423 @@ test('a new mapping to an archived party fails closed for every role, operator i
   })
 })
 
-test('a restore reproduces a historical mapping to a party archived afterwards', async () => {
-  await withTx(async (client) => {
-    // This is what re-importing an encrypted backup looks like: the party row
-    // comes back already archived, and the mapping decision it carries was made
-    // before that archival. Refusing it would make the backup unrestorable.
-    const household = await newHousehold(client)
-    const decidedAt = new Date('2026-01-01T00:00:00Z')
-    const archivedAt = new Date('2026-06-01T00:00:00Z')
-    const party = await newParty(client, household, 'Departed Party', { archivedAt })
+// ── The restore boundary ─────────────────────────────────────────────────
+//
+// These replace an earlier test that treated a caller-supplied old decided_at
+// as proof of restore. That behaviour no longer exists — independent Tier-3
+// review rejected it, because SHR-194's ordinary writer runs with the same
+// operator authority and could have forged it. The tests below are the stronger
+// equivalents: they prove the ordinary path cannot forge a historical decision
+// at all, and that only the explicit named boundary can reproduce one.
 
-    const restored = await newMapping(client, household, SHREY_ID, {
+test('an ordinary INSERT has its decision time authored by the database', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Party')
+
+    const stamped = await newMapping(client, household, SHREY_ID, {
+      partyId: party.party_id,
+      status: 'mapped',
+    })
+    assert.ok(stamped.decided_at, 'a decision made with no timestamp is stamped')
+
+    // ...and a caller-supplied timestamp is overridden rather than honoured, so
+    // no ordinary write can present itself as historical.
+    const forged = new Date('2020-01-01T00:00:00Z')
+    const overridden = await newMapping(client, household, TARIKA_ID, {
+      partyId: party.party_id,
+      status: 'mapped',
+      decidedAt: forged,
+    })
+    assert.notEqual(
+      overridden.decided_at.getTime(),
+      forged.getTime(),
+      'a caller may not choose the authoritative decision time'
+    )
+    assert.ok(
+      overridden.decided_at.getTime() > forged.getTime(),
+      'the database authors it as now, not as the forged past'
+    )
+    // created_at and updated_at are database-authored on the ordinary path too.
+    assert.ok(overridden.created_at.getTime() > forged.getTime())
+    assert.ok(overridden.updated_at.getTime() > forged.getTime())
+  })
+})
+
+test('the operator cannot forge a historical archived-party mapping through ordinary DML', async () => {
+  await withTx(async (client) => {
+    // This is the exact forgery the review found: an old decided_at supplied to
+    // a normal INSERT, by the same operator authority SHR-194's writer will use.
+    const household = await newHousehold(client)
+    const archivedAt = new Date('2026-06-01T00:00:00Z')
+    const party = await newParty(client, household, 'Archived', { archivedAt })
+
+    await expectReject(
+      client,
+      () =>
+        newMapping(client, household, SHREY_ID, {
+          partyId: party.party_id,
+          status: 'mapped',
+          decidedAt: new Date('2026-01-01T00:00:00Z'), // predates archival
+        }),
+      /SHR193_MAPPING_TO_ARCHIVED_PARTY_FORBIDDEN/
+    )
+  })
+})
+
+test('an explicit restore reproduces a historical decision exactly', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Party')
+    const mappingId = '00000000-0000-0000-0000-0000000000a1'
+    const decidedAt = new Date('2026-01-01T00:00:00Z')
+    const createdAt = new Date('2025-12-31T00:00:00Z')
+    const updatedAt = new Date('2026-02-02T00:00:00Z')
+
+    const restored = await restoreMapping(client, {
+      mappingId,
+      householdId: household,
+      authUserId: SHREY_ID,
+      partyId: party.party_id,
+      status: 'mapped',
+      decidedAt,
+      decidedBy: TARIKA_ID,
+      evidenceRef: 'shr194-manifest-row-1',
+      createdAt,
+      updatedAt,
+    })
+
+    // Every field the contract requires a restore to preserve.
+    assert.equal(restored.mapping_id, mappingId)
+    assert.equal(restored.household_id, household)
+    assert.equal(restored.auth_user_id, SHREY_ID)
+    assert.equal(restored.economic_party_id, party.party_id)
+    assert.equal(restored.status, 'mapped')
+    assert.equal(restored.decided_at.getTime(), decidedAt.getTime())
+    assert.equal(restored.decided_by_access_user_id, TARIKA_ID)
+    assert.equal(restored.decision_evidence_ref, 'shr194-manifest-row-1')
+    assert.equal(restored.created_at.getTime(), createdAt.getTime())
+    assert.equal(restored.updated_at.getTime(), updatedAt.getTime())
+  })
+})
+
+test('an explicit restore reproduces a mapping whose decision predates later archival', async () => {
+  await withTx(async (client) => {
+    // The case a naive fail-closed rule would make unrestorable: the party comes
+    // back already archived, carrying a decision made long before that.
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Departed Party', {
+      archivedAt: new Date('2026-06-01T00:00:00Z'),
+    })
+    const decidedAt = new Date('2026-01-01T00:00:00Z')
+
+    const restored = await restoreMapping(client, {
+      mappingId: '00000000-0000-0000-0000-0000000000a2',
+      householdId: household,
+      authUserId: SHREY_ID,
       partyId: party.party_id,
       status: 'mapped',
       decidedAt,
     })
     assert.equal(restored.economic_party_id, party.party_id)
-    assert.equal(restored.decided_at.getTime(), decidedAt.getTime(), 'the decision date is preserved')
+    assert.equal(restored.decided_at.getTime(), decidedAt.getTime())
+  })
+})
+
+test('a restore cannot invent a historical decision that never happened', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Archived', {
+      archivedAt: new Date('2026-06-01T00:00:00Z'),
+    })
+
+    // A "restore" of an archived-party mapping decided *after* the archival is
+    // not a restore of anything — it could never have existed.
+    for (const decidedAt of [new Date('2026-07-01T00:00:00Z'), null]) {
+      await expectReject(
+        client,
+        () =>
+          restoreMapping(client, {
+            mappingId: '00000000-0000-0000-0000-0000000000a3',
+            householdId: household,
+            authUserId: SHREY_ID,
+            partyId: party.party_id,
+            status: 'mapped',
+            decidedAt,
+          }),
+        /SHR193_RESTORE_DECISION_NOT_HISTORICAL|access_party_mappings_decision_evidence_check/
+      )
+    }
+  })
+})
+
+test('a restore token is bound to one row and consumed, so it cannot unlock a second', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Party')
+    const decidedAt = new Date('2026-01-01T00:00:00Z')
+
+    await restoreMapping(client, {
+      mappingId: '00000000-0000-0000-0000-0000000000a4',
+      householdId: household,
+      authUserId: SHREY_ID,
+      partyId: party.party_id,
+      status: 'mapped',
+      decidedAt,
+    })
+
+    // The token issued for that row is spent. An ordinary INSERT immediately
+    // afterwards, in the same transaction, is stamped normally.
+    const next = await newMapping(client, household, TARIKA_ID, {
+      partyId: party.party_id,
+      status: 'mapped',
+      decidedAt,
+    })
+    assert.notEqual(
+      next.decided_at.getTime(),
+      decidedAt.getTime(),
+      'a spent restore token must not carry over to the next row'
+    )
+  })
+})
+
+test('a restore token issued for one row does not admit a different row', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const archived = await newParty(client, household, 'Archived', {
+      archivedAt: new Date('2026-06-01T00:00:00Z'),
+    })
+
+    // Even holding a token — the strongest position an operator could reach
+    // short of dropping the trigger — it only names one mapping_id, so a
+    // different row is still an ordinary write and still fails closed.
+    await client.query(`select set_config('shr193.restore_mapping_id', $1, true)`, [
+      '00000000-0000-0000-0000-0000000000a5',
+    ])
+    await expectReject(
+      client,
+      () =>
+        client.query(
+          `insert into public.access_party_mappings
+             (mapping_id, household_id, auth_user_id, economic_party_id, status, decided_at)
+           values ($1, $2, $3, $4, 'mapped', $5)`,
+          [
+            '00000000-0000-0000-0000-0000000000a6',
+            household,
+            SHREY_ID,
+            archived.party_id,
+            new Date('2026-01-01T00:00:00Z'),
+          ]
+        ),
+      /SHR193_MAPPING_TO_ARCHIVED_PARTY_FORBIDDEN/
+    )
+  })
+})
+
+test('a restore is still bound by every structural invariant', async () => {
+  await withTx(async (client) => {
+    const a = await newHousehold(client, 'SHR-193 household A')
+    const b = await newHousehold(client, 'SHR-193 household B')
+    const partyInB = await newParty(client, b, 'Party in B')
+    const decidedAt = new Date('2026-01-01T00:00:00Z')
+
+    // Cross-household containment survives the restore path.
+    await expectReject(
+      client,
+      () =>
+        restoreMapping(client, {
+          mappingId: '00000000-0000-0000-0000-0000000000a7',
+          householdId: a,
+          authUserId: SHREY_ID,
+          partyId: partyInB.party_id,
+          status: 'mapped',
+          decidedAt,
+        }),
+      /access_party_mappings_party_fk|violates foreign key/
+    )
+
+    // ...as does the status/party shape.
+    await expectReject(
+      client,
+      () =>
+        restoreMapping(client, {
+          mappingId: '00000000-0000-0000-0000-0000000000a8',
+          householdId: b,
+          authUserId: SHREY_ID,
+          partyId: partyInB.party_id,
+          status: 'access_only',
+          decidedAt,
+        }),
+      /access_party_mappings_shape_check/
+    )
+
+    // ...and the one-decision-per-identity key.
+    await restoreMapping(client, {
+      mappingId: '00000000-0000-0000-0000-0000000000a9',
+      householdId: b,
+      authUserId: SHREY_ID,
+      partyId: partyInB.party_id,
+      status: 'mapped',
+      decidedAt,
+    })
+    await expectReject(
+      client,
+      () =>
+        restoreMapping(client, {
+          mappingId: '00000000-0000-0000-0000-0000000000aa',
+          householdId: b,
+          authUserId: SHREY_ID,
+          partyId: partyInB.party_id,
+          status: 'mapped',
+          decidedAt,
+        }),
+      /access_party_mappings_decision_key|duplicate key/
+    )
+
+    // A restore must name the row it is reproducing.
+    await expectReject(
+      client,
+      () =>
+        restoreMapping(client, {
+          mappingId: null,
+          householdId: b,
+          authUserId: TARIKA_ID,
+          partyId: partyInB.party_id,
+          status: 'mapped',
+          decidedAt,
+        }),
+      /SHR193_RESTORE_REQUIRES_MAPPING_ID/
+    )
+  })
+})
+
+test('no API role can reach the restore boundary', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Party')
+
+    const { rows } = await client.query(`
+      select p.oid,
+             has_function_privilege('anon', p.oid, 'EXECUTE') as anon,
+             has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated,
+             has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role
+      from pg_proc p
+      where p.pronamespace = 'private'::regnamespace
+        and p.proname = 'restore_access_party_mapping_v1'
+    `)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].anon, false)
+    assert.equal(rows[0].authenticated, false)
+    assert.equal(rows[0].service_role, false)
+
+    // Not merely ungranted — unusable. Each role is refused, and even holding a
+    // forged token an API role still has no INSERT privilege on the table.
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      await expectReject(
+        client,
+        async () => {
+          await client.query(`set local role ${role}`)
+          if (role === 'authenticated') {
+            await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [SHREY_ID])
+          }
+          await client.query(
+            `select * from private.restore_access_party_mapping_v1(
+               $1, $2, $3, $4, 'mapped', $5, null, null, null, null)`,
+            [
+              '00000000-0000-0000-0000-0000000000ab',
+              household,
+              SHREY_ID,
+              party.party_id,
+              new Date('2026-01-01T00:00:00Z'),
+            ]
+          )
+        },
+        /permission denied|SHR193_RESTORE_FORBIDDEN/
+      )
+      await asOwner(client)
+    }
+  })
+})
+
+// ── Mapping evidence is durable ──────────────────────────────────────────
+
+test('a mapping decision cannot be hard-deleted by any role, operator included', async () => {
+  await withTx(async (client) => {
+    const household = await newHousehold(client)
+    const party = await newParty(client, household, 'Party')
+    const mapping = await newMapping(client, household, SHREY_ID, {
+      partyId: party.party_id,
+      status: 'mapped',
+    })
+
+    // The operator/database-owner ordinary DML path — the one the review found
+    // open — is refused by the guard itself.
+    await expectReject(
+      client,
+      () =>
+        client.query(`delete from public.access_party_mappings where mapping_id = $1`, [
+          mapping.mapping_id,
+        ]),
+      /SHR193_MAPPING_DELETE_FORBIDDEN/
+    )
+    await expectReject(
+      client,
+      () => client.query(`delete from public.access_party_mappings`),
+      /SHR193_MAPPING_DELETE_FORBIDDEN/
+    )
+    await expectReject(
+      client,
+      () => client.query(`truncate table public.access_party_mappings cascade`),
+      /SHR193_ECONOMIC_IDENTITY_TRUNCATE_FORBIDDEN/
+    )
+
+    // API roles are refused earlier still, on privilege.
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      await expectReject(
+        client,
+        async () => {
+          await client.query(`set local role ${role}`)
+          if (role === 'authenticated') {
+            await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [SHREY_ID])
+          }
+          await client.query(`delete from public.access_party_mappings`)
+        },
+        /permission denied/
+      )
+      await asOwner(client)
+    }
+
+    // The evidence is still there.
+    const { rows } = await client.query(
+      `select status from public.access_party_mappings where mapping_id = $1`,
+      [mapping.mapping_id]
+    )
+    assert.equal(rows[0].status, 'mapped')
+  })
+})
+
+test('no foreign key can silently cascade mapping evidence away', async () => {
+  await withTx(async (client) => {
+    // Nothing references access_party_mappings, and the two keys it holds point
+    // at tables whose own DELETE is refused outright — so there is no cascade
+    // path to these rows from anywhere.
+    const inbound = await client.query(`
+      select c.conname, c.conrelid::regclass::text as referencing
+      from pg_constraint c
+      where c.contype = 'f' and c.confrelid = 'public.access_party_mappings'::regclass
+    `)
+    assert.deepEqual(inbound.rows, [], 'nothing may reference mapping decisions')
+
+    const outbound = await client.query(`
+      select c.conname, c.confdeltype, c.confrelid::regclass::text as referenced
+      from pg_constraint c
+      where c.contype = 'f' and c.conrelid = any($1::regclass[])
+    `, [['public.access_party_mappings', 'public.economic_parties']])
+    assert.ok(outbound.rows.length >= 3)
+    for (const fk of outbound.rows) {
+      // 'r' = RESTRICT. Never 'c' (cascade) or 'n' (set null).
+      assert.equal(fk.confdeltype, 'r', `${fk.conname} must be ON DELETE RESTRICT`)
+    }
   })
 })
 
@@ -894,7 +1311,15 @@ test('no API role can execute the guard or operator functions', async () => {
       where p.pronamespace = 'private'::regnamespace
         and (p.proname like '%economic%' or p.proname like '%access_party%')
     `)
-    assert.equal(rows.length, 5, 'the four guards plus the operator predicate')
+    assert.equal(
+      rows.length,
+      6,
+      'the four guards, the operator predicate and the restore boundary'
+    )
+    assert.ok(
+      rows.some((fn) => fn.proname === 'restore_access_party_mapping_v1'),
+      'the restore boundary is covered by this matrix, not exempt from it'
+    )
     for (const fn of rows) {
       assert.equal(fn.anon, false, `${fn.proname} must be uncallable by anon`)
       assert.equal(fn.authenticated, false, `${fn.proname} must be uncallable by authenticated`)

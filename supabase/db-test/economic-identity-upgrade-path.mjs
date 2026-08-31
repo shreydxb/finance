@@ -367,14 +367,80 @@ try {
     await client.query('rollback')
   }
 
-  // And the probe rows are removed so the upgraded database ends as empty as it
-  // arrived — deletion of parties is refused, so the whole probe is rolled back
-  // rather than cleaned up piecemeal.
-  await client.query(`delete from public.access_party_mappings`)
+  // Both blockers from the independent Tier-3 review, proven on the upgraded
+  // database rather than only on a fresh one.
+  //
+  // Mapping evidence is undeletable, for the operator's ordinary DML as well as
+  // for every API role. There is deliberately no cleanup path afterwards: this
+  // whole probe therefore runs inside a transaction that is rolled back, which
+  // is itself the demonstration that destructive cleanup is not available.
+  await client.query('begin')
+  try {
+    await client.query(
+      `insert into public.access_party_mappings (household_id, auth_user_id, economic_party_id, status)
+       values ($1, $2, $3, 'mapped')`,
+      [householdId, testIdentity, partyId]
+    )
+    await assert.rejects(
+      client.query(`delete from public.access_party_mappings`),
+      /SHR193_MAPPING_DELETE_FORBIDDEN/,
+      'operator ordinary DELETE of mapping evidence must be refused on the upgraded database'
+    )
+  } finally {
+    await client.query('rollback')
+  }
+
+  // An ordinary operator INSERT cannot forge a historical decision, and cannot
+  // reach an archived party by supplying an old timestamp.
+  await client.query('begin')
+  try {
+    const archived = await client.query(
+      `insert into public.economic_parties (household_id, display_name, archived_at)
+       values ($1, 'Archived probe', $2) returning party_id`,
+      [householdId, new Date('2026-06-01T00:00:00Z')]
+    )
+    // The rejection aborts the transaction, so it runs under its own savepoint
+    // and the restore probe below still has the archived party to work with.
+    await client.query('savepoint forged_write')
+    await assert.rejects(
+      client.query(
+        `insert into public.access_party_mappings
+           (household_id, auth_user_id, economic_party_id, status, decided_at)
+         values ($1, $2, $3, 'mapped', $4)`,
+        [householdId, testIdentity, archived.rows[0].party_id, new Date('2026-01-01T00:00:00Z')]
+      ),
+      /SHR193_MAPPING_TO_ARCHIVED_PARTY_FORBIDDEN/,
+      'a caller-supplied old timestamp must not unlock an archived party'
+    )
+    await client.query('rollback to savepoint forged_write')
+
+    // The sanctioned restore boundary still reproduces the historical row.
+    const restored = await client.query(
+      `select decided_at from private.restore_access_party_mapping_v1(
+         $1, $2, $3, $4, 'mapped', $5, null, null, null, null)`,
+      [
+        '00000000-0000-0000-0000-0000000000b1',
+        householdId,
+        testIdentity,
+        archived.rows[0].party_id,
+        new Date('2026-01-01T00:00:00Z'),
+      ]
+    )
+    assert.equal(
+      restored.rows[0].decided_at.getTime(),
+      new Date('2026-01-01T00:00:00Z').getTime(),
+      'the explicit restore boundary preserves the historical decision time'
+    )
+  } finally {
+    await client.query('rollback')
+  }
+
   const remaining = await client.query(
-    `select (select count(*)::integer from public.economic_parties) as parties`
+    `select (select count(*)::integer from public.economic_parties) as parties,
+            (select count(*)::integer from public.access_party_mappings) as mappings`
   )
   assert.equal(remaining.rows[0].parties, 1, 'the probe party cannot be deleted, by design')
+  assert.equal(remaining.rows[0].mappings, 0, 'every mapping probe was rolled back, never deleted')
 
   console.log('SHR-193 through-044 → 045 → 046 → 047 upgrade, rerun and policy-diff paths passed.')
 } finally {
