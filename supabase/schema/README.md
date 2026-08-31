@@ -2,8 +2,9 @@
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
 order. Production is verified through `044` as of 31 August 2026. Migration
-`045` is the repository-only SHR-191 immutable audit foundation pending
-independent Tier-3 review; it is not applied. The separately gated SHR-113
+`045` passed independent Tier-3 review and is merged but remains unapplied;
+`046` is the repository-only SHR-196 category lifecycle foundation pending
+independent Tier-3 review. The separately gated SHR-113
 Phase-C operational configuration lives under `supabase/scheduler/`.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
@@ -64,6 +65,7 @@ findings each one closes, and the verification evidence.
 | `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — applied and independently production-QA-passed | SHR-113 Phase A/B |
 | `044_manual_transaction_safety` | Validated SECURITY INVOKER manual create/correction with durable request replay, explicit reviewed truth, Transfer containment, and minimal validated split confirmation; no data rewrite or financial-engine change — applied and production-QA-passed | SHR-126 |
 | `045_immutable_audit_substrate` | Immutable typed action evidence, owner-only private append primitive, service-only QA reference writer, redacted member read RPC, explicit ACL/RLS, replay semantics, and backup coverage; no backfill or production-writer integration — repository only, not applied | SHR-191 |
+| `046_category_lifecycle_foundation` | Nullable protected category system codes/lifecycle timestamps, immutable rename evidence, explicit active/history-only aliases, and fail-closed rename/archive/delete guards; no code seed, history synthesis, resolver, reference backfill, or consumer cutover — repository only, not applied | SHR-196 |
 
 ## Rules
 
@@ -125,6 +127,9 @@ job is installed by the migration. Phase-C activation remains a separate,
 explicitly reviewed operational step documented in `supabase/scheduler/`.
 
 `044_manual_transaction_safety` is applied and independently verified in
-production. `045_immutable_audit_substrate` is repository-only: no audit table,
-writer, read contract, or audit row exists in production until a separate
+production. `045_immutable_audit_substrate` is merged but unapplied: no audit
+table, writer, read contract, or audit row exists in production until a separate
 reviewed release authorizes the unchanged migration and backup-function source.
+`046_category_lifecycle_foundation` is the unmerged SHR-196 review package; no
+category lifecycle object, system-code assignment, history/alias row, category
+reference backfill, or production data change has occurred.

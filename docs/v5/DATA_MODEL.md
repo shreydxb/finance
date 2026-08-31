@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `045`. Production is verified through migration `044`; `045` is repository-only pending independent Tier-3 review and production apply remains unauthorized.
+Status: semantic map of the schema represented by `supabase/schema/001` through review migration `046`. Production is verified through migration `044`; merged `045` and unmerged `046` remain unapplied and production apply is unauthorized.
 
 ## Reading this document
 
@@ -44,7 +44,11 @@ Migration `041` adds nullable `split_original_amount` and `split_original_curren
 
 ### Category and budget — current
 
-`categories` defines reporting labels and Needs/Wants/Savings grouping. `budgets` assigns monthly limits and planning groups. `category_rules` stores merchant/note matching rules. Categories classify facts; changing a category may change reporting but not the stored amount.
+`categories.id` is the authoritative UUID identity. Migration `046` adds nullable `system_code`, nullable `archived_at`, and database-authored `updated_at`. The only structurally valid non-null codes are `transfer` and `savings_investment`, at most one category per code; SHR-196 assigns neither. Once assigned, a code cannot be changed or cleared through ordinary DML, and a coded category cannot be archived or deleted. The database owner remains the explicit migration/restore trust root for the first assignment.
+
+`category_name_history` is immutable historical rename evidence. It never resolves input by itself. `category_aliases` is the separate compatibility surface with `compatibility_active` and terminal `history_only` states. Exact active aliases cannot collide with a current category name; retirement releases that ordinary label. No case/whitespace/Unicode normalization algorithm, resolver, rename flow, archive flow, or lifecycle RPC is introduced by `046`.
+
+Current V1 names remain authoritative compatibility/classification inputs. Rename, archive/reactivation, and hard delete fail closed. `budgets.category_id` remains the sole current stable category reference; `transactions.category` and `category_rules.category` remain unchanged text fields. Uncategorized remains `transactions.category is null`; `Other` remains an ordinary category. No current category, budget, rule, transaction, Telegram, or canonical financial consumer changes in SHR-196.
 
 ### Income — current
 

@@ -162,11 +162,23 @@ The permanent scheduler configuration is version-controlled under `supabase/sche
 
 ## ADR-018 — Audit is immutable typed action evidence, not domain truth
 
-Status: accepted and implemented in repository migration `045`; independent Tier-3 review and production apply pending — 2026-08-31 — SHR-191
+Status: accepted, independently reviewed, and merged in repository migration `045`; production apply pending — 2026-08-31 — SHR-191
 
 `audit_events` records who/what performed an allowlisted action, the typed target/evidence references, request/correlation/causation/idempotency references, outcome, and a minimized action-specific change projection. It does not determine economic ownership, fact provenance, financial quality, attention, integration health, notification delivery, or telemetry.
 
 Raw browser DML is absent. An owner-only private append primitive is reachable only through independently reviewed typed wrappers; SHR-191 provides a service-only QA wrapper and no production mutation integration. Authenticated reads use a redacted definer RPC whose authorization root remains `private.is_household_member()`. Actor, owner, party, category, and Telegram identity are forbidden as RLS predicates.
 
 Successful replay returns the original event only when the canonical payload is identical. A collision fails and distinct actions do not collapse. UPDATE/DELETE triggers protect immutable evidence even after accidental application-role grants, while the database owner remains the explicit DDL/administrative trust boundary. No historical audit is synthesized and V1 has no purge.
+
+## ADR-019 — Category identity is UUID; lifecycle evidence and resolver aliases are separate
+
+Status: accepted and implemented in review migration `046`; independent Tier-3 review and production apply pending — 2026-08-31 — SHR-196 / SHR-157
+
+Category UUID is identity. Display name remains frozen V1 compatibility data until a measurable zero-text-semantic-consumer gate is satisfied. Uncategorized is null, never `Other` or a fabricated category.
+
+Only `transfer` and `savings_investment` are valid initial system-code values. SHR-196 seeds neither. Browser/service DML cannot assign codes; the database-owner migration/restore path may make a first reviewed assignment, after which the code is immutable and the category cannot be archived/deleted. This does not change current exact-name financial classification; SHR-197 owns reviewed assignments/stable-reference reconciliation and SHR-198 owns resolver/classification/writer compatibility.
+
+Immutable `category_name_history` records historical rename evidence and does not resolve. `category_aliases` separately records exact compatibility-active aliases that can retire irreversibly to history-only. Only active aliases reserve an exact label. No normalization algorithm or permanent reservation of ordinary historical labels is invented.
+
+Rename, archive/reactivation, hard delete, and truncate are fail-closed. Archive stays disabled until an evidence-backed budget predicate and SHR-160 atomic rule lifecycle exist. Existing household membership remains the only RLS authorization root; no taxonomy administrator role or category/system-code authorization predicate exists.
 

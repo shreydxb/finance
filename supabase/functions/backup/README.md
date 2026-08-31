@@ -125,14 +125,22 @@ raising it later does not orphan older backups.
 ## What is and is not covered
 
 Backed up by current repository source: every allowlisted table, including
-`settings` and immutable `audit_events`. The deployed backup function must be
-checked separately; repository coverage does not prove a production deployment.
+`settings`, immutable `audit_events`, category lifecycle columns, immutable
+`category_name_history`, and explicit `category_aliases` lifecycle. The deployed
+backup function must be checked separately; repository coverage does not prove
+a production deployment.
 
 SHR-191 adds an automated representative audit restore: one exported raw audit
 row is inserted into a clean table with the production constraints, compared
 exactly, and then proven immutable under UPDATE/DELETE. This is evidence for the
 new table's export/restore shape, not a claim that a full production re-import
 of every table has been rehearsed.
+
+SHR-196 adds a representative category restore through the same manifest: an
+active protected system-code fixture, an archived ordinary category, immutable
+name history, and both active/history-only aliases are inserted in dependency
+order, compared exactly, and re-tested against code-clear, delete, history
+mutation, and alias-reactivation guards. No production row is used or changed.
 
 **Not** backed up: Edge Function secrets, the Supabase project configuration,
 Auth users, and the database schema itself (migrations live in

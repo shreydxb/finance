@@ -17,6 +17,11 @@
 export const BACKUP_TABLES = [
   // No dependencies.
   { name: 'categories', financial: true },
+  // Durable category lifecycle evidence follows its authoritative UUID row.
+  // Name history is not a resolver surface; aliases retain their explicit
+  // compatibility-active/history-only lifecycle across a restore.
+  { name: 'category_name_history', financial: true, dependsOn: ['categories'] },
+  { name: 'category_aliases', financial: true, dependsOn: ['categories'] },
   { name: 'accounts', financial: true },
   { name: 'income', financial: true },
   { name: 'settings', financial: true },

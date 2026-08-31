@@ -1,68 +1,89 @@
-# Our Money v6 handoff — SHR-191 immutable audit substrate
+# Our Money v6 handoff — SHR-196 category lifecycle foundation
 
 Date: 31 August 2026
 
-Branch: `shreydxb1/shr-191-immutable-audit-substrate-and-typed-reference-boundary`
+Branch: `shreydxb1/shr-196-category-lifecycle-and-system-code-protection-foundation`
 
-Exact reviewed base: `53195835d9f22de328ec7c0073b325525c85a7fa`
+Exact base: `3662be1c589b9c01fc74302098abceb3fbe2363e`
 
-The immutable PR head, PR URL, and final CI conclusions are recorded in the SHR-191 Linear implementation handoff because embedding a commit's own SHA would change it.
+The immutable PR head, PR URL, and exact-head CI conclusions are recorded in
+the SHR-196 Linear implementation handoff because embedding a commit's own SHA
+would change it.
 
 ## Outcome
 
-This bounded Tier-3 package introduces the first V6.0 audit substrate: immutable action evidence in `public.audit_events`, a private typed append function, a redacted authenticated household-member read function, and a service-only QA reference flow. It does not connect any production financial writer.
+This bounded Tier-3 package adds only the category identity/lifecycle protection
+substrate in migration `046_category_lifecycle_foundation.sql`:
 
-Audit evidence records who or what performed an allowed action. It is deliberately separate from economic ownership, provenance, financial quality, attention, integration observations, and generic telemetry.
+- nullable constrained `categories.system_code`;
+- nullable `categories.archived_at` and database-authored `updated_at`;
+- immutable `category_name_history`;
+- explicit `category_aliases` with `compatibility_active` and terminal
+  `history_only` states;
+- exact active-alias/current-name collision protection; and
+- database guards that freeze rename/archive/reactivation and reject hard
+  delete/truncate.
 
-## Database contract
+No system code is seeded. Existing category IDs, names, groups, icons, creation
+times, transactions, budgets, rules, canonical classification, and consumers
+remain V1-compatible and unchanged.
 
-Migration `045_immutable_audit_substrate.sql` creates:
+## System-code and lifecycle trust boundary
 
-- `public.audit_events`, with exclusive actor representations for authenticated access user, private hashed Telegram sender reference, service actor, or system actor;
-- typed/versioned action, target, and evidence references;
-- request, correlation, causation, and hashed idempotency references;
-- typed outcomes, minimized allowlisted change evidence, schema/redaction/history versions, and a canonical payload digest;
-- an update/delete rejection trigger protecting ordinary and accidentally privileged application paths;
-- `private.append_audit_event_v1(...)`, an owner-controlled `SECURITY DEFINER` append boundary with exact-replay return, conflicting-replay rejection, and race-safe uniqueness;
-- `public.audit_history_v1(...)`, an authenticated redacted read boundary whose authorization root remains `private.is_household_member(...)`; and
-- `public.record_audit_qa_fixture_v1(...)`, a service-only fixture/reference flow used solely by QA.
+Only `transfer` and `savings_investment` are structurally valid, unique non-null
+codes. Browser and service-role DML cannot make a first assignment. The database
+owner is the explicit migration/restore trust root for a future reviewed
+assignment. Once populated, even database-owner ordinary DML cannot change or
+clear a code. Coded categories cannot be archived or deleted.
 
-The initial allowlist contains only `audit.qa_fixture.recorded` and `audit.qa_fixture.verified`, with fixed `audit.qa_fixture` target/evidence types. Evidence shapes are exact and versioned; unknown fields, unrestricted bodies, secrets, raw Telegram identifiers, and arbitrary JSON are rejected.
+Production rename and archive are not enabled. No public/private lifecycle RPC
+or resolver exists. A database-owner restore may insert an already archived
+ordinary category as historical state, but ordinary UPDATE cannot archive or
+reactivate it. The existing unsupported Settings rename/delete paths therefore
+fail closed at the database boundary after any separately authorized apply.
 
-## Security and immutability
+## History, aliases, ACL, and RLS
 
-The table grants no DML to `anon` or `authenticated`. `service_role` has table `SELECT` only for the backup path. The private append function is not executable by API roles, and the QA wrapper is executable only by `service_role`. The member history function is executable only by `authenticated` and derives the caller from `auth.uid()` rather than accepting an actor or household override.
+Name history is immutable evidence only and never creates an alias. Aliases are
+separate durable rows. An exact compatibility-active alias reserves its label
+against another active alias or current category name; retiring it to
+history-only releases the ordinary label. No case, whitespace, or Unicode
+normalization algorithm and no permanent historical-label reservation is
+invented.
 
-RLS is enabled with an explicit deny-all raw-table policy for `anon` and `authenticated`. Household authorization remains rooted exclusively in the existing private membership helper. Actor, owner, economic party, category, and Telegram sender are never authorization predicates. Economic party is not present in the audit schema and is never inferred from actor identity.
+Authenticated household members may read history and aliases through the
+existing `private.is_household_member()` root. They have no direct writes.
+`service_role` has SELECT only for encrypted backup. Anonymous access is absent.
+No category, code, actor, owner, party, or invented taxonomy role participates
+in authorization. Private trigger functions are not executable by API roles.
 
-The mutation trigger makes inserted evidence append-only through ordinary SQL and application roles, including an accidentally over-granted role. As with all PostgreSQL trigger-based immutability, the database owner remains the ultimate trust root and can deliberately alter or disable the protection; this package does not claim an impossible guarantee against that owner.
+## Backup, restore, and validation
 
-## Backup, restore, and migration safety
+The backup manifest includes category name history and aliases immediately
+after categories; `select *` preserves the three new category columns. Focused
+restore coverage inserts an active protected system category, an archived
+ordinary category, name history, and active/history-only aliases, compares the
+complete JSON rows exactly, and re-proves code-clear, delete, history-mutation,
+and alias-reactivation rejection.
 
-The backup manifest now includes `audit_events` as financial data. Focused database coverage exports a representative row through the manifest contract, restores it to an isolated table with the immutability trigger, compares the complete JSON representation, and proves update/delete rejection after restore.
+The dedicated through-045 upgrade runner compares legacy category content and
+tuple identity, transaction/budget/rule rows, and canonical V1 classification
+before and after `046`, reapplies the migration, and verifies no code, archive,
+history, alias, or consumer-data change. Fresh migration and full ACL/RLS,
+constraint, classification, backup, and restore vectors run in `npm run test:db`.
 
-The migration is additive, has no historical backfill, and uses guarded/restart-safe object creation or replacement. Upgrade coverage builds schema through migration 044, preserves a representative existing transaction byte-for-byte and at the same tuple identity, applies and reapplies migration 045, and confirms no audit synthesis. Fresh-path coverage uses the complete migration sequence.
-
-## Validation
-
-Local validation completed:
-
-- `npm ci` — pass; 184 packages, zero vulnerabilities reported;
-- `npm run lint` — pass with six pre-existing warnings and zero errors;
-- `npm run test:node` — pass, 526/526 tests;
-- `npm run test:ui` — pass, 9 files and 89/89 tests;
-- `npm run build` — pass, 215 modules transformed;
-- `npm audit --omit=dev --audit-level=high` — pass, zero vulnerabilities;
-- syntax checks for both new database test runners — pass; and
-- `git diff --check` — pass.
-
-This host has no local PostgreSQL runtime, so the fresh, upgrade, restart, ACL/RLS, replay, immutability, isolation, and restore database proofs run in the repository's isolated GitHub database job. Exact-head CI evidence is recorded in Linear before independent review.
+Final local and exact-head CI command results are recorded in Linear after all
+checks complete.
 
 ## Protected boundaries
 
-- No transaction, category, economic-party/mapping, or other production writer integration.
-- No attention, integration-observation, provenance, UI, Telegram behavior, notification, historical audit synthesis, retention purge, financial calculation, or classification change.
+- No system-code seed or category-reference backfill.
+- No transaction/rule stable category IDs.
+- No production rename/archive/reactivation or hard-delete support.
+- No resolver, V2 writer/read, rule lifecycle, budget predicate, or audit
+  producer integration.
+- No category, budget, rule, transaction, canonical calculation, Activity,
+  Telegram, or UI consumer change.
 - No production migration, data change, deployment, or merge.
-- No existing consumer behavior change.
 
-The PR remains unmerged and is labeled `[skip netlify]` because this package has no site change.
+The PR must remain open and `[skip netlify]` until independent Tier-3 review.

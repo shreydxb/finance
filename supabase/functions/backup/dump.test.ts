@@ -33,8 +33,23 @@ test('the dump covers every table exactly once', () => {
     'income',
     'settings',
     'audit_events',
+    'category_name_history',
+    'category_aliases',
   ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
+  }
+})
+
+test('category lifecycle evidence is financial and ordered after category identity', () => {
+  const names = BACKUP_TABLES.map((table) => table.name)
+  const categoryIndex = names.indexOf('categories')
+
+  for (const name of ['category_name_history', 'category_aliases']) {
+    const table = BACKUP_TABLES.find((candidate) => candidate.name === name)
+    assert.ok(table)
+    assert.equal(table.financial, true)
+    assert.ok(names.indexOf(name) > categoryIndex)
+    assert.deepEqual((table as { dependsOn?: readonly string[] }).dependsOn, ['categories'])
   }
 })
 

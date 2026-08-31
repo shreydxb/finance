@@ -14,7 +14,8 @@
     "test:visual": "npm run build && node scripts/run-visual-tests.mjs",
     "test:db:setup": "node supabase/db-test/setup-db.mjs",
     "test:db:audit-upgrade": "node supabase/db-test/audit-upgrade-path.mjs",
-    "test:db": "npm run test:db:setup && npm run test:db:audit-upgrade && node --test \"supabase/db-test/**/*.test.mjs\"",
+    "test:db:category-upgrade": "node supabase/db-test/category-upgrade-path.mjs",
+    "test:db": "npm run test:db:setup && npm run test:db:audit-upgrade && npm run test:db:category-upgrade && node --test \"supabase/db-test/**/*.test.mjs\"",
     "parity:canonical": "node supabase/db-test/canonical-parity.mjs",
     "demo:telegram": "node supabase/functions/telegram-intake/demo.ts"
   },
