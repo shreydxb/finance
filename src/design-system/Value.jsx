@@ -10,7 +10,7 @@ function Value({ as: Component = 'span', children, className, label, tone = 'neu
   return (
     <Component
       aria-label={label}
-      className={classes('tnum font-semibold tracking-[-0.015em]', VALUE_TONES[tone] ?? VALUE_TONES.neutral, className)}
+      className={classes('v6-figure tnum font-serif text-[1.05em] font-normal tracking-[-0.015em]', VALUE_TONES[tone] ?? VALUE_TONES.neutral, className)}
     >
       {children}
     </Component>

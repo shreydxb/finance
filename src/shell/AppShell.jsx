@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ContentFrame from './ContentFrame'
 import DesktopSidebar from './DesktopSidebar'
 import MobileAppHeader from './MobileAppHeader'
-import MobileBottomNav from './MobileBottomNav'
+import MobileNav from './MobileNav'
 import PageHeader from './PageHeader'
 import SecondaryNav from './SecondaryNav'
 import UtilityPanel from './UtilityPanel'
@@ -25,31 +25,31 @@ export default function AppShell({ children, identity, navigate, onSignOut, pres
   }, [presentation.title, route.detail, route.pathname, takePendingFocusTarget])
 
   return (
-    <div className="min-h-screen bg-canvas text-text-primary">
-      <a href="#main-content" className="fixed left-3 top-3 z-[200] -translate-y-24 rounded-control bg-action px-3 py-2 text-body font-semibold text-action-contrast shadow-elevation-2 focus:translate-y-0">
+    <div className="shell-root">
+      <a href="#main-content" className="shell-skip-link">
         Skip to content
       </a>
-      <div className="shell-layout mx-auto min-h-screen max-w-shell md:grid">
+      <div className="shell-layout">
         <DesktopSidebar
           activeKey={presentation.primary}
           navigate={navigate}
           onOpenUtility={openUtility}
         />
-
-        <div className="min-w-0">
-          <div className="sticky top-0 z-30">
+        <div className="shell-content-column">
+          <div className="shell-mobile-region">
             <MobileAppHeader onOpenUtility={openUtility} />
+            <MobileNav activeKey={presentation.primary} navigate={navigate} />
+          </div>
+          <div className="shell-secondary-region">
             <SecondaryNav activeKey={presentation.secondary} items={presentation.secondaryItems} navigate={navigate} />
           </div>
 
-          <main id="main-content" aria-labelledby="page-title" className="shell-main min-w-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          <main id="main-content" aria-labelledby="page-title" className="shell-main">
             <ContentFrame width={presentation.width}>
-              <PageHeader title={presentation.title} />
+              <PageHeader kicker={presentation.primary === 'overview' ? 'Command center' : presentation.primary} title={presentation.title} />
               {children}
             </ContentFrame>
           </main>
-
-          {!route.detail ? <MobileBottomNav activeKey={presentation.primary} navigate={navigate} /> : null}
         </div>
       </div>
 

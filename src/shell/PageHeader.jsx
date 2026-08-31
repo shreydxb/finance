@@ -1,10 +1,11 @@
-export default function PageHeader({ title, description }) {
+export default function PageHeader({ kicker, title, description }) {
   return (
-    <header className="pb-5 pt-6 sm:pb-6 sm:pt-8">
-      <h1 id="page-title" tabIndex="-1" className="m-0 text-title-1 font-semibold tracking-tight text-text-primary outline-none">
+    <header className="shell-page-header">
+      {kicker ? <p className="shell-page-kicker">{kicker}</p> : null}
+      <h1 id="page-title" tabIndex="-1" className="shell-page-title">
         {title}
       </h1>
-      {description ? <p className="mb-0 mt-1 text-body text-text-secondary">{description}</p> : null}
+      {description ? <p className="shell-page-description">{description}</p> : null}
     </header>
   )
 }

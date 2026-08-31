@@ -2,10 +2,10 @@ import { forwardRef } from 'react'
 import { classes } from './classes'
 
 const INTENTS = {
-  primary: 'border-transparent bg-action text-action-contrast hover:bg-action-hover',
+  primary: 'border-action bg-action-soft text-text-primary hover:bg-action-soft hover:text-action',
   secondary: 'border-border bg-surface text-text-primary hover:border-border-strong hover:bg-surface-subtle',
   quiet: 'border-transparent bg-transparent text-text-secondary hover:bg-surface-subtle hover:text-text-primary',
-  danger: 'border-transparent bg-danger text-danger-contrast hover:bg-danger-hover',
+  danger: 'border-danger/50 bg-danger-soft text-danger hover:border-danger hover:bg-danger-soft',
 }
 
 const SIZES = {
@@ -34,7 +34,7 @@ export const Button = forwardRef(function Button(
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={classes(
-        'inline-flex items-center justify-center gap-2 rounded-control border font-semibold transition-[background-color,border-color,color,box-shadow] duration-150',
+        'inline-flex items-center justify-center gap-2 rounded-control border font-medium transition-[background-color,border-color,color] duration-150',
         'disabled:cursor-not-allowed disabled:opacity-50',
         INTENTS[intent] ?? INTENTS.primary,
         SIZES[size] ?? SIZES.default,

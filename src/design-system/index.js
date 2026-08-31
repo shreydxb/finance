@@ -19,3 +19,4 @@ export {
   AttentionIndicator,
 } from './Indicators'
 export { ChartFrame, ChartDataAlternative } from './ChartFrame'
+export { DataTable, Kpi, KpiGroup, SectionHeader, SegmentedControl } from './Patterns'

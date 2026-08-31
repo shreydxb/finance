@@ -1,90 +1,87 @@
-/* SHR-117 Phase 1 public token contract.
-   Components consume semantic aliases; the existing ink/brand ramps remain
-   temporarily available only for incremental production migration. */
+/* SHR-152 / V6 Command Center semantic token contract. */
 :root {
   color-scheme: light;
-
-  --ds-canvas: #f6f7f9;
-  --ds-surface: #ffffff;
-  --ds-surface-subtle: #eceff3;
-  --ds-surface-raised: #ffffff;
-  --ds-surface-overlay: #ffffff;
-  --ds-text-primary: #121620;
-  --ds-text-secondary: #4a5465;
-  --ds-text-tertiary: #646e82;
-  --ds-text-inverse: #ffffff;
-  --ds-border: #cfd6e1;
-  --ds-border-strong: #9da8b8;
-
-  --ds-action: #1d4ed8;
-  --ds-action-hover: #1e40af;
-  --ds-action-soft: #e8efff;
-  --ds-action-contrast: #ffffff;
-  --ds-focus: #1d4ed8;
-
-  --ds-financial-positive: #067a55;
-  --ds-financial-positive-soft: #e4f7ef;
-  --ds-financial-negative: #b9232b;
-  --ds-financial-negative-soft: #fdeced;
-
-  --ds-success: #067a55;
-  --ds-success-soft: #e4f7ef;
-  --ds-warning: #795500;
-  --ds-warning-soft: #fff5d6;
-  --ds-danger: #b9232b;
-  --ds-danger-hover: #991b1b;
-  --ds-danger-soft: #fdeced;
-  --ds-danger-contrast: #ffffff;
-  --ds-info: #1d4ed8;
-  --ds-info-soft: #e8efff;
-  --ds-attention: #795500;
-  --ds-attention-soft: #fff5d6;
-
+  --ds-canvas: #f8f5ef;
+  --ds-surface: #f8f5ef;
+  --ds-surface-subtle: rgb(26 23 18 / 0.028);
+  --ds-surface-raised: rgb(26 23 18 / 0.028);
+  --ds-surface-overlay: #f8f5ef;
+  --ds-text-primary: #1a1712;
+  --ds-text-secondary: #6b6255;
+  --ds-text-tertiary-reference: #8d8478;
+  --ds-text-tertiary: #756c60;
+  --ds-text-inverse: #f8f5ef;
+  --ds-border: rgb(26 23 18 / 0.12);
+  --ds-border-strong: rgb(26 23 18 / 0.22);
+  --ds-accent: #9c5d26;
+  --ds-action: #9c5d26;
+  --ds-action-hover: #7f481b;
+  --ds-action-soft: color-mix(in oklab, var(--ds-accent) 14%, transparent);
+  --ds-action-contrast: #f8f5ef;
+  --ds-focus: #9c5d26;
+  --ds-financial-positive: #4a7a52;
+  --ds-financial-positive-soft: color-mix(in oklab, #4a7a52 12%, transparent);
+  --ds-financial-negative: #a8443c;
+  --ds-financial-negative-soft: color-mix(in oklab, #a8443c 12%, transparent);
+  --ds-success: #3f6846;
+  --ds-success-soft: color-mix(in oklab, #4a7a52 12%, transparent);
+  --ds-warning: #765116;
+  --ds-warning-soft: color-mix(in oklab, #8a6320 12%, transparent);
+  --ds-danger: #a8443c;
+  --ds-danger-hover: #87332d;
+  --ds-danger-soft: color-mix(in oklab, #a8443c 12%, transparent);
+  --ds-danger-contrast: #f8f5ef;
+  --ds-info: #3d5f86;
+  --ds-info-soft: color-mix(in oklab, #3d5f86 12%, transparent);
+  --ds-attention: #765116;
+  --ds-attention-soft: color-mix(in oklab, #8a6320 12%, transparent);
+  --ds-chart-neutral: rgb(26 23 18 / 0.16);
+  --ds-sidebar-width: 216px;
+  --ds-content-width: 1240px;
   --ds-duration-micro: 120ms;
-  --ds-duration-standard: 180ms;
-  --ds-duration-overlay: 240ms;
+  --ds-duration-standard: 140ms;
+  --ds-duration-overlay: 180ms;
   --ds-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ds-ease-exit: cubic-bezier(0.4, 0, 1, 1);
 }
 
 .dark {
   color-scheme: dark;
-
-  --ds-canvas: #0e1219;
-  --ds-surface: #161c27;
-  --ds-surface-subtle: #1a2130;
-  --ds-surface-raised: #1c2434;
-  --ds-surface-overlay: #20293a;
-  --ds-text-primary: #f4f6f9;
-  --ds-text-secondary: #b2bccc;
-  --ds-text-tertiary: #94a1b5;
-  --ds-text-inverse: #0e1219;
-  --ds-border: #3a4457;
-  --ds-border-strong: #6e7b91;
-
-  --ds-action: #9dbeff;
-  --ds-action-hover: #bdd2ff;
-  --ds-action-soft: #202d48;
-  --ds-action-contrast: #0e1219;
-  --ds-focus: #9dbeff;
-
-  --ds-financial-positive: #42d6a0;
-  --ds-financial-positive-soft: #10281f;
-  --ds-financial-negative: #ff858b;
-  --ds-financial-negative-soft: #3a1b1f;
-
-  --ds-success: #42d6a0;
-  --ds-success-soft: #10281f;
-  --ds-warning: #f8c657;
-  --ds-warning-soft: #33270c;
-  --ds-danger: #ff858b;
-  --ds-danger-hover: #ffadb1;
-  --ds-danger-soft: #3a1b1f;
-  --ds-danger-contrast: #0e1219;
-  --ds-info: #9dbeff;
-  --ds-info-soft: #202d48;
-  --ds-attention: #f8c657;
-  --ds-attention-soft: #33270c;
+  --ds-canvas: #0d0c0a;
+  --ds-surface: #0d0c0a;
+  --ds-surface-subtle: rgb(242 237 228 / 0.035);
+  --ds-surface-raised: rgb(242 237 228 / 0.035);
+  --ds-surface-overlay: #0d0c0a;
+  --ds-text-primary: #f2ede4;
+  --ds-text-secondary: #9d9385;
+  --ds-text-tertiary-reference: #6f665a;
+  --ds-text-tertiary: #948b7f;
+  --ds-text-inverse: #0d0c0a;
+  --ds-border: rgb(242 237 228 / 0.09);
+  --ds-border-strong: rgb(242 237 228 / 0.16);
+  --ds-accent: #c98b52;
+  --ds-action: #c98b52;
+  --ds-action-hover: #dfa56f;
+  --ds-action-soft: color-mix(in oklab, var(--ds-accent) 14%, transparent);
+  --ds-action-contrast: #0d0c0a;
+  --ds-focus: #c98b52;
+  --ds-financial-positive: #8fae7f;
+  --ds-financial-positive-soft: color-mix(in oklab, #8fae7f 14%, transparent);
+  --ds-financial-negative: #c2726b;
+  --ds-financial-negative-soft: color-mix(in oklab, #c2726b 14%, transparent);
+  --ds-success: #8fae7f;
+  --ds-success-soft: color-mix(in oklab, #8fae7f 14%, transparent);
+  --ds-warning: #c99a52;
+  --ds-warning-soft: color-mix(in oklab, #c99a52 14%, transparent);
+  --ds-danger: #c2726b;
+  --ds-danger-hover: #d58a83;
+  --ds-danger-soft: color-mix(in oklab, #c2726b 14%, transparent);
+  --ds-danger-contrast: #0d0c0a;
+  --ds-info: #93aac9;
+  --ds-info-soft: color-mix(in oklab, #93aac9 14%, transparent);
+  --ds-attention: #c99a52;
+  --ds-attention-soft: color-mix(in oklab, #c99a52 14%, transparent);
+  --ds-chart-neutral: rgb(242 237 228 / 0.2);
 }
 
 @theme inline {
@@ -120,52 +117,46 @@
   --color-info-soft: var(--ds-info-soft);
   --color-attention: var(--ds-attention);
   --color-attention-soft: var(--ds-attention-soft);
-
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --text-display: 2.5rem;
-  --text-display--line-height: 3rem;
-  --text-title-1: 1.75rem;
-  --text-title-1--line-height: 2.125rem;
-  --text-title-2: 1.25rem;
-  --text-title-2--line-height: 1.75rem;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --text-display: 3.25rem;
+  --text-display--line-height: 1.1;
+  --text-title-1: 1.6875rem;
+  --text-title-1--line-height: 1.2;
+  --text-title-2: 1.4375rem;
+  --text-title-2--line-height: 1.25;
   --text-title-3: 1rem;
-  --text-title-3--line-height: 1.5rem;
-  --text-body: 0.875rem;
-  --text-body--line-height: 1.25rem;
-  --text-body-sm: 0.8125rem;
-  --text-body-sm--line-height: 1.125rem;
-  --text-label: 0.75rem;
-  --text-label--line-height: 1rem;
-  --text-micro: 0.6875rem;
-  --text-micro--line-height: 0.875rem;
-
-  --spacing-control-sm: 2.25rem;
+  --text-title-3--line-height: 1.35;
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.5;
+  --text-body-sm: 0.75rem;
+  --text-body-sm--line-height: 1.45;
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1.35;
+  --text-micro: 0.65625rem;
+  --text-micro--line-height: 1.35;
+  --spacing-control-sm: 2.75rem;
   --spacing-control: 2.75rem;
   --spacing-control-lg: 3rem;
-
-  --radius-control: 0.5rem;
-  --radius-panel: 0.75rem;
-  --radius-feature: 1rem;
-
-  --shadow-elevation-1: 0 1px 2px rgb(18 22 32 / 0.06), 0 1px 3px rgb(18 22 32 / 0.05);
-  --shadow-elevation-2: 0 8px 24px -8px rgb(18 22 32 / 0.2), 0 2px 6px rgb(18 22 32 / 0.08);
-  --shadow-elevation-3: 0 24px 56px -16px rgb(18 22 32 / 0.35), 0 6px 16px rgb(18 22 32 / 0.12);
-
+  --radius-control: 2px;
+  --radius-panel: 3px;
+  --radius-feature: 4px;
+  --shadow-elevation-1: none;
+  --shadow-elevation-2: none;
+  --shadow-elevation-3: none;
   --container-copy: 45rem;
   --container-form: 40rem;
   --container-detail: 47.5rem;
-  --container-content: 75rem;
+  --container-content: 77.5rem;
   --container-dense: 90rem;
-  --container-shell: 100rem;
+  --container-shell: none;
 }
 
-@media (max-width: 47.999rem) {
+@media (max-width: 900px) {
   :root {
-    --text-display: 2rem;
-    --text-display--line-height: 2.5rem;
+    --text-display: 2.375rem;
     --text-title-1: 1.5rem;
-    --text-title-1--line-height: 1.875rem;
-    --text-title-2: 1.125rem;
-    --text-title-2--line-height: 1.625rem;
+    --text-title-2: 1.25rem;
   }
 }

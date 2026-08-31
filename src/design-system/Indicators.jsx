@@ -14,13 +14,13 @@ export function QualityIndicator({ detail, reason, status }) {
 
   return (
     <details className="group inline-block text-left">
-      <summary className="min-h-6 cursor-pointer list-none rounded-full [&::-webkit-details-marker]:hidden">
+      <summary className="min-h-6 cursor-pointer list-none rounded-control [&::-webkit-details-marker]:hidden">
         <Badge tone={presentation.tone}>
           <span className="mr-1" aria-hidden="true">{status === 'complete' ? '✓' : status === 'provisional' ? '◐' : '!'}</span>
           {presentation.label}
         </Badge>
       </summary>
-      <div className="mt-2 max-w-sm rounded-panel border border-border bg-surface-overlay p-3 text-body-sm text-text-secondary shadow-elevation-2">
+      <div className="mt-2 max-w-sm rounded-panel border border-border bg-surface-overlay p-3 text-body-sm text-text-secondary">
         {reason ? <p className="m-0 font-medium text-text-primary">{reason}</p> : null}
         {detail ? <p className={classes('mb-0', reason ? 'mt-1' : 'mt-0')}>{detail}</p> : null}
       </div>
@@ -65,7 +65,7 @@ const ATTENTION_TONES = {
 
 export function AttentionIndicator({ actionLabel, className, description, label, onAction, tone = 'review' }) {
   return (
-    <div className={classes('flex flex-col gap-3 rounded-panel border p-4 sm:flex-row sm:items-center sm:justify-between', ATTENTION_TONES[tone] ?? ATTENTION_TONES.review, className)}>
+    <div className={classes('flex flex-col gap-3 rounded-panel border-l-2 p-4 sm:flex-row sm:items-center sm:justify-between', ATTENTION_TONES[tone] ?? ATTENTION_TONES.review, className)}>
       <div className="flex gap-3">
         <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-current text-label font-bold" aria-hidden="true">!</span>
         <div>

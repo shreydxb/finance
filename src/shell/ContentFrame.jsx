@@ -10,7 +10,7 @@ const WIDTHS = {
 
 export default function ContentFrame({ as: Component = 'div', children, className, width = 'content', ...props }) {
   return (
-    <Component className={classes('mx-auto w-full px-4 sm:px-6 lg:px-8', WIDTHS[width] ?? WIDTHS.content, className)} {...props}>
+    <Component className={classes('shell-content-frame', WIDTHS[width] ?? WIDTHS.content, className)} {...props}>
       {children}
     </Component>
   )

@@ -4,8 +4,8 @@ export function Panel({ as: Component = 'section', children, className, elevated
   return (
     <Component
       className={classes(
-        'rounded-panel border border-border bg-surface p-4 sm:p-6',
-        elevated && 'bg-surface-raised shadow-elevation-1',
+        'rounded-panel border border-border bg-transparent p-4 sm:p-5',
+        elevated && 'bg-surface-raised',
         className,
       )}
       {...props}
@@ -19,8 +19,8 @@ export function Card({ as: Component = 'article', children, className, interacti
   return (
     <Component
       className={classes(
-        'rounded-panel border border-border bg-surface p-4',
-        interactive && 'transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-elevation-1',
+        'rounded-panel border border-border bg-transparent p-4',
+        interactive && 'transition-colors hover:border-border-strong hover:bg-surface-subtle',
         className,
       )}
       {...props}

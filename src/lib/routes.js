@@ -21,6 +21,7 @@ export const PRIMARY_NAV_ITEMS = Object.freeze([
   { key: 'money', label: 'Money', href: '/money/activity' },
   { key: 'wealth', label: 'Wealth', href: '/wealth/net-worth' },
   { key: 'planning', label: 'Planning', href: '/planning' },
+  { key: 'settings', label: 'Settings', href: '/settings' },
 ])
 
 export const SECONDARY_NAV_ITEMS = Object.freeze({
@@ -56,7 +57,7 @@ const ROUTE_PRESENTATION = Object.freeze({
   '/planning/goals': { primary: 'planning', secondary: 'goals', title: 'Goals', width: 'detail' },
   '/planning/debt': { primary: 'planning', secondary: 'debt', title: 'Debt payoff', width: 'detail' },
   '/planning/forecasts': { primary: 'planning', secondary: 'forecasts', title: 'Forecasts', width: 'content' },
-  '/settings': { utility: 'settings', title: 'Settings', width: 'detail' },
+  '/settings': { primary: 'settings', title: 'Settings', width: 'content' },
 })
 
 export function presentationForRoute(route) {

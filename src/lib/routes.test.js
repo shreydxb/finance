@@ -51,12 +51,13 @@ test('every canonical destination direct-opens an existing production screen', (
   }
 })
 
-test('shell exposes exactly four primary destinations and route-aware secondary hierarchy', () => {
+test('shell exposes the five-destination V6 IA and route-aware secondary hierarchy', () => {
   assert.deepEqual(PRIMARY_NAV_ITEMS.map(({ label, href }) => [label, href]), [
     ['Overview', '/overview'],
     ['Money', '/money/activity'],
     ['Wealth', '/wealth/net-worth'],
     ['Planning', '/planning'],
+    ['Settings', '/settings'],
   ])
   assert.deepEqual(Object.keys(SECONDARY_NAV_ITEMS), ['money', 'wealth', 'planning'])
 
@@ -65,7 +66,7 @@ test('shell exposes exactly four primary destinations and route-aware secondary 
     '/money/budget': ['Budget', 'money', 'budget', 4],
     '/wealth/investments': ['Investments', 'wealth', 'investments', 3],
     '/planning/debt': ['Debt payoff', 'planning', 'debt', 4],
-    '/settings/preferences': ['Settings', undefined, undefined, 0],
+    '/settings/preferences': ['Settings', 'settings', undefined, 0],
   }
   for (const [href, [title, primary, secondary, itemCount]] of Object.entries(expectations)) {
     const presentation = presentationForRoute(resolveAppHref(href))

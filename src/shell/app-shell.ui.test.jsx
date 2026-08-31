@@ -34,14 +34,14 @@ function renderShell(href, overrides) {
 }
 
 describe('application shell', () => {
-  it('renders exactly four primary destinations per responsive surface and route-aware secondary navigation', () => {
+  it('renders the five-destination V6 IA on both responsive surfaces with route-aware secondary navigation', () => {
     renderShell('/money/budget')
 
     const primaryNavs = screen.getAllByRole('navigation', { name: /primary navigation/ })
     expect(primaryNavs).toHaveLength(2)
     for (const nav of primaryNavs) {
-      expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
-        'OOverview', 'MMoney', 'WWealth', 'PPlanning',
+      expect(within(nav).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+        '/overview', '/money/activity', '/wealth/net-worth', '/planning', '/settings',
       ])
       expect(within(nav).getByRole('link', { name: /Money/ })).toHaveAttribute('aria-current', 'page')
     }
@@ -56,13 +56,13 @@ describe('application shell', () => {
     expect(screen.getByText('Preserved screen body')).toBeInTheDocument()
   })
 
-  it('keeps Settings and preferences outside the primary destination set', async () => {
+  it('keeps Settings in the primary IA and preferences in an accessible modal surface', async () => {
     const user = userEvent.setup()
     const { props } = renderShell('/overview')
-    expect(screen.getAllByRole('link', { name: 'Settings' })).toHaveLength(1)
-    expect(screen.getAllByRole('button', { name: /Preferences|Account and preferences/ })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: 'Settings' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /Theme & preferences/ })).toHaveLength(2)
 
-    await user.click(screen.getAllByRole('button', { name: 'Preferences' })[1])
+    await user.click(screen.getAllByRole('button', { name: 'Theme & preferences' })[1])
     const dialog = document.querySelector('dialog')
     expect(dialog).toHaveAttribute('aria-labelledby')
     expect(within(dialog).getByText('member@example.com')).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe('application shell', () => {
     expect(props.navigate).toHaveBeenCalledWith('/settings')
   })
 
-  it('focuses the route h1, restores a surviving detail invoker, and removes mobile primary nav during focused detail', async () => {
+  it('focuses the route h1, restores a surviving detail invoker, and preserves responsive route equivalence during detail', async () => {
     const initial = shellProps('/money/activity')
     const { rerender } = render(<AppShell {...initial}><button type="button">Open transaction</button></AppShell>)
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus())
@@ -80,7 +80,7 @@ describe('application shell', () => {
     const invoker = screen.getByRole('button', { name: 'Open transaction' })
     const detail = shellProps('/money/activity/123e4567-e89b-42d3-a456-426614174000')
     rerender(<AppShell {...detail}><button type="button">Open transaction</button></AppShell>)
-    expect(screen.getAllByRole('navigation', { name: /primary navigation/ })).toHaveLength(1)
+    expect(screen.getAllByRole('navigation', { name: /primary navigation/ })).toHaveLength(2)
 
     const returned = shellProps('/money/activity', { takePendingFocusTarget: vi.fn(() => invoker) })
     rerender(<AppShell {...returned}><button type="button">Open transaction</button></AppShell>)
@@ -98,6 +98,17 @@ describe('application shell', () => {
     expect(shouldHandleInApp({ ...event, ctrlKey: true }, '/money/activity')).toBe(false)
     expect(shouldHandleInApp({ ...event, button: 1 }, '/money/activity')).toBe(false)
     expect(shouldHandleInApp(event, 'https://example.com')).toBe(false)
+  })
+
+  it('exposes Settings as current on desktop and mobile without a bottom navigation landmark', () => {
+    const { container } = renderShell('/settings/categories')
+    const primaryNavs = screen.getAllByRole('navigation', { name: /primary navigation/ })
+    expect(primaryNavs).toHaveLength(2)
+    for (const nav of primaryNavs) {
+      expect(within(nav).getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page')
+    }
+    expect(container.querySelector('.mobile-bottom-nav')).not.toBeInTheDocument()
+    expect(container.querySelector('.shell-mobile-region')).toBeInTheDocument()
   })
 
   it('has no automated accessibility violations in representative shell hierarchy', async () => {

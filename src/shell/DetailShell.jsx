@@ -36,16 +36,16 @@ export default function DetailShell({
           }}
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
-          <header className="sticky top-0 z-10 border-b border-border bg-surface-overlay px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:pt-4">
+          <header className="sticky top-0 z-10 border-b border-border bg-surface-overlay px-5 pb-4 pt-[calc(1.25rem+env(safe-area-inset-top))] sm:px-7 sm:pt-6">
             <Button intent="quiet" size="sm" className="-ml-3 mb-1" onClick={onRequestClose}>
               ← Back to {backLabel}
             </Button>
-            <DialogPrimitive.Title id={titleId} tabIndex="-1" className="m-0 text-title-2 font-semibold text-text-primary outline-none">
+            <DialogPrimitive.Title id={titleId} tabIndex="-1" className="m-0 font-serif text-title-2 font-normal text-text-primary outline-none">
               {title}
             </DialogPrimitive.Title>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-7">
             {loading ? <LoadingState label="Loading…" /> : null}
             {!loading && error ? <ErrorState title={error} /> : null}
             {!loading && !error && unavailable ? (

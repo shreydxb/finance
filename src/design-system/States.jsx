@@ -3,7 +3,7 @@ import { Panel } from './Surface'
 
 export function EmptyState({ action, description, title = 'Nothing here yet' }) {
   return (
-    <Panel className="grid min-h-48 place-items-center text-center">
+    <Panel className="grid min-h-40 place-items-center border-x-0 text-center">
       <div className="max-w-copy">
         <div className="mx-auto mb-3 grid size-10 place-items-center rounded-full bg-surface-subtle" aria-hidden="true">
           <span className="size-3 rounded-full border-2 border-border-strong" />
@@ -18,7 +18,7 @@ export function EmptyState({ action, description, title = 'Nothing here yet' }) 
 
 export function LoadingState({ label = 'Loading' }) {
   return (
-    <div role="status" aria-live="polite" className="flex min-h-32 items-center justify-center gap-3 rounded-panel border border-border bg-surface p-6 text-body font-medium text-text-secondary">
+    <div role="status" aria-live="polite" className="flex min-h-28 items-center justify-center gap-3 border-y border-border p-6 text-body font-medium text-text-secondary">
       <span className="ds-spinner" aria-hidden="true" />
       <span>{label}</span>
     </div>
