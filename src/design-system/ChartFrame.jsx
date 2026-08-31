@@ -7,8 +7,8 @@ export function ChartDataAlternative({ caption = 'Chart data', columns, rows }) 
       <summary className="min-h-control cursor-pointer px-3 py-2.5 text-body-sm font-semibold text-text-primary">
         View data table
       </summary>
-      <div className="overflow-x-auto border-t border-border">
-        <table className="w-full border-collapse text-left text-body-sm">
+      <div className="v6-table-scroll overflow-x-auto border-t border-border" tabIndex="0" role="region" aria-label={caption}>
+        <table className="w-full min-w-[660px] border-collapse text-left text-body-sm">
           <caption className="ds-visually-hidden">{caption}</caption>
           <thead>
             <tr>
@@ -49,10 +49,10 @@ export function ChartFrame({ children, columns, dataCaption, description, rows, 
   const descriptionId = description ? `chart-description-${generatedId}` : undefined
 
   return (
-    <Panel aria-labelledby={titleId} aria-describedby={descriptionId}>
+    <Panel aria-labelledby={titleId} aria-describedby={descriptionId} className="border-x-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 id={titleId} className="m-0 text-title-3 font-semibold text-text-primary">{title}</h3>
+          <h3 id={titleId} className="m-0 font-serif text-title-3 font-normal text-text-primary">{title}</h3>
           {description ? <p id={descriptionId} className="mb-0 mt-1 text-body-sm text-text-secondary">{description}</p> : null}
         </div>
         {trailing ? <div>{trailing}</div> : null}

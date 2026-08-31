@@ -26,7 +26,7 @@ export function Field({ children, className, error, help, id, label, required = 
 }
 
 const CONTROL_BASE =
-  'min-h-control w-full rounded-control border border-border bg-surface px-3 text-body text-text-primary shadow-none transition-[border-color,box-shadow,background-color] placeholder:text-text-tertiary hover:border-border-strong disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-text-tertiary disabled:opacity-75 aria-invalid:border-danger'
+  'min-h-control w-full rounded-control border-0 border-b border-border bg-transparent px-1 text-body text-text-primary shadow-none transition-[border-color,background-color] placeholder:text-text-tertiary hover:border-border-strong disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-text-tertiary disabled:opacity-75 aria-invalid:border-danger'
 
 function useControlProps({ id, 'aria-describedby': describedBy, 'aria-invalid': invalid, required }) {
   const field = useContext(FieldContext)

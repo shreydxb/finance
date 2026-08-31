@@ -6,13 +6,13 @@ const TONES = {
   success: 'border-success/30 bg-success-soft text-success',
   warning: 'border-warning/30 bg-warning-soft text-warning',
   danger: 'border-danger/30 bg-danger-soft text-danger',
-  positive: 'border-financial-positive/30 bg-financial-positive-soft text-financial-positive',
+  positive: 'border-financial-positive/30 bg-financial-positive-soft text-success',
   negative: 'border-financial-negative/30 bg-financial-negative-soft text-financial-negative',
 }
 
 export function Badge({ children, className, tone = 'neutral' }) {
   return (
-    <span className={classes('inline-flex min-h-6 items-center rounded-full border px-2 py-0.5 text-label font-semibold', TONES[tone] ?? TONES.neutral, className)}>
+    <span className={classes('inline-flex min-h-6 items-center rounded-control border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em]', TONES[tone] ?? TONES.neutral, className)}>
       {children}
     </span>
   )

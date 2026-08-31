@@ -17,6 +17,11 @@ import {
   MissingValue,
   Percentage,
   QualityIndicator,
+  DataTable,
+  Kpi,
+  KpiGroup,
+  SectionHeader,
+  SegmentedControl,
   Select,
   Textarea,
 } from './index'
@@ -98,6 +103,35 @@ describe('foundation controls', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Could not load')
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it('exposes V6 section, KPI, segment, and overflow-table primitives without deriving values', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <section>
+        <SectionHeader kicker="Fixture" title="Shared patterns" description="Caller-supplied content." />
+        <SegmentedControl
+          label="Fixture period"
+          value="mtd"
+          onChange={onChange}
+          options={[{ value: 'mtd', label: 'MTD' }, { value: 'ytd', label: 'YTD' }]}
+        />
+        <KpiGroup label="Fixture summary">
+          <Kpi label="Recorded" value="AED 12,000" hint="Canonical fixture" />
+        </KpiGroup>
+        <DataTable caption="Fixture financial table">
+          <table><tbody><tr><th scope="row">Recorded</th><td>AED 12,000</td></tr></tbody></table>
+        </DataTable>
+      </section>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Shared patterns' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Fixture period' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'MTD' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('region', { name: 'Fixture financial table' })).toHaveAttribute('tabindex', '0')
+    await user.click(screen.getByRole('button', { name: 'YTD' }))
+    expect(onChange).toHaveBeenCalledWith('ytd')
   })
 
   it('has no automated accessibility violations in representative light and dark states', async () => {

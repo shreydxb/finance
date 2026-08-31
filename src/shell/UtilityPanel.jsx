@@ -44,10 +44,16 @@ export default function UtilityPanel({ identity, navigate, onSignOut, open, onOp
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      className="utility-dialog m-0 max-h-[calc(100dvh-1rem)] w-[min(100%,28rem)] max-w-none overflow-y-auto border border-border bg-surface-overlay p-0 text-text-primary shadow-elevation-3 backdrop:bg-[#0e1219]/70"
+      className="utility-dialog m-0 max-w-none overflow-y-auto bg-surface-overlay p-0 text-text-primary"
       onCancel={(event) => {
         event.preventDefault()
         requestClose()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          requestClose()
+        }
       }}
       onClick={(event) => {
         if (event.target === dialogRef.current) requestClose()
@@ -56,7 +62,7 @@ export default function UtilityPanel({ identity, navigate, onSignOut, open, onOp
       <div className="border-b border-border px-4 py-4 sm:px-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id={titleId} data-utility-heading tabIndex="-1" className="m-0 text-title-2 font-semibold outline-none">
+            <h2 id={titleId} data-utility-heading tabIndex="-1" className="m-0 font-serif text-title-2 font-normal outline-none">
               Preferences and account
             </h2>
             {identity ? <p className="mb-0 mt-1 truncate text-body-sm text-text-tertiary">{identity}</p> : null}

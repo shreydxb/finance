@@ -11,9 +11,9 @@ export default function SecondaryNav({ activeKey, items, navigate }) {
   if (!items?.length) return null
 
   return (
-    <nav aria-label="Section navigation" className="border-b border-border bg-surface/95 backdrop-blur-md">
-      <div className="mx-auto max-w-content overflow-x-auto px-2 [scrollbar-width:none] sm:px-4 lg:px-6 [&::-webkit-scrollbar]:hidden">
-        <ul className="m-0 flex min-w-max list-none gap-1 p-1.5">
+    <nav aria-label="Section navigation" className="shell-secondary-nav">
+      <div className="shell-secondary-scroll">
+        <ul>
           {items.map((item) => {
             const active = item.key === activeKey
             return (
@@ -22,11 +22,7 @@ export default function SecondaryNav({ activeKey, items, navigate }) {
                   href={item.href}
                   navigate={navigate}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex min-h-control-sm items-center rounded-control px-3 text-body-sm font-semibold transition-colors ${
-                    active
-                      ? 'bg-action-soft text-action'
-                      : 'text-text-secondary hover:bg-surface-subtle hover:text-text-primary'
-                  }`}
+                  className="shell-secondary-link"
                 >
                   <span ref={active ? activeRef : undefined}>{item.label}</span>
                 </AppLink>

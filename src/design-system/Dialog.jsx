@@ -37,9 +37,9 @@ export function Dialog({
       <DialogPrimitive.Portal>
         <OverlayBackdrop />
         <OverlaySurface className={className}>
-          <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
+          <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7 sm:py-6">
             <div>
-              <DialogPrimitive.Title className="m-0 text-title-2 font-semibold text-text-primary">
+              <DialogPrimitive.Title className="m-0 font-serif text-title-2 font-normal text-text-primary">
                 {title}
               </DialogPrimitive.Title>
               {description ? (
@@ -52,8 +52,8 @@ export function Dialog({
               <IconButton label={closeLabel} size="sm">×</IconButton>
             </DialogPrimitive.Close>
           </div>
-          <div className="px-4 py-5 sm:px-6">{children}</div>
-          {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-4 sm:px-6">{footer}</div> : null}
+          <div className="px-5 py-6 sm:px-7">{children}</div>
+          {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-border px-5 py-5 sm:px-7">{footer}</div> : null}
         </OverlaySurface>
       </DialogPrimitive.Portal>
     </OverlayRoot>
@@ -83,7 +83,7 @@ export function ConfirmDialog({
           cancelRef.current?.focus()
         }}>
           <div className="px-4 pb-2 pt-5 sm:px-6 sm:pt-6">
-            <DialogPrimitive.Title className="m-0 text-title-2 font-semibold text-text-primary">
+            <DialogPrimitive.Title className="m-0 font-serif text-title-2 font-normal text-text-primary">
               {title}
             </DialogPrimitive.Title>
             <DialogPrimitive.Description className="mb-0 mt-2 text-body text-text-secondary">

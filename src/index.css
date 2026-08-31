@@ -16,56 +16,63 @@
      page, ink-200 borders, ink-500 secondary text, ink-900 primary text.
      Dark mode inverts the scale's values (see `.dark` below) so every screen
      flips without a single `dark:` variant. */
-  --color-ink-50: #f6f7f9;
-  --color-ink-100: #eceff3;
-  --color-ink-200: #dde2ea;
-  --color-ink-300: #c3ccd9;
-  --color-ink-400: #8b95a7;
-  --color-ink-500: #646e82;
-  --color-ink-600: #4a5465;
-  --color-ink-700: #363d4b;
-  --color-ink-800: #212734;
-  --color-ink-900: #121620;
+  --color-ink-50: #f8f5ef;
+  --color-ink-100: rgb(26 23 18 / 0.035);
+  --color-ink-200: rgb(26 23 18 / 0.12);
+  --color-ink-300: rgb(26 23 18 / 0.22);
+  --color-ink-400: #756c60;
+  --color-ink-500: #6b6255;
+  --color-ink-600: #554d43;
+  --color-ink-700: #3f3931;
+  --color-ink-800: #29251f;
+  --color-ink-900: #1a1712;
 
   /* Deliberately dark in BOTH themes — the net-worth hero and the login card
      are always-dark surfaces carrying white text. Using ink-900 for these was
      a bug: it inverts to near-white in dark mode and the white text vanished. */
-  --color-night: #121620;
+  --color-night: #1a1712;
 
-  --color-brand-50: #eff4ff;
-  --color-brand-100: #dbe6fe;
-  --color-brand-200: #bfd3fe;
-  --color-brand-400: #6096fc;
-  --color-brand-500: #3b7df7;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-900: #172554;
+  --color-brand-50: color-mix(in oklab, #9c5d26 8%, transparent);
+  --color-brand-100: color-mix(in oklab, #9c5d26 12%, transparent);
+  --color-brand-200: color-mix(in oklab, #9c5d26 24%, transparent);
+  --color-brand-400: #b1733d;
+  --color-brand-500: #9c5d26;
+  --color-brand-600: #9c5d26;
+  --color-brand-700: #7f481b;
+  --color-brand-900: #4f2a0f;
 
   /* Money semantics. Deliberately not pure red/green: slightly muted reads
      as considered rather than alarming, which matters when a number is
      negative for perfectly ordinary reasons. */
-  --color-pos-50: #e7f8f0;
-  --color-pos-500: #0ea472;
-  --color-pos-600: #06835a;
-  --color-neg-50: #fdeced;
-  --color-neg-100: #fbd8da;
-  --color-neg-200: #f6b8bb;
-  --color-neg-500: #e5484d;
-  --color-neg-600: #c62a2f;
+  --color-pos-50: color-mix(in oklab, #4a7a52 12%, transparent);
+  --color-pos-500: #4a7a52;
+  --color-pos-600: #4a7a52;
+  --color-neg-50: color-mix(in oklab, #a8443c 12%, transparent);
+  --color-neg-100: color-mix(in oklab, #a8443c 16%, transparent);
+  --color-neg-200: color-mix(in oklab, #a8443c 25%, transparent);
+  --color-neg-500: #a8443c;
+  --color-neg-600: #a8443c;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-    Roboto, 'Helvetica Neue', sans-serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
 
   /* Two-layer shadows — a tight contact shadow plus a soft ambient one.
      Single-layer shadows are the fastest way to look like a template. */
-  --shadow-card: 0 1px 2px rgba(18, 22, 32, 0.04), 0 1px 3px rgba(18, 22, 32, 0.06);
-  --shadow-lift: 0 4px 12px rgba(18, 22, 32, 0.08), 0 2px 4px rgba(18, 22, 32, 0.04);
-  --shadow-pop: 0 16px 32px -12px rgba(18, 22, 32, 0.22), 0 4px 8px rgba(18, 22, 32, 0.06);
-  --shadow-hero: 0 24px 48px -16px rgba(29, 78, 216, 0.45);
+  --shadow-card: none;
+  --shadow-lift: none;
+  --shadow-pop: none;
+  --shadow-hero: none;
 
-  --animate-rise: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-fade: fade 0.35s ease both;
-  --animate-grow: grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-rise: rise 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade: fade 140ms ease both;
+  --animate-grow: grow 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Dark mode.
@@ -77,43 +84,43 @@
    palette's cool cast, and never pure black — #000 makes shadows invisible
    and text edges harsh on OLED. */
 .dark {
-  --color-ink-50: #0e1219;
-  --color-ink-100: #1a2130;
-  --color-ink-200: #29313f;
-  --color-ink-300: #3a4457;
-  --color-ink-400: #6e7b91;
-  --color-ink-500: #94a1b5;
-  --color-ink-600: #b2bccc;
-  --color-ink-700: #ccd4e0;
-  --color-ink-800: #e3e8ef;
-  --color-ink-900: #f4f6f9;
+  --color-ink-50: #0d0c0a;
+  --color-ink-100: rgb(242 237 228 / 0.035);
+  --color-ink-200: rgb(242 237 228 / 0.09);
+  --color-ink-300: rgb(242 237 228 / 0.16);
+  --color-ink-400: #948b7f;
+  --color-ink-500: #9d9385;
+  --color-ink-600: #b6ab9c;
+  --color-ink-700: #cabfb0;
+  --color-ink-800: #ded5ca;
+  --color-ink-900: #f2ede4;
 
   /* Lifted rather than identical, so the hero still separates from the page. */
-  --color-night: #1c2434;
+  --color-night: #15130f;
 
   /* Brand and semantics lift slightly: mid-tone saturated colours that read
      well on white lose contrast against a dark surface. */
-  --color-brand-500: #5b95ff;
-  --color-brand-600: #4285f4;
-  --color-brand-700: #2f6fd8;
-  --color-brand-200: #9dc0ff;
+  --color-brand-500: #c98b52;
+  --color-brand-600: #c98b52;
+  --color-brand-700: #dfa56f;
+  --color-brand-200: color-mix(in oklab, #c98b52 28%, transparent);
 
-  --color-pos-500: #24c088;
-  --color-pos-600: #34d399;
-  --color-pos-50: #10281f;
-  --color-neg-500: #f2686d;
-  --color-neg-600: #f87a7f;
-  --color-neg-50: #2a1417;
-  --color-neg-100: #3a1b1f;
-  --color-neg-200: #4d2429;
+  --color-pos-500: #8fae7f;
+  --color-pos-600: #8fae7f;
+  --color-pos-50: color-mix(in oklab, #8fae7f 14%, transparent);
+  --color-neg-500: #c2726b;
+  --color-neg-600: #c2726b;
+  --color-neg-50: color-mix(in oklab, #c2726b 14%, transparent);
+  --color-neg-100: color-mix(in oklab, #c2726b 18%, transparent);
+  --color-neg-200: color-mix(in oklab, #c2726b 26%, transparent);
 
   /* Shadows do almost nothing on dark backgrounds; depth comes from the
      surface being lighter than the page, so they are deepened and kept
      subtle rather than removed entirely. */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-lift: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-pop: 0 16px 32px -12px rgba(0, 0, 0, 0.7), 0 4px 8px rgba(0, 0, 0, 0.4);
-  --shadow-hero: 0 24px 48px -16px rgba(0, 0, 0, 0.6);
+  --shadow-card: none;
+  --shadow-lift: none;
+  --shadow-pop: none;
+  --shadow-hero: none;
 }
 
 @keyframes rise {
@@ -160,6 +167,7 @@
 @utility tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
+  font-family: var(--font-serif);
 }
 
 /* Children fade up in sequence rather than all at once — the single cheapest
@@ -188,6 +196,26 @@ body {
      lining figures keep columns aligned in every table without each component
      having to remember. Inter's tabular digits read fine in prose too. */
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+h1, h2, h3, .v6-figure {
+  text-wrap: balance;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+td, th {
+  border-color: var(--color-border);
 }
 
 /* Most <select> elements in this app never set an explicit background —
@@ -205,6 +233,18 @@ select {
 select option {
   background-color: var(--color-surface);
   color: var(--color-ink-900);
+}
+
+:where(button, input, select, textarea, summary) {
+  font: inherit;
+}
+
+:where(button, input:not([type='checkbox']):not([type='radio']), select) {
+  min-height: 44px;
+}
+
+:where(.shadow-card, .shadow-lift, .shadow-pop, .shadow-xl, .shadow-2xl) {
+  box-shadow: none !important;
 }
 
 /* Every interactive element gets a consistent, visible focus ring rather
