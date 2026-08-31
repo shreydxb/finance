@@ -195,7 +195,7 @@ the reviewed backup source, so that audit evidence cannot accumulate before
 backup coverage exists.
 
 The backup manifest changed in this package and must ship with it: `accounts`
-now restores **after** `economic_parties`, because a reconciled account holds a
-foreign key into it, and the two new evidence tables are covered as `financial`.
-A backup source deployed from before this change would restore a reconciled
-database in the wrong order.
+now restores **after** `economic_parties`, because the ownership guard resolves
+the party on every write that sets ownership — a restore included — and the two
+new evidence tables are covered as `financial`. A backup source deployed from
+before this change would restore a reconciled database in the wrong order.

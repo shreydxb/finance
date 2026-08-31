@@ -25,8 +25,10 @@ export const BACKUP_TABLES = [
   // then parties, then the mapping decisions that reference both.
   //
   // They restore ahead of `accounts` because SHR-154 gave an account a stable
-  // owner_party_id: a reconciled account references a party row directly, so
-  // restoring accounts first would violate that foreign key.
+  // owner_party_id. That reference is a typed logical reference rather than a
+  // foreign key, but the ordering is still load-bearing: the ownership guard
+  // resolves the party on every write, restores included, and refuses an
+  // account whose party does not exist yet.
   { name: 'economic_households', financial: true },
   { name: 'economic_parties', financial: true, dependsOn: ['economic_households'] },
   { name: 'accounts', financial: true, dependsOn: ['economic_parties'] },

@@ -421,6 +421,18 @@ try {
       ['owner_party_id', 'ownership_kind'],
       `${stage}: accounts gains exactly the two contracted columns`
     )
+    // And no foreign key coupling financial writes to the identity substrate:
+    // owner_party_id is a typed logical reference validated by the guard.
+    assert.deepEqual(
+      (
+        await client.query(`
+          select conname from pg_constraint
+           where conrelid = 'public.accounts'::regclass and contype = 'f'
+        `)
+      ).rows,
+      [],
+      `${stage}: accounts holds no foreign key at all, as before 049`
+    )
     for (const table of FINANCIAL_TABLES) {
       assert.deepEqual(
         afterColumns.filter(

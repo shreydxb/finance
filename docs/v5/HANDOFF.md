@@ -19,8 +19,8 @@ This bounded Tier-3 package is the account-ownership reference foundation on top
 Migration `049_account_ownership_stable_refs.sql` adds:
 
 - `public.accounts.ownership_kind` — `personal` | `household` | `unreconciled`, `not null default 'unreconciled'` (a constant default, so Postgres applies it as a fast default and rewrites no tuple);
-- `public.accounts.owner_party_id` — nullable UUID, `references public.economic_parties(party_id) on delete restrict`;
-- `accounts_ownership_kind_check`, `accounts_ownership_shape_check` (personal ⇒ exactly one party; household/unreconciled ⇒ none) and two partial indexes;
+- `public.accounts.owner_party_id` — nullable UUID, a **typed logical reference** to `public.economic_parties(party_id)` rather than a foreign key (see "Reviewer hotspots");
+- `accounts_ownership_kind_check`, `accounts_ownership_shape_check` (personal ⇒ exactly one party; household/unreconciled ⇒ none) and two indexes;
 - `public.account_ownership_history` — append-only per-account decision history with a monotonic `decision_version`, the before/after kind and party, the economic household, the acting identity and the evidence reference. `account_id` is a **typed logical reference, not a foreign key**, so deleting an account still works exactly as it does today and the evidence outlives it;
 - `public.account_ownership_reconciliation_runs` — the immutable record of an applied manifest, keyed by a unique manifest reference and carrying the manifest digest and the account-state digest actually proven at apply time;
 - `private.account_ownership_digest_v1()`, `private.account_ownership_preflight_v1()`, `private.account_ownership_roster_v1()` — the read-only preflight;
@@ -68,7 +68,7 @@ A test asserts that no v1 canonical function and no existing view reads `ownersh
 
 ## Backup and restore
 
-`BACKUP_TABLES` gains `account_ownership_history` and `account_ownership_reconciliation_runs`, both `financial`. **`accounts` now restores after `economic_households` and `economic_parties`**, because a reconciled account holds a foreign key into `economic_parties`; the ordering test enforces it. A backup source deployed from before this change would restore a reconciled database in the wrong order, so the backup deployment and `049` must ship together.
+`BACKUP_TABLES` gains `account_ownership_history` and `account_ownership_reconciliation_runs`, both `financial`. **`accounts` now restores after `economic_households` and `economic_parties`**, because the ownership guard resolves the party on every write that sets ownership — a restore included — and refuses an account whose party does not exist yet. The ordering test enforces it. A backup source deployed from before this change would restore a reconciled database in the wrong order, so the backup deployment and `049` must ship together.
 
 A restore drill exports a three-version ownership history through the manifest, restores it into a clean table carrying the production constraints and compares exactly; a second drill proves the archived-party restore boundary is single-use, INSERT-only, and unreachable by the ordinary writer.
 
@@ -82,15 +82,19 @@ Run on this branch against Postgres 16, from a clean `npm ci`:
 | `npm run lint` | 0 errors, 7 warnings (all pre-existing) |
 | `npm run test:node` | 531 pass, 0 fail (base `main`: 529 — **+2** new backup-manifest tests) |
 | `npm run test:ui` | 89 pass, 0 fail (unchanged) |
-| `npm run test:db` | 324 pass, 0 fail (base `main`: 268 — **+56** new SHR-154 tests) |
+| `npm run test:db` | 325 pass, 0 fail (base `main`: 268 — **+57** new SHR-154 tests) |
 | `npm run test:db:ownership-upgrade` | passes — new runner, wired into `test:db` |
 | `npm run build` | clean |
 | `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
 | `git diff --check` | clean |
 
-The shared-database `test:db` suite was run six additional consecutive times with zero failures after a lock-ordering fix (see "Reviewer hotspots").
+The shared-database `test:db` suite was run five additional consecutive times with zero failures.
 
-One CI-only failure was found and fixed on the first exact-head run: the upgrade runner compared `v_canonical_accounts_aed` wholesale, including `valuation_age_seconds`, which is `now() - valuation_as_of` and therefore moves with the wall clock rather than with anything the migration changes. Reproduced locally by injecting a two-second delay between the before/after snapshots, fixed by excluding that one column, and re-verified: the pre-fix runner fails under the injected skew and the fixed one passes.
+**Two CI-only failures were found and fixed before the final head**, both worth the reviewer's attention:
+
+1. *Wall-clock comparison.* The upgrade runner compared `v_canonical_accounts_aed` wholesale, including `valuation_age_seconds` — `now() - valuation_as_of`, which moves with the clock rather than with anything the migration changes. It passed locally because the before/after snapshots landed in the same second. Reproduced locally by injecting a two-second delay, fixed by excluding that one column, and re-verified: the pre-fix runner fails on exactly that column under the injected skew and the fixed one passes. Every other column is still compared in full.
+
+2. *A real design problem the FK caused.* CI reported `deadlock detected` between `truncate table public.economic_parties cascade` (SHR-193's own reviewed test) and a plain `insert into accounts` from an unrelated pre-existing test — neither statement touching ownership. Root cause: the draft's `accounts.owner_party_id` foreign key made **every** write to `accounts` take a lock on `economic_parties`, and made any exclusive statement on `economic_parties` reciprocally lock `accounts`. That is a genuine coupling between the household's hottest financial table and the identity substrate, not a test artifact. Fixed by making `owner_party_id` a typed logical reference validated by the guard — the same boundary 045 uses for audit actors and 047 for mapping auth identities. Nothing is lost: the guard resolves the party on every write that sets ownership (ordinary and restore alike, raising `SHR154_OWNERSHIP_PARTY_UNKNOWN`), no API role can write the column, and 047 forbids party deletion, so a reference cannot dangle. A test asserts the absence of the foreign key, the refusal of a bogus party id on both the writer and raw-operator paths, and that an ordinary account insert takes no write-blocking lock on `economic_parties`.
 
 `npm run parity:canonical` was **not run**: it requires `PARITY_DATABASE_URL` against a live database and is a production parity harness, not part of `test:db`. No production credentials were used in this session beyond read-only inspection.
 
@@ -114,8 +118,8 @@ One CI-only failure was found and fixed on the first exact-head run: the upgrade
 
 - **Two reviewed tests were narrowed by exact column name**, not by pattern: `access_party_reconciliation.test.mjs`'s "SHR-194 adds no ownership or attribution column" and `economic_identity.test.mjs`'s "no financial table receives ownership or attribution in SHR-193". Both run against the fully migrated shared database and so cannot tell which migration added a column. Each now excludes only `accounts.owner_party_id` (and `ownership_kind`); anything else still fails. That 047 and 048 themselves add no column at all is proved directly and unchanged by their own upgrade-path runners, which diff the whole column set across those migrations alone.
 - **The `accounts` guard inlines the operator predicate** rather than calling `private.economic_identity_operator_authority()`. It is the identical expression, and a test pins that they agree for the operator and for all three API roles. It is inlined because this trigger, unlike every guard in 045–048, is genuinely reached by unprivileged roles.
-- **A lock-ordering line in the SHR-154 test helper.** `accounts` now holds an FK into `economic_parties`, so SHR-193's `truncate economic_parties cascade` test needs a lock on `accounts` too. Without a fixed lock order the shared-database suite deadlocked intermittently; `seedAccounts` now reads `economic_parties` before taking any `accounts` lock. This is a test-harness ordering fix, not a product change.
-- **`account_ownership_history.account_id` is not a foreign key.** Deliberate: an FK would either erase evidence on account deletion or (RESTRICT) make a reconciled account undeletable, silently breaking behaviour the app has today.
+- **A lock-ordering line in the SHR-154 test helper.** Tests in this file write ownership, so their transactions touch both `accounts` and `economic_parties` while SHR-193's truncate test holds the latter exclusively. `seedAccounts` reads `economic_parties` first so both take the same lock order. This is a test-harness ordering fix, not a product change, and is now belt-and-braces rather than load-bearing since the foreign key was removed.
+- **Neither `accounts.owner_party_id` nor `account_ownership_history.account_id` is a foreign key.** Both are deliberate and for different reasons. For `owner_party_id` it is the financial-write/identity-lock decoupling described above, proven necessary by a CI deadlock. For `account_id` on the history table, an FK would either erase evidence on account deletion or, with RESTRICT, make a reconciled account undeletable — silently breaking behaviour the app has today. `accounts` therefore holds no foreign key at all, exactly as before 049, and the upgrade runner asserts that.
 - **The cross-household invariant is relational, not a column.** `accounts` gains no `household_id` (047 fans none out), so containment is enforced by refusing a party whose economic household differs from that of every other account already carrying ownership.
 
 ## Reviewer questions

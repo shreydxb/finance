@@ -120,19 +120,37 @@ begin
       );
   end if;
 
-  -- ON DELETE RESTRICT, matching every reference into the economic substrate.
-  -- 047 refuses party deletion outright anyway; this is the second lock.
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.accounts'::regclass
-      and conname = 'accounts_owner_party_fk'
-  ) then
-    alter table public.accounts
-      add constraint accounts_owner_party_fk
-      foreign key (owner_party_id)
-      references public.economic_parties (party_id) on delete restrict;
-  end if;
 end $$;
+
+-- owner_party_id is a typed logical reference, not a foreign key, and that is a
+-- decision rather than an oversight. It is the same boundary 045 draws for audit
+-- actors and 047 for mapping auth identities, applied in the other direction.
+--
+-- A foreign key here would couple the household's hottest financial table to the
+-- identity substrate through referential machinery: every ordinary write to
+-- accounts — every balance update the app performs — would take a lock on
+-- economic_parties, and any exclusive operation on economic_parties would
+-- reciprocally lock accounts. That coupling is not theoretical. An earlier draft
+-- of this migration carried the foreign key, and CI deadlocked an ordinary
+-- `insert into accounts` against an unrelated exclusive statement on
+-- economic_parties, with neither statement having anything to do with ownership.
+-- Financial writes must not be able to block, or be blocked by, identity
+-- bookkeeping.
+--
+-- Nothing is lost by dropping it, because every path that can set the column
+-- validates it:
+--
+--   * ownership is writable only by the operator authority, through the guard
+--     below, which resolves the party and raises SHR154_OWNERSHIP_PARTY_UNKNOWN
+--     if it does not exist — on ordinary writes and on restores alike;
+--   * 047 refuses party deletion outright for every role, so an existing
+--     reference can never be orphaned afterwards;
+--   * no API role can write the column at all.
+--
+-- Should a previous apply of this migration have created the foreign key, drop
+-- it: leaving it behind would silently retain the coupling this migration is
+-- explicitly removing.
+alter table public.accounts drop constraint if exists accounts_owner_party_fk;
 
 create index if not exists accounts_owner_party_idx
   on public.accounts (owner_party_id)
@@ -144,7 +162,7 @@ create index if not exists accounts_ownership_kind_idx
 comment on column public.accounts.ownership_kind is
   'SHR-154 stable ownership contract: personal (exactly one economic party, named by owner_party_id) | household (genuinely shared household truth, one row counted once, no party and no allocation) | unreconciled (no reviewed economic fact yet, the default). Never authorization, never derived from the legacy owner text, and never a fractional share.';
 comment on column public.accounts.owner_party_id is
-  'SHR-154 stable reference to public.economic_parties.party_id. UUID identity only: a display name is never a key here, and renaming or archiving a party changes no ownership fact. Populated only through the reviewed reconciliation path, never by an API role and never by inference.';
+  'SHR-154 stable reference to public.economic_parties.party_id, as a typed logical reference rather than a foreign key so that ordinary financial writes are never coupled to identity-substrate locks; the guard validates existence on every write and 047 forbids party deletion, so a reference can never dangle. UUID identity only: a display name is never a key here, and renaming or archiving a party changes no ownership fact. Populated only through the reviewed reconciliation path, never by an API role and never by inference.';
 comment on column public.accounts.owner is
   'Legacy owner text. Compatibility and presentation only, and still authoritative for every consumer that has not been cut over (canonical_balance_sheet, canonical_investment_metrics, nw_snapshot_items.owner, nw_daily.by_owner and the app screens). It is NOT an identity, is not unique, is freely mutable, and SHR-154 deliberately never reads it to decide an economic party.';
 
@@ -428,6 +446,8 @@ begin
       from public.economic_parties p
      where p.party_id = new.owner_party_id;
 
+    -- Referential integrity, enforced here rather than by a foreign key. This
+    -- runs on every path that can set the column, restores included.
     if not found then
       raise exception 'SHR154_OWNERSHIP_PARTY_UNKNOWN' using errcode = '23503';
     end if;
@@ -453,7 +473,7 @@ end;
 $$;
 
 comment on function private.guard_account_ownership_reference() is
-  'SHR-154 account ownership boundary. Ordinary account writes that do not touch ownership take a fast path and are untouched, including edits to the legacy owner text. Ownership assignment requires the operator authority, cannot regress to unreconciled, fails closed on an archived party except through the explicit per-row restore token, and cannot reference a party in another economic household.';
+  'SHR-154 account ownership boundary. Ordinary account writes that do not touch ownership take a fast path and are untouched, including edits to the legacy owner text. Ownership assignment requires the operator authority, cannot regress to unreconciled, resolves the referenced party itself (there is deliberately no foreign key coupling financial writes to the identity substrate), fails closed on an archived party except through the explicit per-row restore token, and cannot reference a party in another economic household.';
 
 drop trigger if exists accounts_ownership_reference_guard on public.accounts;
 create trigger accounts_ownership_reference_guard

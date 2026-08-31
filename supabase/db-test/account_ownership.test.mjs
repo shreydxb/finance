@@ -35,12 +35,12 @@ async function asOwner(client) {
  * column is supplied, so every one arrives unreconciled.
  */
 async function seedAccounts(client, rows) {
-  // Lock ordering, not a fixture step. accounts now holds a foreign key into
-  // economic_parties, so SHR-193's `truncate economic_parties cascade` test
-  // needs ACCESS EXCLUSIVE on accounts too. Taking the (ACCESS SHARE) read on
-  // economic_parties before any accounts row lock gives every transaction in
-  // this file the same lock order as that truncate, so the two block each other
-  // rather than deadlocking while the shared database runs both concurrently.
+  // Lock ordering, not a fixture step. Tests in this file write ownership, and
+  // the guard resolves the party — so these transactions touch both accounts
+  // and economic_parties while SHR-193's `truncate economic_parties` test holds
+  // that table exclusively. Taking the (ACCESS SHARE) read first gives every
+  // transaction here the same lock order as that truncate, so the two block
+  // each other rather than deadlocking on the shared database.
   await client.query('select 1 from public.economic_parties limit 1')
 
   const ids = []
@@ -1874,27 +1874,75 @@ test('SHR-193 and SHR-194 objects are unchanged by SHR-154', async () => {
   })
 })
 
-test('an owned account cannot be orphaned by deleting its party', async () => {
+test('an owned account cannot be orphaned, and a bogus party is refused', async () => {
   await withTx(async (client) => {
     const [accountId] = await seedAccounts(client, [{ name: 'A', owner: 'Shrey' }])
     const { householdId, parties } = await seedEconomic(client)
+
+    // Referential integrity without a foreign key: the guard resolves the party
+    // itself, on the writer path and on a raw operator write alike.
+    await expectReject(
+      client,
+      () =>
+        client.query(
+          `select private.set_account_ownership_v1($1, 'personal', $2, $3, 'x', null)`,
+          [accountId, '00000000-0000-0000-0000-0000000000ee', householdId]
+        ),
+      /SHR154_OWNERSHIP_PARTY_UNKNOWN/
+    )
+    await expectReject(
+      client,
+      () =>
+        client.query(
+          `update public.accounts set ownership_kind = 'personal', owner_party_id = $2
+            where id = $1`,
+          [accountId, '00000000-0000-0000-0000-0000000000ee']
+        ),
+      /SHR154_OWNERSHIP_PARTY_UNKNOWN/
+    )
+
     await client.query(`select private.set_account_ownership_v1($1, 'personal', $2, $3, 'x', null)`, [
       accountId,
       parties[0],
       householdId,
     ])
-    // Both locks hold: SHR-193 refuses the delete outright, and the SHR-154
-    // foreign key is ON DELETE RESTRICT behind it.
+
+    // And the reference can never be orphaned afterwards, because SHR-193
+    // refuses party deletion outright for every role.
     await expectReject(
       client,
       () => client.query('delete from public.economic_parties where party_id = $1', [parties[0]]),
       /SHR193_ECONOMIC_PARTY_DELETE_FORBIDDEN/
     )
-    const { rows } = await client.query(
-      `select confdeltype from pg_constraint
-        where conrelid = 'public.accounts'::regclass and conname = 'accounts_owner_party_fk'`
-    )
-    assert.equal(rows[0].confdeltype, 'r', 'ON DELETE RESTRICT')
+  })
+})
+
+test('an ordinary account write is not coupled to the identity substrate', async () => {
+  await withTx(async (client) => {
+    // The reason owner_party_id is a typed logical reference rather than a
+    // foreign key. A foreign key makes every write to accounts — every balance
+    // update the app performs — take a lock on economic_parties, and makes any
+    // exclusive statement on economic_parties reciprocally lock accounts. That
+    // is a real deadlock surface between financial writes and identity
+    // bookkeeping, and it is the failure this assertion exists to prevent
+    // regressing.
+    const { rows: fks } = await client.query(`
+      select conname from pg_constraint
+       where conrelid = 'public.accounts'::regclass
+         and contype = 'f'
+         and confrelid = 'public.economic_parties'::regclass
+    `)
+    assert.deepEqual(fks, [], 'accounts holds no foreign key into the identity substrate')
+
+    await seedAccounts(client, [{ name: 'Ordinary', owner: 'Shrey' }])
+    const { rows: locks } = await client.query(`
+      select mode from pg_locks
+       where pid = pg_backend_pid()
+         and locktype = 'relation'
+         and relation = 'public.economic_parties'::regclass
+         and mode <> 'AccessShareLock'
+    `)
+    assert.deepEqual(locks, [], 'an ordinary account insert takes no write-blocking lock on economic_parties')
   })
 })
 

@@ -143,9 +143,10 @@ test('SHR-154 account ownership evidence is financial and restores after its ref
 })
 
 test('accounts restore after the economic parties a reconciled account references', () => {
-  // SHR-154 gave accounts a stable owner_party_id foreign key. Restoring the
-  // accounts table before economic_parties would fail on that key for any
-  // account whose ownership has been reconciled.
+  // SHR-154 gave accounts a stable owner_party_id. It is a typed logical
+  // reference rather than a foreign key, but the ownership guard resolves the
+  // party on every write — restores included — so restoring accounts before
+  // economic_parties would still fail for any reconciled account.
   const accounts = BACKUP_TABLES.find((table) => table.name === 'accounts')
   assert.ok(accounts)
   assert.deepEqual((accounts as { dependsOn?: readonly string[] }).dependsOn, ['economic_parties'])
