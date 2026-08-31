@@ -1,0 +1,2777 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0d0c0a;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:#c98b52;text-decoration:none}a:hover{color:#dda87a}
+.om-root{
+  --fig:var(--om-fig,'Newsreader',serif);
+  --accent:var(--om-accent,#c98b52);
+  --canvas:#0d0c0a; --raise:rgba(242,237,228,.035);
+  --ink:#f2ede4; --ink2:#9d9385; --ink3:#6f665a;
+  --rule:rgba(242,237,228,.09); --rule2:rgba(242,237,228,.16);
+  --pos:#8fae7f; --neg:#c2726b; --warn:#c99a52;
+  --neutralbar:rgba(242,237,228,.2);
+}
+[data-theme="light"] .om-root{
+  --accent:var(--om-accent-light,#9c5d26);
+  --canvas:#f8f5ef; --raise:rgba(26,23,18,.028);
+  --ink:#1a1712; --ink2:#6b6255; --ink3:#8d8478;
+  --rule:rgba(26,23,18,.12); --rule2:rgba(26,23,18,.22);
+  --pos:#4a7a52; --neg:#a8443c; --warn:#8a6320;
+  --neutralbar:rgba(26,23,18,.16);
+}
+.om-nav{cursor:pointer;transition:background 140ms,color 140ms}
+.om-nav:hover{background:var(--raise);color:var(--ink)}
+.om-nav[data-active="true"]{background:color-mix(in oklab,var(--accent) 14%,transparent);color:var(--ink);font-weight:500}
+.om-seg{cursor:pointer;transition:color 140ms,border-color 140ms}
+.om-seg:hover{color:var(--ink)}
+.om-seg[data-active="true"]{color:var(--ink);border-color:var(--rule2);background:var(--raise)}
+.om-scope{transition:background 140ms,color 140ms}
+.om-scope:hover{background:var(--raise);color:var(--ink)}
+.om-scope[data-active="true"]{background:color-mix(in oklab,var(--accent) 16%,transparent);color:var(--ink);font-weight:500}
+.om-tab:hover{color:var(--ink)}
+.om-tab[data-active="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.om-row{transition:background 120ms}
+.om-row:hover{background:var(--raise)}
+.om-att[data-done="true"]{opacity:.4}
+.om-btn{cursor:pointer;transition:background 140ms,color 140ms,border-color 140ms}
+.om-btn:hover{background:color-mix(in oklab,var(--accent) 18%,transparent);border-color:var(--accent);color:var(--ink)}
+.om-link{cursor:pointer}
+.om-link:hover{color:var(--accent)}
+@media (max-width:900px){
+  .om-shell{flex-direction:column}
+  .om-side{width:100% !important;height:auto !important;min-height:0 !important;position:static !important;border-right:0 !important;border-bottom:1px solid var(--rule);padding:16px 0 14px !important;display:grid !important;grid-template-columns:1fr;gap:12px}
+  .om-side .om-brand{padding:0 18px 0 !important}
+  .om-nav-list{display:grid !important;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px !important;padding:0 12px !important;overflow-x:auto}
+  .om-nav{text-align:center;font-size:12.5px !important;padding:9px 6px !important}
+  .om-sidecard{display:none !important}
+  .om-scopewrap{margin:0 12px !important;padding-top:0 !important;border-top:0 !important}
+  .om-sidefoot{margin-top:0 !important;padding:0 12px !important}
+  .om-main{padding:22px 18px 80px !important}
+  .om-g2,.om-g3,.om-g5{grid-template-columns:1fr !important;gap:26px !important}
+  .om-g5 > *{padding:12px 0 !important;border-right:0 !important;border-top:1px solid var(--rule)}
+  .om-hero{font-size:38px !important}
+  .om-hero-side{justify-content:flex-start !important;gap:22px !important}
+  .om-strip{flex-wrap:wrap}
+  .om-strip > *{flex:1 1 132px !important;border-right:0 !important;border-top:1px solid var(--rule);padding:12px 0 !important}
+  .om-tablewrap{overflow-x:auto}
+  .om-tablewrap > *{min-width:660px}
+  .om-hide-sm{display:none !important}
+  .om-tx{grid-template-columns:64px 1fr 96px !important}
+  .om-cal{min-height:64px !important;padding:6px 7px !important}
+  .om-drawer{width:100% !important;border-left:0 !important}
+}
+@keyframes omRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes omDraw{from{stroke-dashoffset:900}to{stroke-dashoffset:0}}
+@keyframes omGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes omWide{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes omFade{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+<div class="om-root om-shell" style="display:flex;min-height:1000px;background:var(--canvas);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+
+  <aside class="om-side" style="width:216px;flex:none;border-right:1px solid var(--rule);padding:26px 0 22px;display:flex;flex-direction:column;position:sticky;top:0;align-self:flex-start;height:100vh;min-height:1000px">
+    <div class="om-brand" style="padding:0 22px 26px">
+      <div style="font-family:var(--fig);font-size:19px;letter-spacing:.01em">Our Money</div>
+      <div style="font-size:10.5px;color:var(--ink3);letter-spacing:.14em;text-transform:uppercase;margin-top:5px">Household · AED</div>
+    </div>
+
+    <nav class="om-nav-list" style="display:flex;flex-direction:column;gap:2px;padding:0 10px">
+      <div class="om-nav" data-active="{{ isOverview }}" onClick="{{ goOverview }}" style="padding:9px 12px;border-radius:3px;color:var(--ink2);position:relative">Overview</div>
+      <div class="om-nav" data-active="{{ isMoney }}" onClick="{{ goMoney }}" style="padding:9px 12px;border-radius:3px;color:var(--ink2);display:flex;justify-content:space-between;align-items:center">Money<span style="font-size:10px;letter-spacing:.06em;color:var(--warn)">7</span></div>
+      <div class="om-nav" data-active="{{ isWealth }}" onClick="{{ goWealth }}" style="padding:9px 12px;border-radius:3px;color:var(--ink2)">Wealth</div>
+      <div class="om-nav" data-active="{{ isPlanning }}" onClick="{{ goPlanning }}" style="padding:9px 12px;border-radius:3px;color:var(--ink2)">Planning</div>
+      <div class="om-nav" data-active="{{ isSettings }}" onClick="{{ goSettings }}" style="padding:9px 12px;border-radius:3px;color:var(--ink2)">Settings</div>
+    </nav>
+
+    <div class="om-scopewrap" style="margin:22px 14px 0;padding-top:18px;border-top:1px solid var(--rule)">
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">Whose money</div>
+      <div style="display:flex;margin-top:10px;border:1px solid var(--rule);border-radius:3px;overflow:hidden">
+        <div class="om-scope" data-active="{{ isBoth }}" onClick="{{ setBoth }}" style="flex:1;text-align:center;padding:7px 0;font-size:11.5px;color:var(--ink2);cursor:pointer;border-right:1px solid var(--rule)">Both</div>
+        <div class="om-scope" data-active="{{ isMe }}" onClick="{{ setMe }}" style="flex:1;text-align:center;padding:7px 0;font-size:11.5px;color:var(--ink2);cursor:pointer;border-right:1px solid var(--rule)">Me</div>
+        <div class="om-scope" data-active="{{ isPartner }}" onClick="{{ setPartner }}" style="flex:1;text-align:center;padding:7px 0;font-size:11.5px;color:var(--ink2);cursor:pointer">Wife</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--ink3);margin-top:8px;line-height:1.5">{{ scopeHint }}</div>
+    </div>
+
+    <div class="om-sidecard" style="margin:22px 14px 0;padding:14px;border:1px solid var(--rule);border-radius:4px">
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">Runway</div>
+      <div style="font-family:var(--fig);font-size:26px;margin-top:8px;line-height:1">{{ s.runway }} <span style="font-size:12px;font-family:'IBM Plex Sans',sans-serif;color:var(--ink2)">months</span></div>
+      <div style="height:3px;background:var(--rule);margin-top:12px;overflow:hidden"><div style="{{ s.runwayBar }}"></div></div>
+      <div style="font-size:10.5px;color:var(--ink3);margin-top:8px;line-height:1.5">{{ s.runwayNote }}</div>
+    </div>
+
+    <div class="om-sidecard" style="margin:14px 14px 0;padding:14px;border:1px solid var(--rule);border-radius:4px">
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">Data quality</div>
+      <div style="display:flex;align-items:center;gap:7px;margin-top:9px"><span style="width:5px;height:5px;border-radius:99px;background:var(--warn);flex:none"></span><span style="color:var(--ink)">Provisional</span></div>
+      <div style="font-size:10.5px;color:var(--ink3);margin-top:6px;line-height:1.5">1 salary unposted · FX 6 days old</div>
+    </div>
+
+    <div class="om-sidefoot" style="margin-top:auto;padding:0 14px">
+      <div class="om-btn" onClick="{{ toggleTheme }}" style="border:1px solid var(--rule);border-radius:3px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;color:var(--ink2)">
+        <span>{{ themeLabel }}</span><span style="font-size:11px;color:var(--ink3)">⌥T</span>
+      </div>
+      <div style="font-size:10.5px;color:var(--ink3);margin-top:12px;line-height:1.5">Synced 6 min ago<br>Concept · mock data</div>
+    </div>
+  </aside>
+
+  <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+  <main class="om-main" style="flex:1;min-width:0;padding:34px 40px 64px;max-width:1240px">
+
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;animation:omRise .5s both">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Friday, 28 August 2026</div>
+        <h1 style="font-family:var(--fig);font-weight:400;font-size:27px;margin:8px 0 0;letter-spacing:.005em">Three days left in the month.</h1>
+      </div>
+      <div style="display:flex;gap:6px">
+        <div class="om-seg" data-active="{{ isMTD }}" onClick="{{ setMTD }}" style="padding:7px 13px;border:1px solid var(--rule);border-radius:2px;color:var(--ink2);font-size:11.5px;letter-spacing:.06em">MTD</div>
+        <div class="om-seg" data-active="{{ isQTD }}" onClick="{{ setQTD }}" style="padding:7px 13px;border:1px solid var(--rule);border-radius:2px;color:var(--ink2);font-size:11.5px;letter-spacing:.06em">QTD</div>
+        <div class="om-seg" data-active="{{ isYTD }}" onClick="{{ setYTD }}" style="padding:7px 13px;border:1px solid var(--rule);border-radius:2px;color:var(--ink2);font-size:11.5px;letter-spacing:.06em">YTD</div>
+      </div>
+    </div>
+
+    <section style="margin-top:34px;padding-bottom:30px;border-bottom:1px solid var(--rule);animation:omRise .5s .05s both">
+      <div style="display:flex;gap:48px;align-items:flex-end;flex-wrap:wrap">
+        <div style="min-width:320px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Net worth</div>
+          <div class="om-hero" style="font-family:var(--fig);font-weight:300;font-size:52px;line-height:1.1;margin-top:10px;letter-spacing:-.015em;white-space:nowrap"><span style="font-size:23px;color:var(--ink2)">AED</span> {{ s.netWorth }}</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:12.5px;flex-wrap:wrap">
+            <span style="color:var(--pos)">▲ {{ s.change }} ({{ s.changePct }})</span>
+            <span style="color:var(--ink3)">this month</span>
+            <span style="color:var(--rule2)">|</span>
+            <span style="color:var(--ink2)">12-mo <span style="color:var(--pos)">{{ s.twelve }}</span></span>
+            <span style="color:var(--rule2)">|</span>
+            <span style="color:var(--ink2)">{{ s.scopeNote }}</span>
+          </div>
+        </div>
+        <div class="om-hero-side" style="flex:1;min-width:260px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:flex-end;gap:28px;padding-bottom:6px">
+          <div style="text-align:right;white-space:nowrap">
+            <div style="font-size:11.5px;color:var(--ink2)">Change this month</div>
+            <div style="font-family:var(--fig);font-size:26px;margin-top:6px;color:var(--pos)">{{ s.change }}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11.5px;color:var(--ink2)">Runway</div>
+            <div style="font-family:var(--fig);font-size:26px;margin-top:6px">{{ s.runway }}</div>
+          </div>
+          <div class="om-btn" onClick="{{ goWealth }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:11.5px;color:var(--ink2);align-self:flex-end">History →</div>
+        </div>
+      </div>
+      <div class="om-strip" style="display:flex;gap:36px;margin-top:22px;font-size:12px;color:var(--ink2);flex-wrap:wrap">
+        <span>Assets <span style="color:var(--ink)">{{ s.assets }}</span></span>
+        <span>Liabilities <span style="color:var(--ink)">{{ s.liabilities }}</span></span>
+        <span>Equity share <span style="color:var(--ink)">{{ s.equity }}</span></span>
+        <span>Investments <span style="color:var(--ink)">{{ s.investments }}</span> <span style="color:var(--pos)">{{ s.dayChange }} today</span></span>
+      </div>
+    </section>
+
+    <section style="margin-top:28px;animation:omRise .5s .1s both">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px">
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">{{ periodTitle }}</div>
+        <div style="font-size:11px;color:var(--ink3)">{{ periodRange }}</div>
+      </div>
+      <div class="om-g5" style="display:grid;grid-template-columns:repeat(5,1fr)">
+        <div style="padding-right:24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">Income</div>
+          <div style="font-family:var(--fig);font-size:26px;margin-top:6px">{{ p.income }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">{{ p.incomeHint }}</div>
+        </div>
+        <div style="padding:0 24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">Spend</div>
+          <div style="font-family:var(--fig);font-size:26px;margin-top:6px">{{ p.spend }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">{{ p.spendHint }}</div>
+        </div>
+        <div style="padding:0 24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">Saved</div>
+          <div style="font-family:var(--fig);font-size:26px;margin-top:6px">{{ p.saved }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">{{ p.savedHint }}</div>
+        </div>
+        <div style="padding:0 24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">Savings rate</div>
+          <div style="font-family:var(--fig);font-size:26px;margin-top:6px;color:var(--pos)">{{ p.rate }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">{{ p.rateHint }}</div>
+        </div>
+        <div style="padding-left:24px">
+          <div style="font-size:11.5px;color:var(--ink2)">Budget left</div>
+          <div style="font-family:var(--fig);font-size:26px;margin-top:6px">{{ p.left }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">{{ p.leftHint }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="om-g2" style="margin-top:36px;display:grid;grid-template-columns:1.45fr 1fr;gap:44px;animation:omRise .5s .15s both">
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Cash flow</div>
+          <div style="font-size:11px;color:var(--ink3)">{{ flowCaption }}</div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:18px">
+          <div style="width:46px;flex:none;position:relative;height:212px;font-size:10px;color:var(--ink3);text-align:right;letter-spacing:.04em">
+            <div style="position:absolute;top:-4px;right:0">{{ axisTop }}</div>
+            <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ axisMid }}</div>
+            <div style="position:absolute;bottom:-6px;right:0">0</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="position:relative;height:212px">
+              <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+              <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+              <div style="position:absolute;inset:0;display:flex;gap:16px;align-items:flex-end">
+                <sc-for list="{{ cols }}" as="c" hint-placeholder-count="6">
+                  <div style="flex:1;display:flex;align-items:flex-end;justify-content:center;gap:5px;height:100%">
+                    <div style="{{ c.incStyle }}"></div>
+                    <div style="{{ c.outStyle }}"></div>
+                  </div>
+                </sc-for>
+              </div>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+                <polyline points="{{ ratePoints }}" fill="none" stroke="var(--pos)" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="stroke-dasharray:400;animation:omDraw 1.4s .3s cubic-bezier(.16,1,.3,1) both"></polyline>
+              </svg>
+              <sc-for list="{{ dots }}" as="d" hint-placeholder-count="6">
+                <div style="{{ d.style }}"></div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:9px">
+              <sc-for list="{{ cols }}" as="c" hint-placeholder-count="6">
+                <div style="flex:1;text-align:center">
+                  <div style="{{ c.labelStyle }}">{{ c.label }}</div>
+                  <div style="font-size:10px;color:var(--pos);margin-top:3px">{{ c.rateLabel }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+              <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Income</span>
+              <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--neutralbar);display:block"></span>Spend</span>
+              <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--pos);display:block"></span>Savings rate</span>
+              <span style="color:var(--ink3);margin-left:auto">{{ flowNote }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Needs attention</div>
+          <div style="font-size:11px;color:var(--accent)">{{ openLabel }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ attention }}" as="a" hint-placeholder-count="5">
+            <div class="om-att" data-done="{{ a.done }}" style="display:flex;gap:12px;padding:13px 0;border-top:1px solid var(--rule);align-items:flex-start">
+              <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);width:54px;flex:none;padding-top:4px">{{ a.kind }}</div>
+              <div style="min-width:0;flex:1">
+                <div style="font-size:13px;line-height:1.4">{{ a.title }}</div>
+                <div style="font-size:11px;color:var(--ink3);margin-top:3px">{{ a.meta }}</div>
+              </div>
+              <div class="om-btn" onClick="{{ a.onResolve }}" style="flex:none;border:1px solid var(--rule);border-radius:2px;padding:5px 9px;font-size:11px;color:var(--ink2)">{{ a.action }}</div>
+            </div>
+          </sc-for>
+          <div style="border-top:1px solid var(--rule);padding-top:12px;font-size:11px;color:var(--ink3)">{{ resolvedNote }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section style="margin-top:38px;display:grid;grid-template-columns:1fr;gap:0;animation:omRise .5s .2s both">
+      <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:16px">Next 30 days</div>
+      <div style="display:flex;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)">
+        <div class="om-row" style="flex:1;padding:14px 16px 14px 0;border-right:1px solid var(--rule)">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">1 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">Mortgage</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px">6,850</div>
+          <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">autopay</div>
+        </div>
+        <div class="om-row" style="flex:1;padding:14px 16px;border-right:1px solid var(--rule)">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">3 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">DEWA</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px">1,180</div>
+          <div style="font-size:10.5px;color:var(--neg);margin-top:3px">above average</div>
+        </div>
+        <div class="om-row" style="flex:1;padding:14px 16px;border-right:1px solid var(--rule);background:color-mix(in oklab,var(--accent) 8%,transparent)">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--accent);text-transform:uppercase">5 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">NBD card</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px">8,940</div>
+          <div style="font-size:10.5px;color:var(--warn);margin-top:3px">no autopay</div>
+        </div>
+        <div class="om-row" style="flex:1;padding:14px 16px;border-right:1px solid var(--rule)">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">10 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">Car loan</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px">2,410</div>
+          <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">autopay</div>
+        </div>
+        <div class="om-row" style="flex:1;padding:14px 16px;border-right:1px solid var(--rule)">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">15 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">Salary in</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px;color:var(--pos)">+42,000</div>
+          <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">expected</div>
+        </div>
+        <div class="om-row" style="flex:1;padding:14px 16px;border-right:1px solid var(--rule)">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">20 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">Etisalat</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px">420</div>
+          <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">autopay</div>
+        </div>
+        <div class="om-row" style="flex:1;padding:14px 0 14px 16px">
+          <div style="font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">25 Sep</div>
+          <div style="margin-top:6px;font-size:12.5px">School fee</div>
+          <div style="font-family:var(--fig);font-size:17px;margin-top:4px">9,600</div>
+          <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">term 2</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;color:var(--ink3)">
+        <span>Committed AED 20,860 · 3 without autopay</span><span class="om-link">Recurring →</span>
+      </div>
+    </section>
+
+    <section class="om-g3" style="margin-top:40px;display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:40px;animation:omRise .5s .25s both">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:16px">Top spend · August</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Housing</span><span style="font-family:var(--fig);font-size:15px">14,500</span></div>
+            <div style="height:3px;background:var(--rule);margin-top:6px"><div style="width:100%;height:100%;background:var(--accent);transform-origin:left;animation:omWide .9s both"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">31% of spend · flat vs average</div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Education</span><span style="font-family:var(--fig);font-size:15px">9,600</span></div>
+            <div style="height:3px;background:var(--rule);margin-top:6px"><div style="width:66%;height:100%;background:var(--accent);opacity:.8;transform-origin:left;animation:omWide .9s .05s both"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">21% · term fee, once a quarter</div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Other</span><span style="font-family:var(--fig);font-size:15px">7,320</span></div>
+            <div style="height:3px;background:var(--rule);margin-top:6px"><div style="width:50%;height:100%;background:var(--accent);opacity:.62;transform-origin:left;animation:omWide .9s .1s both"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">16% · <span style="color:var(--warn)">4 uncategorised inside</span></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Food &amp; dining</span><span style="font-family:var(--fig);font-size:15px">7,240</span></div>
+            <div style="height:3px;background:var(--rule);margin-top:6px"><div style="width:50%;height:100%;background:var(--accent);opacity:.48;transform-origin:left;animation:omWide .9s .15s both"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">16% · <span style="color:var(--pos)">12% below average</span></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Transport</span><span style="font-family:var(--fig);font-size:15px">3,180</span></div>
+            <div style="height:3px;background:var(--rule);margin-top:6px"><div style="width:22%;height:100%;background:var(--accent);opacity:.34;transform-origin:left;animation:omWide .9s .2s both"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">7% · fuel and Salik</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Recent activity</div>
+          <div class="om-link" style="font-size:11px;color:var(--ink3)">Activity →</div>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">Carrefour, MoE</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">28 Aug · <span style="color:var(--warn)">needs review</span></div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none">412</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">DEWA · August</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">27 Aug · Utilities · <span style="color:var(--neg)">+42% vs usual</span></div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none">1,180</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">Salik top-up</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">26 Aug · Transport</div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none">100</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">GEMS · term 2</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">25 Aug · Education</div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none">9,600</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">Talabat</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">24 Aug · <span style="color:var(--warn)">needs review</span></div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none">96</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">Rental income</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">23 Aug · Income</div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none;color:var(--pos)">+12,400</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)">
+            <div style="min-width:0"><div style="font-size:12.5px">Card payment</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">22 Aug · Transfer</div></div>
+            <div style="font-family:var(--fig);font-size:15px;flex:none;color:var(--ink2)">4,000</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Accounts</div>
+          <div class="om-link" style="font-size:11px;color:var(--ink3)">Wealth →</div>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">ENBD Current</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">Joint</div></div>
+            <div style="font-family:var(--fig);font-size:15px">84,300</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">Mashreq Savings</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">Emergency fund</div></div>
+            <div style="font-family:var(--fig);font-size:15px">212,400</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">Investments</div><div style="font-size:10.5px;color:var(--pos);margin-top:2px">+1,840 today (+0.38%)</div></div>
+            <div style="font-family:var(--fig);font-size:15px">486,200</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">Property</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">Valued Jun 2026</div></div>
+            <div style="font-family:var(--fig);font-size:15px">2,450,000</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">Mortgage</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">18.2 years left</div></div>
+            <div style="font-family:var(--fig);font-size:15px;color:var(--neg)">−460,060</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">Car loan</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">3.4 years left</div></div>
+            <div style="font-family:var(--fig);font-size:15px;color:var(--neg)">−96,600</div>
+          </div>
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">NBD Card</div><div style="font-size:10.5px;color:var(--warn);margin-top:2px">Due 5 Sep</div></div>
+            <div style="font-family:var(--fig);font-size:15px;color:var(--neg)">−8,940</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  </sc-if>
+
+  <sc-if value="{{ isStub }}">
+  <main class="om-main" style="flex:1;min-width:0;padding:34px 40px 64px;max-width:1240px;animation:omRise .4s both">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">{{ stubKicker }}</div>
+        <h1 style="font-family:var(--fig);font-weight:400;font-size:27px;margin:8px 0 0">{{ stubTitle }}</h1>
+      </div>
+      <div style="font-size:11.5px;color:var(--ink3)">{{ stubMeta }}</div>
+    </div>
+
+    <div style="display:flex;gap:26px;margin-top:22px;border-bottom:1px solid var(--rule)">
+      <sc-for list="{{ subTabs }}" as="t" hint-placeholder-count="4">
+        <div class="om-tab" data-active="{{ t.active }}" onClick="{{ t.onClick }}" style="padding:0 0 11px;font-size:12.5px;color:var(--ink2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px">{{ t.label }}</div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ isMoneyActivity }}">
+    <div style="margin-top:26px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <div style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink3);min-width:220px">Search merchant, note or amount</div>
+        <div class="om-seg" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">All owners</div>
+        <div class="om-seg" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">All categories</div>
+        <div class="om-seg" data-active="true" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">Needs review · 7</div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <div class="om-seg" data-active="{{ isListView }}" onClick="{{ showList }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">List</div>
+          <div class="om-seg" data-active="{{ isCalendarView }}" onClick="{{ showCalendar }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">Calendar</div>
+          <div class="om-btn" onClick="{{ addTx }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Add transaction</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:11.5px;color:var(--ink3)">87 transactions · AED 46,120 out · AED 78,400 in</div>
+
+      <sc-if value="{{ isListView }}" hint-placeholder-val="{{ true }}">
+      <div class="om-tx" style="display:grid;grid-template-columns:74px 1.5fr 1fr 90px 1fr 120px;gap:16px;padding:14px 0 10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-top:20px">
+        <div>Date</div><div>Merchant</div><div>Category</div><div>Owner</div><div>Account</div><div style="text-align:right">Amount</div>
+      </div>
+      <sc-for list="{{ activity }}" as="t" hint-placeholder-count="12">
+        <div class="om-row om-tx" onClick="{{ t.onOpen }}" style="display:grid;grid-template-columns:74px 1.5fr 1fr 90px 1fr 120px;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+          <div style="color:var(--ink3);font-size:11.5px">{{ t.date }}</div>
+          <div>{{ t.merchant }}<span style="{{ t.flagStyle }}">{{ t.flag }}</span></div>
+          <div class="om-hide-sm" style="{{ t.catStyle }}">{{ t.category }}</div>
+          <div class="om-hide-sm" style="color:var(--ink2);font-size:11.5px">{{ t.owner }}</div>
+          <div class="om-hide-sm" style="color:var(--ink2);font-size:11.5px">{{ t.account }}</div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px;{{ t.amountStyle }}">{{ t.amount }}</div>
+        </div>
+      </sc-for>
+      <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:11.5px;color:var(--ink3)">
+        <span>Showing 12 of 87 · 22–28 August</span><span class="om-link">Load earlier →</span>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isCalendarView }}">
+      <div style="margin-top:22px">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);padding-bottom:10px;border-bottom:1px solid var(--rule2)">
+          <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr)">
+          <sc-for list="{{ calendar }}" as="c" hint-placeholder-count="35">
+            <div class="om-row om-cal" style="{{ c.style }}">
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="{{ c.dayStyle }}">{{ c.day }}</span>
+                <span style="{{ c.spendStyle }}">{{ c.spend }}</span>
+              </div>
+              <div style="{{ c.billStyle }}">{{ c.bill }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:22px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Bill or EMI</span>
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--pos);display:block"></span>Income</span>
+          <span style="color:var(--ink3)">Daily figures are spend, not balance · heaviest day 25 Aug</span>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isMoneyBudget }}">
+    <div style="margin-top:22px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="om-seg" data-active="{{ isBudgetMonth }}" onClick="{{ setBudgetMonth }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink2)">Month</div>
+        <div class="om-seg" data-active="{{ isBudgetYear }}" onClick="{{ setBudgetYear }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink2)">Year</div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span style="font-size:11.5px;color:var(--ink3)">{{ budgetNote }}</span>
+          <div class="om-btn" onClick="{{ addBudget }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Set a budget</div>
+        </div>
+      </div>
+
+      <div style="margin-top:40px;padding-top:34px;border-top:1px solid var(--rule)">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">How it has grown</div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap;font-size:12.5px">
+            <span style="color:var(--pos)">{{ nw.change }} ({{ nw.pct }})</span>
+            <span style="color:var(--ink3);white-space:nowrap">{{ nw.caption }}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <sc-for list="{{ nwRanges }}" as="r" hint-placeholder-count="5">
+            <div class="om-seg" data-active="{{ r.active }}" onClick="{{ r.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 11px;font-size:11px;color:var(--ink2)">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <div style="width:52px;flex:none;position:relative;height:210px;font-size:10px;color:var(--ink3);text-align:right">
+          <div style="position:absolute;top:-4px;right:0">{{ nw.axisTop }}</div>
+          <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ nw.axisMid }}</div>
+          <div style="position:absolute;bottom:-6px;right:0">0</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="position:relative;height:210px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <div style="position:absolute;inset:0;display:flex;gap:10px;align-items:flex-end">
+              <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+                <div class="om-row" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:0">
+                  <div style="{{ b.stackStyle }}">
+                    <div style="{{ b.assetStyle }}"></div>
+                    <div style="{{ b.debtStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <svg viewBox="0 0 600 210" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+              <polyline points="{{ nw.line }}" fill="none" stroke="var(--pos)" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="stroke-dasharray:1200;animation:omDraw 1.3s cubic-bezier(.16,1,.3,1) both"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:9px">
+            <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+              <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Assets</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--neutralbar);display:block"></span>Liabilities</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--pos);display:block"></span>Net worth</span>
+            <span style="color:var(--ink3);margin-left:auto">{{ nw.note }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-tablewrap" style="margin-top:30px">
+      <div>
+        <div style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+          <div>{{ nw.periodHead }}</div>
+          <div style="text-align:right">Assets</div>
+          <div style="text-align:right">Liabilities</div>
+          <div style="text-align:right">Net worth</div>
+          <div style="text-align:right">Change</div>
+          <div style="text-align:right">Saved</div>
+        </div>
+        <sc-for list="{{ nwRows }}" as="r" hint-placeholder-count="12">
+          <div class="om-row" style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline">
+            <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.assets }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.debt }}</div>
+            <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ r.net }}</div>
+            <div style="text-align:right;{{ r.changeStyle }}">{{ r.change }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.saved }}</div>
+          </div>
+        </sc-for>
+      </div>
+      </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isBudgetYearView }}">
+    <div style="margin-top:24px;overflow-x:auto">
+      <div style="min-width:1020px">
+        <div style="display:grid;grid-template-columns:150px repeat(12,1fr) 84px 74px;gap:0;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);padding-bottom:9px;border-bottom:1px solid var(--rule2)">
+          <div>Category</div>
+          <sc-for list="{{ months }}" as="m" hint-placeholder-count="12"><div style="{{ m.style }}">{{ m.label }}</div></sc-for>
+          <div style="text-align:right">Total</div><div style="text-align:right">Avg</div>
+        </div>
+        <sc-for list="{{ yearRows }}" as="r" hint-placeholder-count="14">
+          <div class="om-row" style="{{ r.rowStyle }}">
+            <div style="{{ r.nameStyle }}">{{ r.name }}</div>
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="12"><div style="{{ c.style }}">{{ c.value }}</div></sc-for>
+            <div style="{{ r.totalStyle }}">{{ r.total }}</div>
+            <div style="text-align:right;font-size:11.5px;color:var(--ink3);padding:11px 0 11px 8px">{{ r.avg }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="margin-top:16px;font-size:11.5px;color:var(--ink2)">Jan–Aug are actuals. Sep–Dec are the plan, editable per cell. Net for the year projects to <span style="color:var(--pos)">AED 349,300</span> saved.</div>
+    </sc-if>
+
+    <sc-if value="{{ isBudgetMonthView }}">
+    <div style="margin-top:26px">
+      <div style="display:flex;gap:48px;align-items:flex-end;flex-wrap:wrap;padding-bottom:26px;border-bottom:1px solid var(--rule)">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Spent of budget</div>
+          <div style="font-family:var(--fig);font-weight:300;font-size:44px;margin-top:10px;line-height:1.1;white-space:nowrap">46,120 <span style="font-size:20px;color:var(--ink2)">of 55,000</span></div>
+        </div>
+        <div style="flex:1;min-width:280px;padding-bottom:8px">
+          <div style="height:6px;background:var(--rule);position:relative">
+            <div style="width:84%;height:100%;background:var(--accent);transform-origin:left;animation:omWide .9s cubic-bezier(.16,1,.3,1) both"></div>
+            <div style="position:absolute;left:90%;top:-5px;bottom:-5px;width:1px;background:var(--ink2)"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-top:8px">
+            <span>84% used</span><span>Pace marker · 90% of month elapsed</span>
+          </div>
+          <div style="font-size:12px;color:var(--pos);margin-top:10px">Tracking AED 3,300 under pace. Projected close: AED 51,700.</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.4fr 110px 110px 1fr 130px;gap:16px;padding:18px 0 10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+        <div>Category</div><div style="text-align:right">Spent</div><div style="text-align:right">Limit</div><div>Pace</div><div style="text-align:right">Projected</div>
+      </div>
+      <sc-for list="{{ budget }}" as="b" hint-placeholder-count="9">
+        <div class="om-row" onClick="{{ b.onEdit }}" style="display:grid;grid-template-columns:1.4fr 110px 110px 1fr 130px;gap:16px;padding:13px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:center;cursor:pointer">
+          <div>{{ b.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ b.note }}</div></div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ b.spent }}</div>
+          <div style="text-align:right"><span style="border:1px solid var(--rule);padding:4px 8px;font-size:12px;color:var(--ink2)">{{ b.limit }}</span></div>
+          <div>
+            <div style="height:3px;background:var(--rule)"><div style="{{ b.barStyle }}"></div></div>
+            <div style="{{ b.paceStyle }}">{{ b.pace }}</div>
+          </div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px;{{ b.projStyle }}">{{ b.projected }}</div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isMoneyRecurring }}">
+    <div class="om-g2" style="margin-top:26px;display:grid;grid-template-columns:1.3fr 1fr;gap:44px">
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Bills &amp; EMIs</div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="font-size:11.5px;color:var(--ink3)">AED 29,400 · 2 manual</span><div class="om-btn" onClick="{{ addBill }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Bill</div></div>
+        </div>
+        <sc-for list="{{ bills }}" as="b" hint-placeholder-count="8">
+          <div class="om-row" onClick="{{ b.onEdit }}" style="display:grid;grid-template-columns:1.4fr 110px 110px 100px;gap:14px;padding:13px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+            <div>{{ b.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ b.kind }}</div></div>
+            <div style="font-family:var(--fig);font-size:15px;text-align:right">{{ b.amount }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ b.next }}</div>
+            <div style="{{ b.payStyle }}">{{ b.pay }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Expected income</div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="font-size:11.5px;color:var(--ink3)">AED 78,400</span><div class="om-btn" onClick="{{ addIncome }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Income</div></div>
+        </div>
+        <sc-for list="{{ incomes }}" as="b" hint-placeholder-count="3">
+          <div class="om-row" onClick="{{ b.onEdit }}" style="display:grid;grid-template-columns:1fr 110px;gap:14px;padding:13px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+            <div>{{ b.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ b.kind }}</div></div>
+            <div style="font-family:var(--fig);font-size:15px;text-align:right;color:var(--pos)">{{ b.amount }}</div>
+          </div>
+        </sc-for>
+        <div style="margin-top:26px;padding:16px;border:1px solid var(--rule)">
+          <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">Fixed vs variable</div>
+          <div style="display:flex;height:6px;margin-top:14px;gap:2px">
+            <div style="width:45%;background:var(--accent)"></div>
+            <div style="width:55%;background:var(--neutralbar)"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);margin-top:10px">
+            <span>Fixed 20,860</span><span>Variable 25,260</span>
+          </div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.5">45% of spend is committed before the month starts.</div>
+        </div>
+      </div>
+
+      <div style="margin-top:40px;padding-top:34px;border-top:1px solid var(--rule)">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">How it has grown</div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap;font-size:12.5px">
+            <span style="color:var(--pos)">{{ nw.change }} ({{ nw.pct }})</span>
+            <span style="color:var(--ink3);white-space:nowrap">{{ nw.caption }}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <sc-for list="{{ nwRanges }}" as="r" hint-placeholder-count="5">
+            <div class="om-seg" data-active="{{ r.active }}" onClick="{{ r.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 11px;font-size:11px;color:var(--ink2)">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <div style="width:52px;flex:none;position:relative;height:210px;font-size:10px;color:var(--ink3);text-align:right">
+          <div style="position:absolute;top:-4px;right:0">{{ nw.axisTop }}</div>
+          <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ nw.axisMid }}</div>
+          <div style="position:absolute;bottom:-6px;right:0">0</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="position:relative;height:210px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <div style="position:absolute;inset:0;display:flex;gap:10px;align-items:flex-end">
+              <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+                <div class="om-row" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:0">
+                  <div style="{{ b.stackStyle }}">
+                    <div style="{{ b.assetStyle }}"></div>
+                    <div style="{{ b.debtStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <svg viewBox="0 0 600 210" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+              <polyline points="{{ nw.line }}" fill="none" stroke="var(--pos)" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="stroke-dasharray:1200;animation:omDraw 1.3s cubic-bezier(.16,1,.3,1) both"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:9px">
+            <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+              <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Assets</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--neutralbar);display:block"></span>Liabilities</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--pos);display:block"></span>Net worth</span>
+            <span style="color:var(--ink3);margin-left:auto">{{ nw.note }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-tablewrap" style="margin-top:30px">
+      <div>
+        <div style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+          <div>{{ nw.periodHead }}</div>
+          <div style="text-align:right">Assets</div>
+          <div style="text-align:right">Liabilities</div>
+          <div style="text-align:right">Net worth</div>
+          <div style="text-align:right">Change</div>
+          <div style="text-align:right">Saved</div>
+        </div>
+        <sc-for list="{{ nwRows }}" as="r" hint-placeholder-count="12">
+          <div class="om-row" style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline">
+            <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.assets }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.debt }}</div>
+            <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ r.net }}</div>
+            <div style="text-align:right;{{ r.changeStyle }}">{{ r.change }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.saved }}</div>
+          </div>
+        </sc-for>
+      </div>
+      </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isMoneyInsights }}">
+    <div class="om-g2" style="margin-top:26px;display:grid;grid-template-columns:1.3fr 1fr;gap:44px">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:16px">August vs 6-month average</div>
+        <sc-for list="{{ insights }}" as="i" hint-placeholder-count="7">
+          <div class="om-row" style="padding:13px 0;border-top:1px solid var(--rule)">
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;align-items:baseline">
+              <span>{{ i.name }}</span>
+              <span style="display:flex;gap:14px;align-items:baseline"><span style="font-family:var(--fig);font-size:15px">{{ i.value }}</span><span style="{{ i.deltaStyle }}">{{ i.delta }}</span></span>
+            </div>
+            <div style="position:relative;height:3px;background:var(--rule);margin-top:9px">
+              <div style="{{ i.barStyle }}"></div>
+              <div style="{{ i.avgStyle }}"></div>
+            </div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:6px">{{ i.note }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:16px">Top merchants · August</div>
+        <sc-for list="{{ merchants }}" as="m" hint-placeholder-count="5">
+          <div class="om-row" style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:baseline">
+            <div>{{ m.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ m.note }}</div></div>
+            <div style="font-family:var(--fig);font-size:15px">{{ m.value }}</div>
+          </div>
+        </sc-for>
+        <div style="margin-top:26px;padding:16px;border:1px solid var(--rule);font-size:12px;color:var(--ink2);line-height:1.6">
+          <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px">Worth knowing</div>
+          Utilities are up three months running — DEWA is now AED 350 above your rolling average. Food is down 12% since the grocery switch in June.
+        </div>
+      </div>
+
+      <div style="margin-top:40px;padding-top:34px;border-top:1px solid var(--rule)">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">How it has grown</div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap;font-size:12.5px">
+            <span style="color:var(--pos)">{{ nw.change }} ({{ nw.pct }})</span>
+            <span style="color:var(--ink3);white-space:nowrap">{{ nw.caption }}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <sc-for list="{{ nwRanges }}" as="r" hint-placeholder-count="5">
+            <div class="om-seg" data-active="{{ r.active }}" onClick="{{ r.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 11px;font-size:11px;color:var(--ink2)">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <div style="width:52px;flex:none;position:relative;height:210px;font-size:10px;color:var(--ink3);text-align:right">
+          <div style="position:absolute;top:-4px;right:0">{{ nw.axisTop }}</div>
+          <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ nw.axisMid }}</div>
+          <div style="position:absolute;bottom:-6px;right:0">0</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="position:relative;height:210px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <div style="position:absolute;inset:0;display:flex;gap:10px;align-items:flex-end">
+              <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+                <div class="om-row" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:0">
+                  <div style="{{ b.stackStyle }}">
+                    <div style="{{ b.assetStyle }}"></div>
+                    <div style="{{ b.debtStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <svg viewBox="0 0 600 210" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+              <polyline points="{{ nw.line }}" fill="none" stroke="var(--pos)" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="stroke-dasharray:1200;animation:omDraw 1.3s cubic-bezier(.16,1,.3,1) both"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:9px">
+            <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+              <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Assets</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--neutralbar);display:block"></span>Liabilities</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--pos);display:block"></span>Net worth</span>
+            <span style="color:var(--ink3);margin-left:auto">{{ nw.note }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-tablewrap" style="margin-top:30px">
+      <div>
+        <div style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+          <div>{{ nw.periodHead }}</div>
+          <div style="text-align:right">Assets</div>
+          <div style="text-align:right">Liabilities</div>
+          <div style="text-align:right">Net worth</div>
+          <div style="text-align:right">Change</div>
+          <div style="text-align:right">Saved</div>
+        </div>
+        <sc-for list="{{ nwRows }}" as="r" hint-placeholder-count="12">
+          <div class="om-row" style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline">
+            <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.assets }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.debt }}</div>
+            <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ r.net }}</div>
+            <div style="text-align:right;{{ r.changeStyle }}">{{ r.change }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.saved }}</div>
+          </div>
+        </sc-for>
+      </div>
+      </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isWealthNet }}">
+    <div style="margin-top:26px">
+      <div style="display:flex;gap:48px;align-items:flex-end;flex-wrap:wrap;padding:0 0 26px;border-bottom:1px solid var(--rule)">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Net worth</div>
+          <div style="font-family:var(--fig);font-weight:300;font-size:48px;margin-top:10px;line-height:1.1;white-space:nowrap"><span style="font-size:22px;color:var(--ink2)">AED</span> 2,847,300</div>
+          <div style="font-size:12.5px;color:var(--pos);margin-top:10px">▲ 42,180 this month · +18.4% over 12 months</div>
+        </div>
+        <div style="flex:1;min-width:300px;padding-bottom:6px">
+          <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px">Composition</div>
+          <div style="display:flex;height:10px;gap:2px">
+            <div style="width:71.8%;background:var(--accent)"></div>
+            <div style="width:17.9%;background:var(--accent);opacity:.62"></div>
+            <div style="width:8.9%;background:var(--accent);opacity:.4"></div>
+            <div style="width:1.4%;background:var(--accent);opacity:.28"></div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:11.5px;color:var(--ink2)">
+            <span>Property 71.8%</span><span>Investments 17.9%</span><span>Cash 8.9%</span><span>Gold 1.4%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-g2" style="margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:44px">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Assets</div>
+          <sc-for list="{{ assets }}" as="a" hint-placeholder-count="7">
+            <div class="om-row" onClick="{{ a.onEdit }}" style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+              <div>{{ a.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ a.note }}</div></div>
+              <div style="font-family:var(--fig);font-size:15px">{{ a.value }}</div>
+            </div>
+          </sc-for>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid var(--rule2);font-size:12.5px">
+            <span style="color:var(--ink2)">Total assets</span><span style="font-family:var(--fig);font-size:16px">3,412,900</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Liabilities</div>
+          <sc-for list="{{ liabilities }}" as="a" hint-placeholder-count="3">
+            <div class="om-row" onClick="{{ a.onEdit }}" style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+              <div>{{ a.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ a.note }}</div></div>
+              <div style="font-family:var(--fig);font-size:15px;color:var(--neg)">{{ a.value }}</div>
+            </div>
+          </sc-for>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid var(--rule2);font-size:12.5px">
+            <span style="color:var(--ink2)">Total liabilities</span><span style="font-family:var(--fig);font-size:16px;color:var(--neg)">−565,600</span>
+          </div>
+
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin:30px 0 14px">Monthly change</div>
+          <sc-for list="{{ changes }}" as="c" hint-placeholder-count="6">
+            <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--rule);font-size:12px">
+              <span style="color:var(--ink2)">{{ c.label }}</span><span style="color:var(--pos);font-family:var(--fig);font-size:14px">{{ c.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="margin-top:40px;padding-top:34px;border-top:1px solid var(--rule)">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">How it has grown</div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap;font-size:12.5px">
+            <span style="color:var(--pos)">{{ nw.change }} ({{ nw.pct }})</span>
+            <span style="color:var(--ink3);white-space:nowrap">{{ nw.caption }}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <sc-for list="{{ nwRanges }}" as="r" hint-placeholder-count="5">
+            <div class="om-seg" data-active="{{ r.active }}" onClick="{{ r.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 11px;font-size:11px;color:var(--ink2)">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <div style="width:52px;flex:none;position:relative;height:210px;font-size:10px;color:var(--ink3);text-align:right">
+          <div style="position:absolute;top:-4px;right:0">{{ nw.axisTop }}</div>
+          <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ nw.axisMid }}</div>
+          <div style="position:absolute;bottom:-6px;right:0">0</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="position:relative;height:210px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <div style="position:absolute;inset:0;display:flex;gap:10px;align-items:flex-end">
+              <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+                <div class="om-row" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:0">
+                  <div style="{{ b.stackStyle }}">
+                    <div style="{{ b.assetStyle }}"></div>
+                    <div style="{{ b.debtStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <svg viewBox="0 0 600 210" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+              <polyline points="{{ nw.line }}" fill="none" stroke="var(--pos)" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="stroke-dasharray:1200;animation:omDraw 1.3s cubic-bezier(.16,1,.3,1) both"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:9px">
+            <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+              <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Assets</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--neutralbar);display:block"></span>Liabilities</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--pos);display:block"></span>Net worth</span>
+            <span style="color:var(--ink3);margin-left:auto">{{ nw.note }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-tablewrap" style="margin-top:30px">
+      <div>
+        <div style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+          <div>{{ nw.periodHead }}</div>
+          <div style="text-align:right">Assets</div>
+          <div style="text-align:right">Liabilities</div>
+          <div style="text-align:right">Net worth</div>
+          <div style="text-align:right">Change</div>
+          <div style="text-align:right">Saved</div>
+        </div>
+        <sc-for list="{{ nwRows }}" as="r" hint-placeholder-count="12">
+          <div class="om-row" style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline">
+            <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.assets }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.debt }}</div>
+            <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ r.net }}</div>
+            <div style="text-align:right;{{ r.changeStyle }}">{{ r.change }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.saved }}</div>
+          </div>
+        </sc-for>
+      </div>
+      </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isWealthAccounts }}">
+    <div style="margin-top:26px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <div class="om-seg" data-active="true" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">By type</div>
+        <div class="om-seg" style="border:1px solid var(--rule);border-radius:2px;padding:7px 12px;font-size:12px;color:var(--ink2)">By owner</div>
+        <div style="margin-left:auto;font-size:11.5px;color:var(--ink3)">10 accounts · 3 currencies · all valued today</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.5fr 1fr 90px 1fr 130px 110px;gap:16px;padding:18px 0 10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-top:18px">
+        <div>Account</div><div>Type</div><div>Owner</div><div style="text-align:right">Native</div><div style="text-align:right">AED</div><div style="text-align:right">Updated</div>
+      </div>
+      <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="10">
+        <div class="om-row" onClick="{{ a.onEdit }}" style="display:grid;grid-template-columns:1.5fr 1fr 90px 1fr 130px 110px;gap:16px;padding:13px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+          <div>{{ a.name }}</div>
+          <div style="color:var(--ink2);font-size:11.5px">{{ a.type }}</div>
+          <div style="color:var(--ink2);font-size:11.5px">{{ a.owner }}</div>
+          <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ a.native }}</div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px;{{ a.style }}">{{ a.aed }}</div>
+          <div style="text-align:right;color:var(--ink3);font-size:11px">{{ a.updated }}</div>
+        </div>
+      </sc-for>
+      <div style="display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--rule2);font-size:12.5px">
+        <span style="color:var(--ink2)">Net</span><span style="font-family:var(--fig);font-size:17px">2,847,300</span>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isWealthInvestments }}">
+    <div style="margin-top:22px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <sc-for list="{{ invGroups }}" as="g" hint-placeholder-count="5">
+          <div class="om-seg" data-active="{{ g.active }}" onClick="{{ g.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink2)">{{ g.label }}</div>
+        </sc-for>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex:none">
+          <div style="text-align:right;font-size:10.5px;color:var(--ink3);line-height:1.4;white-space:nowrap">Prices {{ refreshedLabel }}<br>FX {{ fxLabel }}</div>
+          <div class="om-btn" onClick="{{ refresh }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink2)">{{ refreshLabel }}</div>
+          <div class="om-btn" onClick="{{ addHolding }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Holding</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:44px;align-items:flex-end;flex-wrap:wrap;margin-top:26px">
+        <div style="min-width:280px">
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">{{ invScopeLabel }}</div>
+          <div style="font-family:var(--fig);font-weight:300;font-size:46px;margin-top:10px;line-height:1.1;white-space:nowrap"><span style="font-size:21px;color:var(--ink2)">AED</span> {{ invTotal }}</div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:12px;font-size:12.5px;flex-wrap:wrap">
+            <span style="{{ rangeStyle }}">{{ rangeChange }} ({{ rangePct }})</span>
+            <span style="color:var(--ink3)">{{ rangeCaption }}</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--ink3);margin-top:8px">{{ invNote }}</div>
+        </div>
+        <div style="flex:1;min-width:340px">
+          <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
+            <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="7">
+              <div class="om-seg" data-active="{{ r.active }}" onClick="{{ r.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 10px;font-size:11px;color:var(--ink2)">{{ r.label }}</div>
+            </sc-for>
+          </div>
+          <div style="position:relative;height:172px;margin-top:14px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <svg viewBox="0 0 600 172" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">
+              <path d="{{ perfArea }}" fill="var(--accent)" opacity=".14"></path>
+              <polyline points="{{ perfLine }}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="stroke-dasharray:1400;animation:omDraw 1.2s cubic-bezier(.16,1,.3,1) both"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-top:9px">
+            <span>{{ rangeFrom }}</span><span>{{ rangeMid }}</span><span>{{ rangeTo }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:30px">
+        <sc-for list="{{ allocation }}" as="a" hint-placeholder-count="8">
+          <div class="om-row" style="border:1px solid var(--rule);padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;line-height:1.35;min-height:32px">
+              <span style="font-size:12px">{{ a.label }}</span>
+              <span style="font-size:11.5px;color:var(--ink3);white-space:nowrap">{{ a.pct }}</span>
+            </div>
+            <div style="font-family:var(--fig);font-size:20px;margin-top:4px">{{ a.value }}</div>
+            <div style="height:3px;background:var(--rule);margin-top:9px"><div style="{{ a.barStyle }}"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:6px">{{ a.note }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="overflow-x:auto;margin-top:22px">
+      <div style="min-width:860px">
+      <div style="display:grid;grid-template-columns:minmax(180px,1.5fr) 74px 88px 104px 116px 92px minmax(120px,1fr);gap:14px;padding:0 0 10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+        <div>Holding</div><div>Owner</div><div style="text-align:right">Units</div><div style="text-align:right">Price</div><div style="text-align:right">Value AED</div><div style="text-align:right">{{ rangeShort }}</div><div>Weight</div>
+      </div>
+      <sc-for list="{{ holdings }}" as="h" hint-placeholder-count="12">
+        <div class="om-row" onClick="{{ h.onEdit }}" style="display:grid;grid-template-columns:minmax(180px,1.5fr) 74px 88px 104px 116px 92px minmax(120px,1fr);gap:14px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:center;cursor:pointer">
+          <div>{{ h.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ h.note }}</div></div>
+          <div style="color:var(--ink2);font-size:11.5px">{{ h.owner }}</div>
+          <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ h.units }}</div>
+          <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ h.price }}</div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ h.value }}</div>
+          <div style="text-align:right;font-size:11.5px;{{ h.dayStyle }}">{{ h.day }}</div>
+          <div>
+            <div style="height:3px;background:var(--rule)"><div style="{{ h.barStyle }}"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">{{ h.weight }}</div>
+          </div>
+        </div>
+      </sc-for>
+      </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showGoals }}">
+    <div style="margin-top:26px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Goals</div>
+        <div style="display:flex;gap:8px;align-items:center"><span style="font-size:11.5px;color:var(--ink3)">366,600 of 690,000</span><div class="om-btn" onClick="{{ addGoal }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Goal</div></div>
+      </div>
+      <sc-for list="{{ goals }}" as="g" hint-placeholder-count="4">
+        <div class="om-row" onClick="{{ g.onEdit }}" style="display:grid;grid-template-columns:1.4fr 1fr 150px 120px;gap:20px;padding:15px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:center;cursor:pointer">
+          <div>{{ g.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:3px">{{ g.note }}</div></div>
+          <div>
+            <div style="height:4px;background:var(--rule)"><div style="{{ g.barStyle }}"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:6px">{{ g.pct }}</div>
+          </div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ g.saved }}</div>
+          <div style="text-align:right;font-size:11.5px;color:var(--ink2)">{{ g.eta }}</div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showDebt }}">
+    <div style="margin-top:34px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Debt payoff order</div>
+        <div style="font-size:11.5px;color:var(--ink3)">Highest rate first · AED 565,600 outstanding</div>
+      </div>
+      <sc-for list="{{ debts }}" as="d" hint-placeholder-count="3">
+        <div class="om-row" onClick="{{ d.onEdit }}" style="display:grid;grid-template-columns:40px 1.4fr 120px 110px 1fr 130px;gap:18px;padding:15px 0;border-top:1px solid var(--rule);font-size:12.5px;align-items:center;cursor:pointer">
+          <div style="font-family:var(--fig);font-size:19px;color:var(--accent)">{{ d.rank }}</div>
+          <div>{{ d.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:3px">{{ d.note }}</div></div>
+          <div style="text-align:right;font-family:var(--fig);font-size:15px;color:var(--neg)">{{ d.balance }}</div>
+          <div style="text-align:right;color:var(--ink2)">{{ d.rate }}</div>
+          <div>
+            <div style="height:3px;background:var(--rule)"><div style="{{ d.barStyle }}"></div></div>
+            <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">{{ d.paid }}</div>
+          </div>
+          <div style="text-align:right;font-size:11.5px;color:var(--ink2)">{{ d.free }}</div>
+        </div>
+      </sc-for>
+      <div style="margin-top:16px;font-size:12px;color:var(--ink2)">Clearing the card first saves AED 2,180 in interest against paying the car loan down at the same rate.</div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showForecast }}">
+    <div style="margin-top:34px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Independence target</div>
+          <div style="font-family:var(--fig);font-weight:300;font-size:46px;margin-top:10px;line-height:1.1;white-space:nowrap"><span style="font-size:21px;color:var(--ink2)">AED</span> {{ fc.target }}</div>
+          <div style="font-size:12.5px;color:var(--ink2);margin-top:10px">{{ fc.targetNote }}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <sc-for list="{{ fcModes }}" as="m" hint-placeholder-count="2">
+            <div class="om-seg" data-active="{{ m.active }}" onClick="{{ m.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink2)">{{ m.label }}</div>
+          </sc-for>
+          <div class="om-btn" onClick="{{ editForecast }}" style="border:1px solid var(--rule);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink2)">Edit assumptions</div>
+        </div>
+      </div>
+
+      <div style="margin-top:26px">
+        <div style="position:relative;height:8px;background:var(--rule)">
+          <div style="{{ fc.progressBar }}"></div>
+          <div style="{{ fc.leanMark }}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11.5px;color:var(--ink3);flex-wrap:wrap;gap:12px">
+          <span><span style="color:var(--ink)">{{ fc.progressPct }}</span> of the way there · AED {{ fc.netWorth }} today</span>
+          <span>Lean number AED {{ fc.leanTarget }} marked · {{ fc.leanNote }}</span>
+        </div>
+      </div>
+
+      <div class="om-g5" style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:32px">
+        <div style="padding-right:24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">Independent by</div>
+          <div style="font-family:var(--fig);font-size:28px;margin-top:6px">{{ fc.fireYear }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:5px">{{ fc.fireNote }}</div>
+        </div>
+        <div style="padding:0 24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">Against plan</div>
+          <div style="font-family:var(--fig);font-size:28px;margin-top:6px;color:var(--pos)">{{ fc.aheadBy }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:5px">{{ fc.aheadNote }}</div>
+        </div>
+        <div style="padding:0 24px;border-right:1px solid var(--rule)">
+          <div style="font-size:11.5px;color:var(--ink2)">{{ fc.returnLabel }}</div>
+          <div style="font-family:var(--fig);font-size:28px;margin-top:6px">{{ fc.realReturn }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:5px">{{ fc.realNote }}</div>
+        </div>
+        <div style="padding-left:24px">
+          <div style="font-size:11.5px;color:var(--ink2)">Saving now</div>
+          <div style="font-family:var(--fig);font-size:28px;margin-top:6px">{{ fc.saving }}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:5px">{{ fc.savingNote }}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:40px;gap:16px;flex-wrap:wrap">
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Projection</div>
+        <div style="font-size:11px;color:var(--ink3)">{{ fc.chartNote }}</div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <div style="width:52px;flex:none;position:relative;height:230px;font-size:10px;color:var(--ink3);text-align:right">
+          <div style="position:absolute;top:-4px;right:0">{{ fc.axisTop }}</div>
+          <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ fc.axisMid }}</div>
+          <div style="position:absolute;bottom:-6px;right:0">0</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="position:relative;height:230px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <div style="{{ fc.targetLine }}"></div>
+            <div style="{{ fc.targetLabel }}">Independence target</div>
+            <div style="position:absolute;inset:0;display:flex;gap:8px;align-items:flex-end">
+              <sc-for list="{{ fcBars }}" as="b" hint-placeholder-count="10">
+                <div class="om-row" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
+                  <div style="{{ b.style }}"></div>
+                </div>
+              </sc-for>
+            </div>
+            <svg viewBox="0 0 600 230" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+              <polyline points="{{ fc.targetPoints }}" fill="none" stroke="var(--pos)" stroke-width="1.2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke" stroke-linejoin="round"></polyline>
+              <polyline points="{{ fc.planLine }}" fill="none" stroke="var(--ink2)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke" stroke-linejoin="round"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:9px">
+            <sc-for list="{{ fcBars }}" as="b" hint-placeholder-count="10">
+              <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Projected, {{ fc.moneyLabel }}</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--ink2);display:block"></span>Original plan, set Jan 2026</span>
+            <span style="color:var(--ink3);margin-left:auto">{{ fc.crossNote }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-g2" style="display:grid;grid-template-columns:1.25fr 1fr;gap:44px;margin-top:44px">
+        <div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;gap:14px">
+            <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Assumed vs actual</div>
+            <div style="font-size:11px;color:var(--ink3)">Since Jan 2026</div>
+          </div>
+          <div class="om-tablewrap">
+          <div>
+            <div style="display:grid;grid-template-columns:1.4fr 90px 90px 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+              <div>Assumption</div><div style="text-align:right">Planned</div><div style="text-align:right">Actual</div><div>Effect</div>
+            </div>
+            <sc-for list="{{ fcAssumptions }}" as="a" hint-placeholder-count="6">
+              <div class="om-row" onClick="{{ editForecast }}" style="display:grid;grid-template-columns:1.4fr 90px 90px 1fr;gap:14px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline;cursor:pointer">
+                <div>{{ a.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ a.note }}</div></div>
+                <div style="text-align:right;color:var(--ink2);font-family:var(--fig);font-size:15px">{{ a.planned }}</div>
+                <div style="text-align:right;font-family:var(--fig);font-size:15px;{{ a.actualStyle }}">{{ a.actual }}</div>
+                <div style="{{ a.effectStyle }}">{{ a.effect }}</div>
+              </div>
+            </sc-for>
+          </div>
+          </div>
+          <div style="margin-top:16px;font-size:12px;color:var(--ink2);line-height:1.6;max-width:560px">{{ fc.verdict }}</div>
+        </div>
+
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">If things change</div>
+          <sc-for list="{{ fcScenarios }}" as="s2" hint-placeholder-count="5">
+            <div class="om-row" style="padding:14px 0;border-top:1px solid var(--rule)">
+              <div style="display:flex;justify-content:space-between;gap:14px;align-items:baseline">
+                <div style="font-size:12.5px">{{ s2.name }}</div>
+                <div style="{{ s2.deltaStyle }}">{{ s2.delta }}</div>
+              </div>
+              <div style="font-size:10.5px;color:var(--ink3);margin-top:4px;line-height:1.5">{{ s2.note }}</div>
+            </div>
+          </sc-for>
+          <div style="border-top:1px solid var(--rule);margin-top:0;padding-top:16px;font-size:11px;color:var(--ink3);line-height:1.6">Each line moves one assumption and holds the rest. Inflation is already stripped out, so these are years of real spending power.</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isSettingsHousehold }}">
+    <div class="om-g2" style="margin-top:26px;display:grid;grid-template-columns:1.1fr 1fr;gap:44px">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Members</div>
+        <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule)">
+          <div><div style="font-size:12.5px">Shrey</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">Owner · full access · Telegram linked</div></div>
+          <div style="font-size:11.5px;color:var(--ink3)">You</div>
+        </div>
+        <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule)">
+          <div><div style="font-size:12.5px">Wife</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">Partner · full access · Telegram linked</div></div>
+          <div class="om-btn" onClick="{{ editMember }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 10px;font-size:11px;color:var(--ink2)">Permissions</div>
+        </div>
+        <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)">
+          <div><div style="font-size:12.5px;color:var(--ink2)">Invite someone</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">Accountant or family member, read-only</div></div>
+          <div class="om-btn" onClick="{{ addMember }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 10px;font-size:11px;color:var(--ink2)">Invite</div>
+        </div>
+
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin:30px 0 14px">Currency &amp; rates</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <div style="padding:14px;border:1px solid var(--rule)"><div style="font-size:11.5px;color:var(--ink2)">Display</div><div style="font-family:var(--fig);font-size:22px;margin-top:6px">AED</div></div>
+          <div style="padding:14px;border:1px solid var(--rule)"><div style="font-size:11.5px;color:var(--ink2)">USD</div><div style="font-family:var(--fig);font-size:22px;margin-top:6px">3.6725</div></div>
+          <div style="padding:14px;border:1px solid var(--rule)"><div style="font-size:11.5px;color:var(--ink2)">INR</div><div style="font-family:var(--fig);font-size:22px;margin-top:6px">0.0440</div><div style="font-size:10.5px;color:var(--warn);margin-top:5px">6 days old</div></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Integrations</div>
+        <sc-for list="{{ integrations }}" as="i" hint-placeholder-count="4">
+          <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule)">
+            <div><div style="font-size:12.5px">{{ i.name }}</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ i.note }}</div></div>
+            <div style="{{ i.style }}">{{ i.status }}</div>
+          </div>
+        </sc-for>
+
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin:30px 0 14px">Preferences</div>
+        <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule)">
+          <div style="font-size:12.5px">Appearance</div>
+          <div class="om-btn" onClick="{{ toggleTheme }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 10px;font-size:11px;color:var(--ink2)">{{ themeLabel }}</div>
+        </div>
+        <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule)">
+          <div style="font-size:12.5px">Default scope on open</div>
+          <div style="font-size:11.5px;color:var(--ink2)">Both of us</div>
+        </div>
+        <div class="om-row" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)">
+          <div style="font-size:12.5px">Reduce motion</div>
+          <div style="font-size:11.5px;color:var(--ink2)">Follow system</div>
+        </div>
+      </div>
+
+      <div style="margin-top:40px;padding-top:34px;border-top:1px solid var(--rule)">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">How it has grown</div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap;font-size:12.5px">
+            <span style="color:var(--pos)">{{ nw.change }} ({{ nw.pct }})</span>
+            <span style="color:var(--ink3);white-space:nowrap">{{ nw.caption }}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <sc-for list="{{ nwRanges }}" as="r" hint-placeholder-count="5">
+            <div class="om-seg" data-active="{{ r.active }}" onClick="{{ r.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 11px;font-size:11px;color:var(--ink2)">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <div style="width:52px;flex:none;position:relative;height:210px;font-size:10px;color:var(--ink3);text-align:right">
+          <div style="position:absolute;top:-4px;right:0">{{ nw.axisTop }}</div>
+          <div style="position:absolute;top:50%;margin-top:-6px;right:0">{{ nw.axisMid }}</div>
+          <div style="position:absolute;bottom:-6px;right:0">0</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="position:relative;height:210px">
+            <div style="position:absolute;left:0;right:0;top:0;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--rule2)"></div>
+            <div style="position:absolute;inset:0;display:flex;gap:10px;align-items:flex-end">
+              <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+                <div class="om-row" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:0">
+                  <div style="{{ b.stackStyle }}">
+                    <div style="{{ b.assetStyle }}"></div>
+                    <div style="{{ b.debtStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <svg viewBox="0 0 600 210" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+              <polyline points="{{ nw.line }}" fill="none" stroke="var(--pos)" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="stroke-dasharray:1200;animation:omDraw 1.3s cubic-bezier(.16,1,.3,1) both"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:9px">
+            <sc-for list="{{ nwBars }}" as="b" hint-placeholder-count="12">
+              <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:20px;margin-top:16px;font-size:11px;color:var(--ink2);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--accent);display:block"></span>Assets</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:var(--neutralbar);display:block"></span>Liabilities</span>
+            <span style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:1px;background:var(--pos);display:block"></span>Net worth</span>
+            <span style="color:var(--ink3);margin-left:auto">{{ nw.note }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om-tablewrap" style="margin-top:30px">
+      <div>
+        <div style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--rule2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)">
+          <div>{{ nw.periodHead }}</div>
+          <div style="text-align:right">Assets</div>
+          <div style="text-align:right">Liabilities</div>
+          <div style="text-align:right">Net worth</div>
+          <div style="text-align:right">Change</div>
+          <div style="text-align:right">Saved</div>
+        </div>
+        <sc-for list="{{ nwRows }}" as="r" hint-placeholder-count="12">
+          <div class="om-row" style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 1fr 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:12.5px;align-items:baseline">
+            <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.assets }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.debt }}</div>
+            <div style="text-align:right;font-family:var(--fig);font-size:15px">{{ r.net }}</div>
+            <div style="text-align:right;{{ r.changeStyle }}">{{ r.change }}</div>
+            <div style="text-align:right;color:var(--ink2);font-size:11.5px">{{ r.saved }}</div>
+          </div>
+        </sc-for>
+      </div>
+      </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isSettingsCategories }}">
+    <div style="margin-top:26px;max-width:640px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">Categories</div>
+        <div class="om-btn" onClick="{{ addCategory }}" style="border:1px solid var(--accent);border-radius:2px;padding:7px 13px;font-size:12px;color:var(--ink)">+ Category</div>
+      </div>
+      <sc-for list="{{ categoryRows }}" as="c" hint-placeholder-count="9">
+        <div class="om-row" onClick="{{ c.onEdit }}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-top:1px solid var(--rule);font-size:12.5px;cursor:pointer">
+          <div>{{ c.name }}<div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ c.note }}</div></div>
+          <div style="font-size:11.5px;color:var(--ink3)">{{ c.count }}</div>
+        </div>
+      </sc-for>
+      <div style="margin-top:16px;font-size:11.5px;color:var(--ink2)">Rules run on Telegram intake first, then on manual entries.</div>
+    </div>
+    </sc-if>
+
+    <div class="om-btn" onClick="{{ goOverview }}" style="display:inline-block;margin-top:34px;border:1px solid var(--rule);border-radius:2px;padding:8px 14px;font-size:12px;color:var(--ink2)">← Back to Overview</div>
+  </main>
+  </sc-if>
+
+  <sc-if value="{{ edOpen }}">
+  <div style="position:fixed;inset:0;z-index:40;display:flex;justify-content:flex-end;background:rgba(0,0,0,.45);animation:omFade .18s both">
+    <div class="om-drawer" style="width:430px;max-width:100%;background:var(--canvas);border-left:1px solid var(--rule2);padding:26px 28px 30px;overflow:auto;animation:omRise .28s cubic-bezier(.16,1,.3,1) both">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)">{{ ed.kicker }}</div>
+          <div style="font-family:var(--fig);font-size:23px;margin-top:8px;line-height:1.2">{{ ed.title }}</div>
+        </div>
+        <div class="om-btn" onClick="{{ closeEd }}" style="border:1px solid var(--rule);border-radius:2px;padding:5px 10px;font-size:12px;color:var(--ink2);flex:none">Close</div>
+      </div>
+
+      <sc-if value="{{ ed.hasAmount }}">
+      <div style="margin-top:24px">
+        <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">{{ ed.amountLabel }}</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">
+          <div style="font-family:var(--fig);font-size:36px;line-height:1">{{ ed.amount }}</div>
+          <div style="display:flex;gap:4px;padding-bottom:6px">
+            <sc-for list="{{ ed.currencies }}" as="c" hint-placeholder-count="3">
+              <div class="om-seg" data-active="{{ c.active }}" onClick="{{ c.onClick }}" style="border:1px solid var(--rule);padding:4px 9px;font-size:11px;color:var(--ink2);cursor:pointer">{{ c.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="height:1px;background:var(--rule2);margin-top:10px"></div>
+      </div>
+      </sc-if>
+
+      <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <sc-for list="{{ ed.fields }}" as="fl" hint-placeholder-count="4">
+          <div style="{{ fl.style }}">
+            <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">{{ fl.label }}</div>
+            <div style="border-bottom:1px solid var(--rule2);padding:9px 0;font-size:13px">{{ fl.value }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ ed.hasChips }}">
+      <div style="margin-top:22px">
+        <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">{{ ed.chipsLabel }}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+          <sc-for list="{{ ed.chips }}" as="c" hint-placeholder-count="8">
+            <div class="om-seg" data-active="{{ c.active }}" onClick="{{ c.onClick }}" style="border:1px solid var(--rule);border-radius:2px;padding:6px 11px;font-size:11.5px;color:var(--ink2);cursor:pointer">{{ c.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ ed.hasOwners }}">
+      <div style="margin-top:22px">
+        <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)">{{ ed.ownersLabel }}</div>
+        <div style="display:flex;margin-top:10px;border:1px solid var(--rule);border-radius:3px;overflow:hidden">
+          <sc-for list="{{ ed.owners }}" as="o" hint-placeholder-count="3">
+            <div class="om-scope" data-active="{{ o.active }}" onClick="{{ o.onClick }}" style="flex:1;text-align:center;padding:8px 0;font-size:11.5px;color:var(--ink2);cursor:pointer;border-right:1px solid var(--rule)">{{ o.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="margin-top:22px">
+        <sc-for list="{{ ed.toggles }}" as="t" hint-placeholder-count="2">
+          <div class="om-row" onClick="{{ t.onClick }}" style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--rule);cursor:pointer">
+            <div><div style="font-size:12.5px">{{ t.label }}</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">{{ t.note }}</div></div>
+            <div style="{{ t.style }}">{{ t.state }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:26px;align-items:center;flex-wrap:wrap">
+        <div class="om-btn" onClick="{{ closeEd }}" style="border:1px solid var(--accent);background:color-mix(in oklab,var(--accent) 18%,transparent);border-radius:2px;padding:9px 16px;font-size:12.5px;color:var(--ink)">{{ ed.saveLabel }}</div>
+        <div class="om-btn" onClick="{{ closeEd }}" style="border:1px solid var(--rule);border-radius:2px;padding:9px 16px;font-size:12.5px;color:var(--ink2)">Cancel</div>
+        <div class="om-link" onClick="{{ closeEd }}" style="{{ ed.deleteStyle }}">{{ ed.deleteLabel }}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--ink3);margin-top:14px;line-height:1.5">{{ ed.footer }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1200},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Copper&quot;,&quot;options&quot;:[&quot;Copper&quot;,&quot;Sage&quot;,&quot;Slate blue&quot;,&quot;Gold&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;startTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Dark&quot;,&quot;options&quot;:[&quot;Dark&quot;,&quot;Light&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;figures&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Serif&quot;,&quot;options&quot;:[&quot;Serif&quot;,&quot;Mono&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+const PERIODS = {
+  MTD: {
+    title: 'August 2026', range: '1–28 Aug · 3 days left',
+    incomeN: 78400, spendN: 46120, budgetN: 55000,
+    income: '78,400', spend: '46,120', saved: '32,280', rate: '41%', left: '8,880',
+    incomeHint: '2 of 3 salaries posted', spendHint: '84% of budget used',
+    savedHint: 'Highest since March', rateHint: '6-mo average 34%', leftHint: 'of AED 55,000',
+    flowCaption: 'August · in AED',
+    sources: [
+      { label: 'Salary · primary', value: 42000 },
+      { label: 'Salary · partner', value: 24000 },
+      { label: 'Rental', value: 12400 },
+    ],
+    dests: [
+      { label: 'Saved', value: 32280, kind: 'saved' },
+      { label: 'Housing', value: 14500 },
+      { label: 'Education', value: 9600 },
+      { label: 'Other', value: 7320 },
+      { label: 'Food & dining', value: 7240 },
+      { label: 'Transport', value: 3180 },
+      { label: 'Utilities', value: 2860 },
+      { label: 'Health', value: 1420 },
+    ],
+  },
+  QTD: {
+    title: 'Quarter to date', range: 'Jul – 28 Aug · Q3 2026',
+    incomeN: 155200, spendN: 97320, budgetN: 110000,
+    income: '155,200', spend: '97,320', saved: '57,880', rate: '37%', left: '12,680',
+    incomeHint: 'Rental received both months', spendHint: 'School term fee included',
+    savedHint: 'AED 28,940 per month', rateHint: 'Target 35%', leftHint: 'of AED 110,000',
+    flowCaption: 'Jul – Aug · in AED',
+    sources: [
+      { label: 'Salary · primary', value: 84000 },
+      { label: 'Salary · partner', value: 48000 },
+      { label: 'Rental', value: 23200 },
+    ],
+    dests: [
+      { label: 'Saved', value: 57880, kind: 'saved' },
+      { label: 'Housing', value: 29000 },
+      { label: 'Education', value: 19200 },
+      { label: 'Other', value: 18820 },
+      { label: 'Food & dining', value: 15100 },
+      { label: 'Transport', value: 6500 },
+      { label: 'Utilities', value: 5900 },
+      { label: 'Health', value: 2800 },
+    ],
+  },
+  YTD: {
+    title: 'Year to date', range: 'Jan – 28 Aug 2026',
+    incomeN: 601300, spendN: 392400, budgetN: 440000,
+    income: '601,300', spend: '392,400', saved: '208,900', rate: '35%', left: '47,600',
+    incomeHint: 'One bonus in March', spendHint: 'Two school terms paid',
+    savedHint: 'AED 26,113 per month', rateHint: 'Up from 29% in 2025', leftHint: 'of AED 440,000',
+    flowCaption: 'Jan – Aug · in AED',
+    sources: [
+      { label: 'Salary · primary', value: 336000 },
+      { label: 'Salary · partner', value: 192000 },
+      { label: 'Rental', value: 73300 },
+    ],
+    dests: [
+      { label: 'Saved', value: 208900, kind: 'saved' },
+      { label: 'Housing', value: 116000 },
+      { label: 'Education', value: 76800 },
+      { label: 'Other', value: 74900 },
+      { label: 'Food & dining', value: 61400 },
+      { label: 'Transport', value: 26800 },
+      { label: 'Utilities', value: 23900 },
+      { label: 'Health', value: 12600 },
+    ],
+  },
+};
+
+const SERIES = {
+  MTD: {
+    caption: 'Monthly · income vs spend', note: 'Savings rate on right-hand scale, 0–60%',
+    max: 90000, rateMax: 60, axisTop: '90k', axisMid: '45k',
+    cols: [
+      { label: 'Mar', inc: 71200, out: 52400, rate: 26 },
+      { label: 'Apr', inc: 68900, out: 49800, rate: 28 },
+      { label: 'May', inc: 84300, out: 55100, rate: 35 },
+      { label: 'Jun', inc: 72400, out: 47600, rate: 34 },
+      { label: 'Jul', inc: 76800, out: 51200, rate: 33 },
+      { label: 'Aug', inc: 78400, out: 46120, rate: 41 },
+    ],
+  },
+  QTD: {
+    caption: 'Quarterly · income vs spend', note: 'Q3 is two months in',
+    max: 240000, rateMax: 60, axisTop: '240k', axisMid: '120k',
+    cols: [
+      { label: 'Q4 25', inc: 198400, out: 141200, rate: 29 },
+      { label: 'Q1 26', inc: 216800, out: 152900, rate: 29 },
+      { label: 'Q2 26', inc: 225600, out: 152500, rate: 32 },
+      { label: 'Q3 26', inc: 155200, out: 97320, rate: 37 },
+    ],
+  },
+  YTD: {
+    caption: 'Yearly · income vs spend', note: '2026 is eight months in',
+    max: 650000, rateMax: 60, axisTop: '650k', axisMid: '325k',
+    cols: [
+      { label: '2022', inc: 412000, out: 318000, rate: 23 },
+      { label: '2023', inc: 478000, out: 352000, rate: 26 },
+      { label: '2024', inc: 526000, out: 381000, rate: 28 },
+      { label: '2025', inc: 589000, out: 418000, rate: 29 },
+      { label: '2026', inc: 601300, out: 392400, rate: 35 },
+    ],
+  },
+};
+
+const ATTENTION = [
+  { id: 'review', kind: 'Review', title: '7 transactions uncategorised', meta: 'Telegram intake · oldest 9 days · AED 12,410', action: 'Categorise', doneTitle: '7 transactions categorised', doneMeta: 'Moved out of Other · budget updated' },
+  { id: 'due', kind: 'Due', title: 'Emirates NBD card payment', meta: 'Due 5 Sep · AED 8,940 · no autopay', action: 'Mark paid', doneTitle: 'NBD card marked paid', doneMeta: 'AED 8,940 · logged 28 Aug' },
+  { id: 'anomaly', kind: 'Anomaly', title: 'DEWA bill 42% above average', meta: 'AED 1,180 vs AED 830 typical', action: 'Acknowledge', doneTitle: 'DEWA variance acknowledged', doneMeta: 'Excluded from anomaly checks this month' },
+  { id: 'missing', kind: 'Missing', title: 'Second salary not posted', meta: 'Expected 23 Aug · AED 24,000 · 5 days late', action: 'Log income', doneTitle: 'Second salary logged', doneMeta: 'AED 24,000 · income recalculated' },
+  { id: 'stale', kind: 'Stale', title: 'FX rates 6 days old', meta: 'INR holdings valued on an old rate', action: 'Refresh', doneTitle: 'FX rates refreshed', doneMeta: 'INR 0.0441 · just now' },
+];
+
+const ACCENTS = {
+  Copper: ['#c98b52', '#9c5d26'],
+  Sage: ['#8fae7f', '#416b49'],
+  'Slate blue': ['#93aac9', '#3d5f86'],
+  Gold: ['#d0b26a', '#7d6018'],
+};
+
+const N = (v) => v.toLocaleString('en-AE');
+const POS = 'color:var(--pos)';
+const NEG = 'color:var(--neg)';
+const WARN = 'color:var(--warn)';
+const MUTED = 'color:var(--ink2)';
+const bar = (pct, extra = '') => `width:${Math.min(100, pct).toFixed(1)}%;height:100%;background:var(--accent);transform-origin:left;animation:omWide .8s cubic-bezier(.16,1,.3,1) both;${extra}`;
+
+const ACTIVITY = [
+  ['28 Aug', 'Carrefour, MoE', 'Food & dining', 'Shared', 'ENBD Current', 412, 'review'],
+  ['28 Aug', 'ENOC Al Barsha', 'Transport', 'Primary', 'NBD Card', 210, ''],
+  ['27 Aug', 'DEWA · August', 'Utilities', 'Shared', 'ENBD Current', 1180, 'anomaly'],
+  ['27 Aug', 'Amazon.ae', '—', 'Partner', 'NBD Card', 268, 'review'],
+  ['26 Aug', 'Salik top-up', 'Transport', 'Primary', 'ENBD Current', 100, ''],
+  ['26 Aug', 'Spinneys', 'Food & dining', 'Shared', 'NBD Card', 386, ''],
+  ['25 Aug', 'GEMS · term 2', 'Education', 'Shared', 'Mashreq Savings', 9600, ''],
+  ['24 Aug', 'Talabat', '—', 'Partner', 'NBD Card', 96, 'review'],
+  ['24 Aug', 'Aster Clinic', 'Health', 'Partner', 'ENBD Current', 340, ''],
+  ['23 Aug', 'Rental income', 'Income', 'Shared', 'ENBD Current', -12400, ''],
+  ['22 Aug', 'Card payment', 'Transfer', 'Primary', 'ENBD Current', 4000, 'transfer'],
+  ['22 Aug', 'Noon.com', '—', 'Shared', 'NBD Card', 224, 'review'],
+];
+
+const BUDGET = [
+  ['Housing', 'Rent, service charge', 14500, 14500, 100, 'Fixed', 14500, 'flat'],
+  ['Education', 'School fees, quarterly', 9600, 9600, 100, 'Term paid', 9600, 'flat'],
+  ['Food & dining', 'Groceries and eating out', 7240, 9000, 80, '12% under pace', 7900, 'good'],
+  ['Other', 'Uncategorised sits here', 7320, 6000, 122, 'Over by 1,320', 7600, 'bad'],
+  ['Transport', 'Fuel, Salik, service', 3180, 3500, 91, 'On pace', 3450, 'flat'],
+  ['Utilities', 'DEWA, Etisalat', 2860, 2600, 110, 'Over by 260', 2900, 'bad'],
+  ['Health', 'Clinic, pharmacy', 1420, 2000, 71, 'Under pace', 1600, 'good'],
+  ['Travel', 'Nothing booked yet', 0, 4800, 0, 'Unused', 0, 'flat'],
+  ['Gifts', 'Nothing logged yet', 0, 3000, 0, 'Unused', 0, 'flat'],
+];
+
+const BILLS = [
+  ['Mortgage', 'EMI · ENBD', 6850, '1 Sep', 'Autopay', 'auto'],
+  ['NBD credit card', 'Statement · varies', 8940, '5 Sep', 'Manual', 'manual'],
+  ['Car loan', 'EMI · ADCB', 2410, '10 Sep', 'Autopay', 'auto'],
+  ['DEWA', 'Utility · varies', 1180, '3 Sep', 'Manual', 'manual'],
+  ['School fee', 'Quarterly · GEMS', 9600, '25 Sep', 'Autopay', 'auto'],
+  ['Health insurance', 'Annual, billed monthly', 610, '14 Sep', 'Autopay', 'auto'],
+  ['Etisalat', 'Home internet + mobile', 420, '20 Sep', 'Autopay', 'auto'],
+  ['Subscriptions', 'Netflix, Spotify, iCloud', 96, '7 Sep', 'Autopay', 'auto'],
+];
+
+const INCOMES = [
+  ['Salary · primary', 'Monthly · 15th', 42000],
+  ['Salary · partner', 'Monthly · 23rd', 24000],
+  ['Rental income', 'Monthly · 23rd', 12400],
+];
+
+const INSIGHTS = [
+  ['Housing', 14500, 14500, 'Fixed since Feb 2025', 0],
+  ['Education', 9600, 3200, 'Term fee lands every quarter', 200],
+  ['Other', 7320, 4900, '4 uncategorised transactions inside', 49],
+  ['Food & dining', 7240, 8230, 'Down since the grocery switch', -12],
+  ['Transport', 3180, 3410, 'Fuel prices eased', -7],
+  ['Utilities', 2860, 2010, 'Third month rising', 42],
+  ['Health', 1420, 1780, 'No dental this month', -20],
+];
+
+const MERCHANTS = [
+  ['Carrefour', '9 visits · groceries', 2140],
+  ['Talabat', '14 orders · eating out', 1180],
+  ['ENOC', '4 fills · fuel', 860],
+  ['Amazon.ae', '6 orders · uncategorised', 740],
+  ['Noon.com', '3 orders · uncategorised', 520],
+];
+
+const ASSETS = [
+  ['Villa · Al Furjan', 'Valued Jun 2026', 2450000],
+  ['Investments', 'UAE, global, India and crypto', 611200],
+  ['Mashreq Savings', 'Emergency fund', 212400],
+  ['ENBD Current', 'Joint account', 84300],
+  ['Gold', '96g, valued weekly', 48200],
+  ['Cash', 'Household float', 6800],
+];
+
+const LIABILITIES = [
+  ['Mortgage', '18.2 years left · 3.9%', -460060],
+  ['Car loan', '3.4 years left · 6.2%', -96600],
+  ['NBD credit card', 'Due 5 Sep · 3.25% monthly', -8940],
+];
+
+const CHANGES = [
+  ['March', 18400], ['April', 21900], ['May', 33700],
+  ['June', 26800], ['July', 29300], ['August', 42180],
+];
+
+const ACCOUNTS = [
+  ['Villa · Al Furjan', 'Property', 'Shared', 'AED 2,450,000', 2450000, 'Jun 2026'],
+  ['Interactive Brokers', 'Investment', 'Primary', '$72,400', 266000, 'Today 14:32'],
+  ['UAE brokerage · ENBD', 'Investment', 'Shared', 'AED 166,300', 166300, 'Today 14:32'],
+  ['India portfolio · Zerodha', 'Investment', 'Primary', '₹3,409,091', 150000, '6 days ago'],
+  ['Bitcoin · self-custody', 'Crypto', 'Primary', '0.21 BTC', 28900, 'Today 14:32'],
+  ['Mashreq Savings', 'Bank', 'Shared', 'AED 212,400', 212400, 'Today'],
+  ['ENBD Current', 'Bank', 'Shared', 'AED 84,300', 84300, 'Today'],
+  ['Gold', 'Commodity', 'Partner', '96 g', 48200, 'Today'],
+  ['Cash', 'Cash', 'Shared', 'AED 6,800', 6800, 'Manual'],
+  ['NBD credit card', 'Card', 'Primary', 'AED −8,940', -8940, 'Today'],
+  ['Car loan · ADCB', 'Loan', 'Primary', 'AED −96,600', -96600, 'Today'],
+  ['Mortgage · ENBD', 'Loan', 'Shared', 'AED −460,060', -460060, 'Today'],
+];
+
+const HOLDINGS = [
+  // name, note, owner, units, price, value AED, class, group
+  ['VWRA', 'FTSE All-World ETF · IBKR', 'Primary', '412', '$94.20', 142600, 'Global equity', 'global'],
+  ['CSPX', 'S&P 500 ETF · IBKR', 'Primary', '178', '$181.40', 118400, 'US equity', 'global'],
+  ['Sukuk fund', 'Emirates NBD income fund', 'Shared', '—', 'AED 10.42', 61100, 'Bonds & sukuk', 'uae'],
+  ['Emaar Properties', 'DFM listed', 'Partner', '9,400', 'AED 4.98', 46800, 'UAE equity', 'uae'],
+  ['ADCB', 'ADX listed', 'Partner', '3,100', 'AED 10.45', 32400, 'UAE equity', 'uae'],
+  ['DEWA', 'DFM listed', 'Shared', '10,800', 'AED 2.41', 26000, 'UAE equity', 'uae'],
+  ['HDFC Bank', 'NSE · ₹1,136,364', 'Primary', '580', '₹1,959', 50000, 'India equity', 'india'],
+  ['Reliance Industries', 'NSE · ₹568,182', 'Primary', '196', '₹2,899', 25000, 'India equity', 'india'],
+  ['Parag Parikh Flexi Cap', 'Mutual fund · ₹1,022,727', 'Partner', '9,840', '₹103.9', 45000, 'India mutual funds', 'india'],
+  ['Nippon Small Cap', 'Mutual fund · ₹681,818', 'Partner', '4,210', '₹161.9', 30000, 'India mutual funds', 'india'],
+  ['Bitcoin', 'Self-custody · 0.21 BTC', 'Primary', '0.21', '$37,480', 28900, 'Crypto', 'crypto'],
+  ['Brokerage cash', 'Undeployed · IBKR', 'Shared', '—', '—', 5000, 'Cash', 'global'],
+];
+
+// Range key, label, days plotted, total gain over the window, caption, seed.
+const RANGES = [
+  ['1W', '1W', 7, 0.8, 'past week', '22 Aug', '25 Aug', '28 Aug', 11],
+  ['1M', '1M', 30, 2.4, 'past month', '29 Jul', '13 Aug', '28 Aug', 23],
+  ['3M', '3M', 39, 5.1, 'past 3 months', 'Jun', 'Jul', 'Aug', 37],
+  ['6M', '6M', 52, 7.9, 'past 6 months', 'Mar', 'Jun', 'Aug', 41],
+  ['YTD', 'YTD', 60, 11.2, 'year to date', 'Jan', 'May', 'Aug', 53],
+  ['1Y', '1Y', 60, 14.6, 'past year', 'Sep 25', 'Mar 26', 'Aug 26', 67],
+  ['5Y', '5Y', 72, 68.3, 'past 5 years', '2021', '2024', '2026', 83],
+];
+
+const INV_GROUPS = [
+  ['all', 'All holdings'], ['global', 'Global'], ['uae', 'UAE'], ['india', 'India'], ['crypto', 'Crypto'],
+];
+
+const INTEGRATIONS = [
+  ['Telegram intake', 'Receipts and voice notes · both members', 'Connected', 'pos'],
+  ['Price refresh', 'Daily 18:00 GST · manual for now', 'Manual', 'warn'],
+  ['FX rates', 'Weekly · last pulled 22 Aug', 'Stale', 'warn'],
+  ['Nightly backup', 'Encrypted, 30-day retention', 'Connected', 'pos'],
+];
+
+const CATEGORY_ROWS = [
+  ['Housing', 'Rent, service charge, maintenance', '14 rules'],
+  ['Food & dining', 'Groceries, restaurants, delivery', '31 rules'],
+  ['Transport', 'Fuel, Salik, servicing, taxis', '12 rules'],
+  ['Utilities', 'DEWA, Etisalat, gas', '6 rules'],
+  ['Education', 'School fees, books, activities', '4 rules'],
+  ['Health', 'Clinic, pharmacy, insurance', '8 rules'],
+  ['Travel', 'Flights, hotels, visas', '9 rules'],
+  ['Gifts', 'Family, occasions, charity', '3 rules'],
+  ['Other', 'Anything unmatched lands here', 'Catch-all'],
+];
+
+const TX_CATEGORIES = ['Food & dining', 'Housing', 'Transport', 'Utilities', 'Education', 'Health', 'Travel', 'Gifts', 'Other'];
+// [label, assets, liabilities, saved that period]
+const NW_MONTHLY = [
+  ['Sep 25', 2894000, 630400, 19800], ['Oct 25', 2921000, 621900, 22400],
+  ['Nov 25', 2948000, 613300, 20100], ['Dec 25', 3012000, 604800, 31600],
+  ['Jan 26', 3058000, 596200, 24700], ['Feb 26', 3094000, 587600, 21300],
+  ['Mar 26', 3168000, 579100, 18400], ['Apr 26', 3221000, 570500, 21900],
+  ['May 26', 3288000, 562000, 33700], ['Jun 26', 3324000, 574400, 26800],
+  ['Jul 26', 3371000, 570000, 29300], ['Aug 26', 3412900, 565600, 32280],
+];
+const NW_YEARLY = [
+  ['2021', 1402000, 742000, 96400], ['2022', 1688000, 714000, 118200],
+  ['2023', 2014000, 686000, 141600], ['2024', 2386000, 658000, 172400],
+  ['2025', 2912000, 628000, 214800], ['2026', 3412900, 565600, 208900],
+];
+const NW_RANGES = [
+  ['6M', '6M', 'monthly', 6, 'past 6 months'],
+  ['1Y', '1Y', 'monthly', 12, 'past 12 months'],
+  ['YTD', 'YTD', 'monthly', 8, 'year to date'],
+  ['5Y', '5Y', 'yearly', 6, 'past 5 years'],
+  ['ALL', 'All', 'yearly', 6, 'since 2021'],
+];
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Jan–Aug actual multipliers against the monthly limit; Sep–Dec run at plan.
+const YEAR_FACTORS = [0.96, 1.02, 0.94, 1.08, 0.91, 1.05, 0.99, 1, 1, 1, 1, 1];
+// Aug 2026 starts on a Saturday. Daily spend, then the bills that land that day.
+const AUG_SPEND = [180, 0, 640, 210, 96, 1290, 430, 0, 720, 2410, 145, 380, 0, 260, 610, 890, 120, 0, 340, 420, 1180, 96, 4000, 210, 9600, 386, 100, 622, 0, 0, 0];
+const AUG_EVENTS = { 1: ['Mortgage 6,850', 'bill'], 3: ['DEWA 1,180', 'bill'], 5: ['NBD card 8,940', 'bill'], 10: ['Car loan 2,410', 'bill'], 15: ['Salary +42,000', 'in'], 20: ['Etisalat 420', 'bill'], 23: ['Rental +12,400', 'in'], 25: ['School fee 9,600', 'bill'] };
+
+const GOALS = [
+  ['Emergency fund', '6 months of spend · Mashreq Savings', 212400, 240000, 'Feb 2027'],
+  ['New car', 'Replacing the 2019 · target Jun 2028', 62000, 120000, 'Apr 2028'],
+  ['Kids education fund', 'Started Mar 2026 · monthly 4,000', 78000, 300000, '2032'],
+  ['Japan trip', 'Two weeks, April 2027', 14200, 30000, 'Jan 2027'],
+];
+
+const DEBTS = [
+  ['1', 'NBD credit card', 'Clear in full every month', -8940, '3.25% / mo', 0, 'Revolving', 'Sep 2026'],
+  ['2', 'Car loan · ADCB', 'AED 2,410 a month', -96600, '6.2% / yr', 46, '46% paid down', 'Jan 2030'],
+  ['3', 'Mortgage · ENBD', 'AED 6,850 a month', -460060, '3.9% / yr', 28, '28% paid down', 'Nov 2044'],
+];
+
+// Scope = whose money is on screen. Shared items count toward both people, so
+// "Me" plus "Wife" adds up to "Both" on every balance-sheet figure.
+const SCOPES = {
+  both: {
+    label: 'Both', owners: ['Primary', 'Partner', 'Shared'],
+    netWorth: 2847300, assets: 3412900, liabilities: 565600, change: 42180, changePct: '1.5%',
+    twelve: '+18.4%', equity: '83.4%', investments: 611200, dayChange: 1840, runway: '11.4', runwayPct: 72,
+    incF: 1, outF: 1, rates: { MTD: 41, QTD: 37, YTD: 35 },
+    note: 'Best month of the year',
+    hint: 'Shared items count toward both.',
+    runwayNote: 'If income stopped, liquid assets cover spend to Aug 2027',
+    incomeHint: { MTD: '2 of 3 salaries posted', QTD: 'Rental received both months', YTD: 'One bonus in March' },
+  },
+  me: {
+    label: 'Me', owners: ['Primary', 'Shared'],
+    netWorth: 1577000, assets: 1908300, liabilities: 331300, change: 26400, changePct: '1.7%',
+    twelve: '+19.1%', equity: '82.6%', investments: 410950, dayChange: 1210, runway: '9.8', runwayPct: 62,
+    incF: 0.615, outF: 0.592, rates: { MTD: 43, QTD: 39, YTD: 36 },
+    note: 'Half the shared assets included',
+    hint: 'Your accounts plus your half of shared.',
+    runwayNote: 'Your liquid assets cover your spend to Jun 2027',
+    incomeHint: { MTD: 'Salary posted 15 Aug', QTD: 'Salary and rental share', YTD: 'Bonus in March' },
+  },
+  partner: {
+    label: 'Wife', owners: ['Partner', 'Shared'],
+    netWorth: 1270300, assets: 1504600, liabilities: 234300, change: 15780, changePct: '1.3%',
+    twelve: '+17.6%', equity: '84.4%', investments: 200250, dayChange: 630, runway: '13.1', runwayPct: 84,
+    incF: 0.385, outF: 0.408, rates: { MTD: 38, QTD: 34, YTD: 33 },
+    note: 'Half the shared assets included',
+    hint: 'Her accounts plus her half of shared.',
+    runwayNote: 'Her liquid assets cover her spend to Oct 2027',
+    incomeHint: { MTD: 'Salary 5 days late', QTD: 'One salary outstanding', YTD: 'No bonus this year' },
+  },
+};
+
+const SCREENS = {
+  money: {
+    kicker: 'Money', meta: '87 transactions this month · 7 need review',
+    tabs: [['activity', 'Activity'], ['budget', 'Budget'], ['recurring', 'Recurring'], ['insights', 'Insights']],
+    titles: { activity: 'Activity', budget: 'Budget', recurring: 'Recurring', insights: 'Insights' },
+  },
+  wealth: {
+    kicker: 'Wealth', meta: '13 accounts · 3 currencies · FX 6 days old',
+    tabs: [['net', 'Net worth'], ['accounts', 'Accounts'], ['investments', 'Investments']],
+    titles: { net: 'Net worth', accounts: 'Accounts', investments: 'Investments' },
+  },
+  planning: {
+    kicker: 'Planning', meta: '4 goals · 3 debts · projected to 2044',
+    tabs: [['plan', 'Plan'], ['goals', 'Goals'], ['debt', 'Debt payoff'], ['forecasts', 'Forecasts']],
+    titles: { plan: 'Plan', goals: 'Goals', debt: 'Debt payoff', forecasts: 'Forecasts' },
+  },
+};
+
+SCREENS.settings = {
+  kicker: 'Settings', meta: 'Two members · AED display · nightly backup',
+  tabs: [['household', 'Household'], ['categories', 'Categories & rules']],
+  titles: { household: 'Household', categories: 'Categories & rules' },
+};
+
+const DEFAULT_SUB = { money: 'activity', wealth: 'net', planning: 'plan', settings: 'household' };
+
+class Component extends DCLogic {
+  state = {
+    theme: null, period: 'MTD', screen: 'overview', sub: 'activity', scope: 'both', resolved: {},
+    range: '1M', nwRange: '1Y', invGroup: 'all', fcMode: 'real', budgetView: 'month', activityView: 'list',
+    refreshedAt: '14:32 today', refreshing: false,
+    ed: null, edCategory: 'Food & dining', edOwner: 'Shared', edCurrency: 'AED', edA: false, edB: false,
+  };
+
+  refresh = () => {
+    if (this.state.refreshing) return;
+    this.setState({ refreshing: true });
+    setTimeout(() => this.setState({ refreshing: false, refreshedAt: 'just now' }), 900);
+  };
+
+  // One drawer serves every section: kind + optional row decide the fields.
+  open = (kind, row = null) => this.setState({
+    ed: { kind, row },
+    edCategory: row?.rawCategory && row.rawCategory !== '—' ? row.rawCategory : 'Food & dining',
+    edOwner: row?.rawOwner ?? 'Shared',
+    edCurrency: row?.currency ?? 'AED',
+    edA: kind === 'transaction' ? false : !!row?.a,
+    edB: kind === 'transaction' ? row?.rawTag === 'review' : !!row?.b,
+  });
+
+  // A deterministic walk so each range redraws identically between renders.
+  perf(cfg) {
+    const [, , n, gain, , , , , seed] = cfg;
+    let s = seed, v = 0;
+    const raw = [];
+    for (let i = 0; i < n; i++) {
+      s = (s * 1103515245 + 12345) % 2147483648;
+      v += (s / 2147483648 - 0.42) * (gain / n) * 3.4 + gain / n;
+      raw.push(v);
+    }
+    const last = raw[raw.length - 1] || 1;
+    const vals = [0, ...raw.map((x) => (x / last) * gain)];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const span = (max - min) || 1;
+    const pt = (val, i) => [
+      ((i / (vals.length - 1)) * 600).toFixed(1),
+      (158 - ((val - min) / span) * 140).toFixed(1),
+    ];
+    const points = vals.map((val, i) => pt(val, i).join(','));
+    return {
+      line: points.join(' '),
+      area: `M${points[0]} L${points.join(' L')} L600,172 L0,172 Z`,
+    };
+  }
+
+  componentDidMount() {
+    const startDark = (this.props.startTheme ?? 'Dark') === 'Dark';
+    this.setState({ theme: startDark ? 'dark' : 'light' });
+    document.documentElement.dataset.theme = startDark ? 'dark' : 'light';
+    this.applyTokens();
+  }
+
+  componentDidUpdate() { this.applyTokens(); }
+
+  applyTokens() {
+    const pair = ACCENTS[this.props.accent ?? 'Copper'] ?? ACCENTS.Copper;
+    const root = document.documentElement.style;
+    root.setProperty('--om-accent', pair[0]);
+    root.setProperty('--om-accent-light', pair[1]);
+    root.setProperty('--om-fig', (this.props.figures ?? 'Serif') === 'Mono' ? "'IBM Plex Mono',monospace" : "'Newsreader',serif");
+  }
+
+  toggleTheme = () => {
+    const next = this.state.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    this.setState({ theme: next });
+  };
+
+  // Paired income/spend bars with the savings rate as a line on its own axis.
+  // Granularity follows the period toggle: months, quarters, then years.
+  chart(key) {
+    const s = SERIES[key];
+    const bars = 0.86; // leave headroom above the tallest bar
+    const cols = s.cols.map((c, i) => ({
+      label: c.label,
+      labelStyle: `font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:${i === s.cols.length - 1 ? 'var(--ink)' : 'var(--ink3)'}`,
+      rateLabel: `${c.rate}%`,
+      incStyle: `width:15px;height:${((c.inc / s.max) * 100 * bars).toFixed(1)}%;background:var(--accent);transform-origin:bottom;animation:omGrow .75s ${i * 0.05}s cubic-bezier(.16,1,.3,1) both`,
+      outStyle: `width:15px;height:${((c.out / s.max) * 100 * bars).toFixed(1)}%;background:var(--neutralbar);transform-origin:bottom;animation:omGrow .75s ${i * 0.05 + 0.03}s cubic-bezier(.16,1,.3,1) both`,
+    }));
+    const rateY = (r) => 100 - (r / s.rateMax) * 100 * 0.9 - 4;
+    const n = s.cols.length;
+    const ratePoints = s.cols.map((c, i) => `${(((i + 0.5) / n) * 100).toFixed(2)},${rateY(c.rate).toFixed(2)}`).join(' ');
+    const dots = s.cols.map((c, i) => ({
+      style: `position:absolute;left:${(((i + 0.5) / n) * 100).toFixed(2)}%;top:${rateY(c.rate).toFixed(2)}%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:99px;background:var(--pos);animation:omFade .4s ${0.5 + i * 0.06}s both`,
+    }));
+    return {
+      cols, ratePoints, dots,
+      axisTop: s.axisTop, axisMid: s.axisMid,
+      flowCaption: s.caption, flowNote: s.note,
+    };
+  }
+
+  chartScoped(key, sc) {
+    const base = SERIES[key];
+    const scaled = {
+      ...base,
+      max: Math.round(base.max * (sc.incF === 1 ? 1 : sc.incF + 0.08)),
+      cols: base.cols.map((c) => {
+        const inc = Math.round(c.inc * sc.incF);
+        const out = Math.round(c.out * sc.outF);
+        return { ...c, inc, out, rate: Math.round(((inc - out) / inc) * 100) };
+      }),
+    };
+    if (sc.incF !== 1) {
+      const top = Math.round(scaled.max / 1000);
+      scaled.axisTop = top + 'k';
+      scaled.axisMid = Math.round(top / 2) + 'k';
+    }
+    const saved = SERIES[key];
+    SERIES[key] = scaled;
+    const out = this.chart(key);
+    SERIES[key] = saved;
+    return out;
+  }
+
+  renderVals() {
+    const st = this.state;
+    const sc = SCOPES[st.scope];
+    const period = PERIODS[st.period];
+    const chart = this.chartScoped(st.period, sc);
+    const resolved = st.resolved;
+    const openCount = ATTENTION.filter((a) => !resolved[a.id]).length;
+    const doneCount = ATTENTION.length - openCount;
+    const screen = SCREENS[st.screen];
+    const sub = st.sub;
+
+    // Period strip, scoped. Rounded to the nearest ten so "Me" plus "Wife"
+    // still reads as the household total rather than an audit discrepancy.
+    const r10 = (v) => Math.round(v / 10) * 10;
+    const income = r10(period.incomeN * sc.incF);
+    const spend = r10(period.spendN * sc.outF);
+    const budget = r10(period.budgetN * sc.outF);
+    const rate = sc.rates[st.period];
+
+    const owned = (o) => sc.owners.includes(o);
+    const flag = { review: ['needs review', WARN], anomaly: ['+42% vs usual', NEG], transfer: ['transfer', MUTED], '': ['', ''] };
+
+    return {
+      periodTitle: period.title,
+      periodRange: `${period.range} · ${sc.label === 'Both' ? 'both of us' : sc.label.toLowerCase()}`,
+      p: {
+        income: N(income), spend: N(spend), saved: N(income - spend),
+        rate: `${rate}%`, left: N(Math.max(0, budget - spend)),
+        incomeHint: sc.incomeHint[st.period],
+        spendHint: `${Math.round((spend / budget) * 100)}% of budget used`,
+        savedHint: period.savedHint,
+        rateHint: period.rateHint,
+        leftHint: `of AED ${N(budget)}`,
+      },
+      ...chart,
+
+      s: {
+        netWorth: N(sc.netWorth), assets: N(sc.assets), liabilities: N(sc.liabilities),
+        change: N(sc.change), changePct: sc.changePct, twelve: sc.twelve,
+        equity: sc.equity, investments: N(sc.investments), dayChange: `+${N(sc.dayChange)}`,
+        runway: sc.runway, runwayNote: sc.runwayNote, scopeNote: sc.note,
+        runwayBar: `width:${sc.runwayPct}%;height:100%;background:var(--accent);transform-origin:left;animation:omWide 1s cubic-bezier(.16,1,.3,1) both`,
+      },
+
+      isBoth: st.scope === 'both', isMe: st.scope === 'me', isPartner: st.scope === 'partner',
+      setBoth: () => this.setState({ scope: 'both' }),
+      setMe: () => this.setState({ scope: 'me' }),
+      setPartner: () => this.setState({ scope: 'partner' }),
+      scopeHint: sc.hint,
+
+      isOverview: st.screen === 'overview',
+      isMoney: st.screen === 'money',
+      isWealth: st.screen === 'wealth',
+      isPlanning: st.screen === 'planning',
+      isStub: !!screen,
+      stubKicker: screen?.kicker,
+      stubTitle: screen?.titles[sub],
+      stubMeta: screen?.meta,
+      subTabs: (screen?.tabs ?? []).map(([key, label]) => ({
+        label, active: sub === key, onClick: () => this.setState({ sub: key }),
+      })),
+      goOverview: () => this.setState({ screen: 'overview' }),
+      goMoney: () => this.setState({ screen: 'money', sub: DEFAULT_SUB.money }),
+      goWealth: () => this.setState({ screen: 'wealth', sub: DEFAULT_SUB.wealth }),
+      goPlanning: () => this.setState({ screen: 'planning', sub: DEFAULT_SUB.planning }),
+
+      isMoneyActivity: st.screen === 'money' && sub === 'activity',
+      isMoneyBudget: st.screen === 'money' && sub === 'budget',
+      isMoneyRecurring: st.screen === 'money' && sub === 'recurring',
+      isMoneyInsights: st.screen === 'money' && sub === 'insights',
+      isWealthNet: st.screen === 'wealth' && sub === 'net',
+      isWealthAccounts: st.screen === 'wealth' && sub === 'accounts',
+      isWealthInvestments: st.screen === 'wealth' && sub === 'investments',
+      showGoals: st.screen === 'planning' && (sub === 'plan' || sub === 'goals'),
+      showDebt: st.screen === 'planning' && (sub === 'plan' || sub === 'debt'),
+      showForecast: st.screen === 'planning' && (sub === 'plan' || sub === 'forecasts'),
+
+      activity: ACTIVITY.filter(([, , , owner]) => owned(owner)).map(([date, merchant, category, owner, account, amount, tag]) => {
+        const [flagText, flagColor] = flag[tag] ?? ['', ''];
+        return {
+          date, merchant, owner, account,
+          rawCategory: category, rawOwner: owner, rawTag: tag,
+          onOpen: () => this.open('transaction', { date, merchant, account, rawCategory: category, rawOwner: owner, rawTag: tag, amount: N(Math.abs(amount)) }),
+          category: category === '—' ? 'Uncategorised' : category,
+          catStyle: category === '—' ? WARN : MUTED,
+          flag: flagText ? ` · ${flagText}` : '',
+          flagStyle: flagText ? `font-size:10.5px;${flagColor}` : 'display:none',
+          amount: amount < 0 ? `+${N(-amount)}` : N(amount),
+          amountStyle: amount < 0 ? POS : '',
+        };
+      }),
+
+      budget: BUDGET.map(([name, note, spent, limit, pct, pace, projected, tone]) => ({
+        name, note, spent: N(spent), limit: N(limit), pace, projected: projected ? N(projected) : '—',
+        onEdit: () => this.open('budget', { name, limit: N(limit), spent: N(spent), projected: projected ? N(projected) : '—', rawCategory: name }),
+        barStyle: bar(pct, tone === 'bad' ? 'background:var(--neg)' : ''),
+        paceStyle: `font-size:10.5px;margin-top:6px;${tone === 'bad' ? NEG : tone === 'good' ? POS : 'color:var(--ink3)'}`,
+        projStyle: tone === 'bad' ? NEG : '',
+      })),
+
+      bills: BILLS.map(([name, kind, amount, next, pay, mode]) => ({
+        name, kind, next, pay, amount: N(amount),
+        onEdit: () => this.open('bill', { name, amount: N(amount), next, a: mode !== 'manual' }),
+        payStyle: `font-size:11px;text-align:right;${mode === 'manual' ? WARN : 'color:var(--ink3)'}`,
+      })),
+      incomes: INCOMES.map(([name, kind, amount]) => ({
+        name, kind, amount: N(amount),
+        onEdit: () => this.open('income', { name, amount: N(amount), a: true }),
+      })),
+
+      insights: INSIGHTS.map(([name, value, avg, note, delta]) => {
+        const peak = Math.max(value, avg) * 1.15;
+        return {
+          name, note, value: N(value),
+          delta: delta === 0 ? 'flat' : `${delta > 0 ? '+' : ''}${delta}%`,
+          deltaStyle: `font-size:11px;${delta > 12 ? NEG : delta < -5 ? POS : 'color:var(--ink3)'}`,
+          barStyle: bar((value / peak) * 100, delta > 12 ? 'background:var(--neg)' : ''),
+          avgStyle: `position:absolute;left:${((avg / peak) * 100).toFixed(1)}%;top:-3px;bottom:-3px;width:1px;background:var(--ink2)`,
+        };
+      }),
+      merchants: MERCHANTS.map(([name, note, value]) => ({ name, note, value: N(value) })),
+
+      assets: ASSETS.map(([name, note, value]) => ({
+        name, note, value: N(value), onEdit: () => this.open('account', { name, aed: N(value), type: 'Asset', updated: 'Today' }),
+      })),
+      liabilities: LIABILITIES.map(([name, note, value]) => ({
+        name, note, value: `−${N(-value)}`, onEdit: () => this.open('account', { name, aed: `−${N(-value)}`, type: 'Liability', updated: 'Today' }),
+      })),
+      changes: CHANGES.map(([label, value]) => ({ label, value: `+${N(value)}` })),
+
+      accounts: ACCOUNTS.filter(([, , owner]) => owned(owner)).map(([name, type, owner, native, aed, updated]) => ({
+        name, type, native, updated,
+        onEdit: () => this.open('account', { name, type, updated, aed: aed < 0 ? `−${N(-aed)}` : N(aed), rawOwner: owner }),
+        owner: owner === 'Primary' ? 'Me' : owner === 'Partner' ? 'Wife' : 'Shared',
+        aed: aed < 0 ? `−${N(-aed)}` : N(aed),
+        style: aed < 0 ? NEG : '',
+      })),
+
+
+      goals: GOALS.map(([name, note, saved, target, eta]) => ({
+        name, note, eta, saved: `${N(saved)} / ${N(target)}`,
+        onEdit: () => this.open('goal', { name, eta, saved: N(target) }),
+        pct: `${Math.round((saved / target) * 100)}% funded`,
+        barStyle: bar((saved / target) * 100),
+      })),
+
+      debts: DEBTS.map(([rank, name, note, balance, rate2, pct, paid, free]) => ({
+        rank, name, note, paid, free, rate: rate2,
+        onEdit: () => this.open('debt', { name, rate: rate2, free, balance: `−${N(-balance)}` }),
+        balance: `−${N(-balance)}`,
+        barStyle: bar(pct),
+      })),
+
+      // ── Investments ────────────────────────────────────────────────
+      ...(() => {
+        const cfg = RANGES.find((r) => r[0] === st.range);
+        const [, , , gain, caption, from, mid, to] = cfg;
+        const perf = this.perf(cfg);
+        const rows = HOLDINGS
+          .filter(([, , owner]) => owned(owner))
+          .filter(([, , , , , , , group]) => st.invGroup === 'all' || group === st.invGroup);
+        const total = rows.reduce((s2, h) => s2 + h[5], 0);
+        const peak = Math.max(...rows.map((h) => h[5]), 1);
+        const byClass = {};
+        rows.forEach(([, , , , , value, cls]) => { byClass[cls] = (byClass[cls] || 0) + value; });
+        const classNotes = {
+          'Global equity': 'VWRA · developed + emerging',
+          'US equity': 'CSPX · S&P 500',
+          'UAE equity': 'DFM and ADX listed',
+          'India equity': 'NSE · repatriable',
+          'India mutual funds': 'SIP · monthly ₹25,000',
+          'Bonds & sukuk': 'Income fund, monthly payout',
+          'Crypto': 'Self-custody',
+          'Cash': 'Waiting to be deployed',
+        };
+        return {
+          invTotal: N(total),
+          invScopeLabel: st.invGroup === 'all' ? 'Portfolio value' : `${INV_GROUPS.find((g) => g[0] === st.invGroup)[1]} holdings`,
+          invNote: st.scope === 'both'
+            ? `${rows.length} holdings across 3 currencies`
+            : 'Shared holdings shown in full; Overview counts half',
+          rangeChange: `+${N(Math.round(total * (gain / (100 + gain))))}`,
+          rangePct: `+${gain}%`,
+          rangeStyle: POS,
+          rangeCaption: caption,
+          rangeFrom: from, rangeMid: mid, rangeTo: to,
+          rangeShort: st.range,
+          perfLine: perf.line, perfArea: perf.area,
+          ranges: RANGES.map(([key, label]) => ({
+            label, active: st.range === key, onClick: () => this.setState({ range: key }),
+          })),
+          invGroups: INV_GROUPS.map(([key, label]) => ({
+            label, active: st.invGroup === key, onClick: () => this.setState({ invGroup: key }),
+          })),
+          refreshLabel: st.refreshing ? 'Refreshing…' : 'Refresh prices',
+          refreshedLabel: st.refreshedAt,
+          fxLabel: st.refreshedAt === 'just now' ? 'just now' : '6 days old',
+          allocation: Object.entries(byClass)
+            .sort((a, b) => b[1] - a[1])
+            .map(([label, value]) => ({
+              label, value: N(value),
+              pct: `${((value / total) * 100).toFixed(1)}%`,
+              note: classNotes[label] ?? '',
+              barStyle: bar((value / total) * 100),
+            })),
+          holdings: rows.map(([name, note, owner, units, price, value, cls, group]) => ({
+            name, note, units, price, value: N(value),
+            onEdit: () => this.open('holding', { name, units, price, value: N(value), rawCategory: cls, rawOwner: owner, a: false }),
+            owner: owner === 'Primary' ? 'Me' : owner === 'Partner' ? 'Wife' : 'Shared',
+            day: `+${(gain * (group === 'crypto' ? 1.9 : group === 'india' ? 1.2 : 0.9)).toFixed(1)}%`,
+            dayStyle: POS,
+            weight: `${((value / total) * 100).toFixed(1)}%`,
+            barStyle: bar((value / peak) * 100),
+          })),
+        };
+      })(),
+
+      // ── Forecast ──────────────────────────────────────────────────
+      // Everything is computed from four assumptions so the chart, the FIRE
+      // date and the scenario lines can never drift apart. "Real" strips
+      // inflation out, which is the only honest way to read a 2040s number.
+      ...(() => {
+        const real = st.fcMode === 'real';
+        const INF = 0.025, NOM = 0.06, SAVE = 360000;
+        const r = real ? (1 + NOM) / (1 + INF) - 1 : NOM;
+        const spend = 553440;
+        const target = Math.round((spend / 0.04) / 1000) * 1000;
+        const lean = Math.round((420000 / 0.04) / 1000) * 1000;
+        const start2 = 2847300;
+        const fv = (n, rate, save) => {
+          let v = start2;
+          for (let i = 0; i < n; i++) v = v * (1 + rate) + save * (real ? 1 : (1 + INF) ** (i + 1));
+          return v;
+        };
+        const years = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18];
+        const series = years.map((n) => ({ year: 2026 + n, value: fv(n, r, SAVE) }));
+        // The plan set in January assumed a 35% savings rate, not today's 41%.
+        const plan = years.map((n) => fv(n, real ? (1.055 / 1.025 - 1) : 0.055, 306000));
+        const horizon = years[years.length - 1];
+        const targetShown = real ? target : Math.round(target * (1 + INF) ** horizon);
+        const top = Math.ceil(Math.max(targetShown, series[series.length - 1].value) / 2000000) * 2000000;
+        const y = (v) => 226 - (v / top) * 220;
+        // In nominal mode the target grows with inflation as well, so the
+        // crossing year is the same fact either way — only the units change.
+        const goalAt = (n, goal) => (real ? goal : goal * (1 + INF) ** n);
+        const cross = (rate, save, goal = target) => {
+          for (let n = 0; n <= 60; n++) if (fv(n, rate, save) >= goalAt(n, goal)) return 2026 + n;
+          return null;
+        };
+        const leanYear = cross(r, SAVE, lean);
+        const fireYear = cross(r, SAVE);
+        const planYear = cross(real ? (1.055 / 1.025 - 1) : 0.055, 306000);
+        const m = (v) => `${(v / 1000000).toFixed(1)}m`;
+        const n2 = series.length;
+        const pct = (start2 / target) * 100;
+        const BIRTH_YEAR = 1986;
+        const scen = (label, rate, save, note, goal) => {
+          const yr = cross(rate, save, goal);
+          const d = yr - fireYear;
+          return {
+            name: label, note,
+            delta: d === 0 ? 'no change' : `${d > 0 ? '+' : '−'}${Math.abs(d)} yr${Math.abs(d) === 1 ? '' : 's'}`,
+            deltaStyle: `font-size:12px;font-family:var(--fig);${d < 0 ? POS : d > 0 ? NEG : 'color:var(--ink3)'}`,
+          };
+        };
+        return {
+          fcModes: [['real', "Today's money"], ['nominal', 'Nominal']].map(([key, label]) => ({
+            label, active: st.fcMode === key, onClick: () => this.setState({ fcMode: key }),
+          })),
+          fc: {
+            target: N(targetShown),
+            leanTarget: N(real ? lean : Math.round(lean * (1 + INF) ** horizon)),
+            targetNote: real
+              ? `25× today's spend of AED ${N(spend)} a year, in today's money`
+              : `25× spend, grown to ${2026 + horizon} at 2.5% inflation`,
+            netWorth: N(start2),
+            progressPct: `${pct.toFixed(1)}%`,
+            progressBar: `width:${pct.toFixed(1)}%;height:100%;background:var(--accent);transform-origin:left;animation:omWide 1s cubic-bezier(.16,1,.3,1) both`,
+            leanMark: `position:absolute;left:${((lean / target) * 100).toFixed(1)}%;top:-5px;bottom:-5px;width:1px;background:var(--ink2)`,
+            leanNote: `essentials only · reached ${leanYear}`,
+            fireYear: String(fireYear),
+            fireNote: `Age ${fireYear - BIRTH_YEAR} · ${fireYear - 2026} years from now`,
+            aheadBy: `${planYear - fireYear} yrs`,
+            aheadNote: `Plan said ${planYear}; savings rate is running at 41% not 35%`,
+            returnLabel: real ? 'Real return assumed' : 'Nominal return assumed',
+            realReturn: real ? `${(r * 100).toFixed(1)}%` : '6.0%',
+            realNote: real ? '6% nominal less 2.5% inflation' : 'Before inflation of 2.5%',
+            saving: `${N(Math.round(SAVE / 12))}`,
+            savingNote: 'A month, across both of us',
+            moneyLabel: real ? "today's money" : 'nominal AED',
+            chartNote: real
+              ? 'Inflation stripped out · bars are net worth in what it buys today'
+              : 'Nominal AED · bigger numbers, each one buying less',
+            axisTop: m(top), axisMid: m(top / 2),
+            targetLine: 'display:none',
+            targetLabel: `position:absolute;right:0;top:${(y(targetShown) - 17).toFixed(1)}px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--pos)`,
+            targetPoints: years.map((n, i) => `${(((i + 0.5) / n2) * 600).toFixed(1)},${y(goalAt(n, target)).toFixed(1)}`).join(' '),
+            planLine: plan.map((v, i) => `${(((i + 0.5) / n2) * 600).toFixed(1)},${y(v).toFixed(1)}`).join(' '),
+            crossNote: `Crosses the target in ${fireYear}`,
+            verdict: `On the January plan you would clear the target in ${planYear}. Spending less than budgeted and a stronger year in the markets have pulled that forward to ${fireYear}. The one assumption running against you is household inflation: utilities and school fees are rising faster than the 2.5% you assumed, which is why the lean number matters more than the headline one.`,
+          },
+          fcBars: series.map((s3, i) => {
+            const last = i === n2 - 1;
+            const hit = s3.value >= goalAt(years[i], target);
+            return {
+              label: String(s3.year),
+              labelStyle: `flex:1;text-align:center;font-size:10px;letter-spacing:.04em;${last || hit ? 'color:var(--ink)' : 'color:var(--ink3)'}`,
+              style: `width:22px;height:${((s3.value / top) * 100).toFixed(1)}%;background:var(--accent);opacity:${hit ? 1 : 0.6 + i * 0.03};transform-origin:bottom;animation:omGrow .8s ${(i * 0.05).toFixed(2)}s cubic-bezier(.16,1,.3,1) both`,
+            };
+          }),
+          fcAssumptions: [
+            { name: 'Investment return', note: 'Blended across all holdings', planned: '6.0%', actual: '11.2%', ahead: true, effect: 'Pulls the date forward 2 years' },
+            { name: 'Savings rate', note: 'Of income, after all spend', planned: '35%', actual: '41%', ahead: true, effect: 'Adds AED 54,000 a year' },
+            { name: 'Salary growth', note: 'Both incomes combined', planned: '4.0%', actual: '6.2%', ahead: true, effect: 'Raises future contributions' },
+            { name: 'Household inflation', note: 'Your basket, not the headline', planned: '2.5%', actual: '3.4%', ahead: false, effect: 'Raises the target by AED 1.1m' },
+            { name: 'Property growth', note: 'Villa, held flat by choice', planned: '0.0%', actual: '2.1%', ahead: true, effect: 'Not counted; upside if sold' },
+            { name: 'One-off events', note: 'School fees, car in 2028', planned: '2 planned', actual: '2 on track', ahead: null, effect: 'Already in the projection' },
+          ].map((a) => ({
+            ...a,
+            actualStyle: a.ahead === null ? MUTED : a.ahead ? POS : NEG,
+            effectStyle: `font-size:11px;${a.ahead === false ? NEG : 'color:var(--ink3)'}`,
+          })),
+          fcScenarios: [
+            scen('Save AED 5,000 more a month', r, SAVE + 60000, 'Redirect the budget underspend instead of letting it drift'),
+            scen('Markets return 4% instead of 6%', real ? (1.04 / 1.025 - 1) : 0.04, SAVE, 'A long flat decade, the main risk to the date'),
+            scen('One salary stops for two years', r, SAVE - 180000, 'Career break or a move; savings halve, spend holds'),
+            scen('Clear the mortgage early', r, SAVE - 40000, 'Frees AED 6,850 a month from 2031, less invested until then'),
+            scen('Retire on essentials only', r, SAVE, `Target drops to AED ${N(lean)} — no travel, no school fees`, lean),
+          ],
+        };
+      })(),
+
+      // ── Net worth history ─────────────────────────────────────────
+      ...(() => {
+        const cfg = NW_RANGES.find((r) => r[0] === st.nwRange);
+        const [, , grain, count, caption] = cfg;
+        const source = grain === 'monthly' ? NW_MONTHLY : NW_YEARLY;
+        const slice = source.slice(-count);
+        const f2 = st.scope === 'both' ? 1 : st.scope === 'me' ? 0.554 : 0.446;
+        const rows = slice.map(([label, assets, debt, saved]) => {
+          const a = Math.round(assets * f2), d = Math.round(debt * f2);
+          return { label, assets: a, debt: d, net: a - d, saved: Math.round(saved * f2) };
+        });
+        const peak = Math.max(...rows.map((r) => r.assets));
+        const top = Math.ceil(peak / 500000) * 500000;
+        const first = rows[0].net, last = rows[rows.length - 1].net;
+        const money = (v) => (Math.abs(v) >= 1000000 ? `${(v / 1000000).toFixed(2)}m` : N(Math.round(v / 100) * 100));
+        const netY = (v) => 206 - (v / top) * 200;
+        const n = rows.length;
+        return {
+          nwRanges: NW_RANGES.map(([key, label]) => ({
+            label, active: st.nwRange === key, onClick: () => this.setState({ nwRange: key }),
+          })),
+          nw: {
+            change: `+${N(last - first)}`,
+            pct: `+${(((last - first) / first) * 100).toFixed(1)}%`,
+            caption,
+            note: grain === 'monthly' ? 'Bars are assets over liabilities' : 'Year-end positions',
+            axisTop: money(top), axisMid: money(top / 2),
+            periodHead: grain === 'monthly' ? 'Month' : 'Year',
+            line: rows.map((r, i) => `${(((i + 0.5) / n) * 600).toFixed(1)},${netY(r.net).toFixed(1)}`).join(' '),
+          },
+          nwBars: rows.map((r, i) => {
+            const last2 = i === n - 1;
+            return {
+              label: r.label,
+              labelStyle: `flex:1;text-align:center;font-size:10px;letter-spacing:.06em;text-transform:uppercase;${last2 ? 'color:var(--ink)' : 'color:var(--ink3)'};white-space:nowrap;overflow:hidden`,
+              stackStyle: `width:22px;height:${((r.assets / top) * 100).toFixed(1)}%;display:flex;flex-direction:column;justify-content:flex-end;transform-origin:bottom;animation:omGrow .8s ${(i * 0.04).toFixed(2)}s cubic-bezier(.16,1,.3,1) both`,
+              assetStyle: `flex:1;background:var(--accent);${last2 ? '' : 'opacity:.72'}`,
+              debtStyle: `height:${((r.debt / r.assets) * 100).toFixed(1)}%;background:var(--neutralbar)`,
+            };
+          }),
+          nwRows: [...rows].reverse().map((r, i, arr) => {
+            const prev = arr[i + 1];
+            const delta = prev ? r.net - prev.net : null;
+            return {
+              label: r.label,
+              labelStyle: `font-size:12.5px;${i === 0 ? 'color:var(--ink)' : MUTED}`,
+              assets: N(r.assets), debt: `−${N(r.debt)}`, net: N(r.net),
+              change: delta === null ? '—' : `${delta >= 0 ? '+' : '−'}${N(Math.abs(delta))}`,
+              changeStyle: `font-size:11.5px;${delta === null ? 'color:var(--ink3)' : delta >= 0 ? POS : NEG}`,
+              saved: N(r.saved),
+            };
+          }),
+        };
+      })(),
+
+      // ── Budget: month vs year ──────────────────────────────────────
+      isBudgetMonth: st.budgetView === 'month',
+      isBudgetYear: st.budgetView === 'year',
+      isBudgetMonthView: st.screen === 'money' && sub === 'budget' && st.budgetView === 'month',
+      isBudgetYearView: st.screen === 'money' && sub === 'budget' && st.budgetView === 'year',
+      setBudgetMonth: () => this.setState({ budgetView: 'month' }),
+      setBudgetYear: () => this.setState({ budgetView: 'year' }),
+      budgetNote: st.budgetView === 'month'
+        ? 'August · 3 days left'
+        : '2026 · Jan–Aug actual, Sep–Dec planned',
+      months: MONTH_LABELS.map((label, i) => ({
+        label, style: `text-align:right;${i === 7 ? 'color:var(--ink)' : ''}`,
+      })),
+      ...(() => {
+        const cell = (v, planned, strong) =>
+          `text-align:right;padding:11px 8px 11px 0;font-size:${strong ? '12.5' : '12'}px;${planned ? 'color:var(--ink3)' : strong ? '' : MUTED};${v === 0 ? 'opacity:.35' : ''}`;
+        const row = (name, monthly, opts = {}) => {
+          const cells = monthly.map((v, i) => ({
+            value: v === 0 ? '—' : N(v),
+            style: cell(v, i > 7, opts.strong),
+          }));
+          const total = monthly.reduce((a, b) => a + b, 0);
+          return {
+            name,
+            cells,
+            total: N(total),
+            avg: N(Math.round(total / 12)),
+            rowStyle: `display:grid;grid-template-columns:150px repeat(12,1fr) 84px 74px;${opts.top ? 'border-top:1px solid var(--rule2)' : 'border-top:1px solid var(--rule)'}`,
+            nameStyle: `padding:11px 0;font-size:${opts.strong ? '12.5' : '12.5'}px;${opts.strong ? 'color:var(--ink)' : MUTED}`,
+            totalStyle: `text-align:right;padding:11px 8px 11px 0;font-family:var(--fig);font-size:15px;${opts.tone ?? ''}`,
+          };
+        };
+        const spread = (monthlyBase) => YEAR_FACTORS.map((fct, i) => (i > 7 ? monthlyBase : Math.round((monthlyBase * fct) / 10) * 10));
+        const incomeRows = [
+          ['Salary · primary', 42000], ['Salary · partner', 24000], ['Rental income', 12400],
+        ].map(([name, v]) => row(name, spread(v)));
+        const expenseRows = BUDGET.filter((b) => b[3] > 0).map((b) => row(b[0], spread(Math.round(b[3] * (b[0] === 'Education' ? 0.34 : 1)))));
+        const sum = (rows2) => MONTH_LABELS.map((_, i) => rows2.reduce((a, r) => a + Number(String(r.cells[i].value).replace(/[^0-9]/g, '') || 0), 0));
+        const incTotals = sum(incomeRows), expTotals = sum(expenseRows);
+        return {
+          yearRows: [
+            { ...row('Income', incTotals, { strong: true, top: true }), name: 'Total income' },
+            ...incomeRows,
+            { ...row('Total expenses', expTotals, { strong: true, top: true }) },
+            ...expenseRows,
+            { ...row('Net saved', incTotals.map((v, i) => v - expTotals[i]), { strong: true, top: true, tone: POS }) },
+          ],
+        };
+      })(),
+
+      // ── Activity: view switch, calendar, editor ────────────────────
+      isListView: st.activityView === 'list',
+      isCalendarView: st.activityView === 'calendar',
+      showList: () => this.setState({ activityView: 'list' }),
+      showCalendar: () => this.setState({ activityView: 'calendar' }),
+      calendar: (() => {
+        const cells = [];
+        for (let i = 0; i < 5; i++) cells.push({ blank: true });
+        for (let d = 1; d <= 31; d++) cells.push({ day: d });
+        while (cells.length % 7) cells.push({ blank: true });
+        return cells.map((c, i) => {
+          if (c.blank) return { style: 'border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);min-height:82px;background:var(--raise)', day: '', spend: '', bill: '', dayStyle: '', spendStyle: 'display:none', billStyle: 'display:none' };
+          const spend = AUG_SPEND[c.day - 1];
+          const ev = AUG_EVENTS[c.day];
+          const today = c.day === 28;
+          return {
+            day: c.day,
+            style: `border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);min-height:82px;padding:9px 10px;${today ? 'background:color-mix(in oklab,var(--accent) 9%,transparent)' : ''}`,
+            dayStyle: `font-size:11.5px;${today ? 'color:var(--ink);font-weight:500' : 'color:var(--ink3)'}`,
+            spend: spend ? N(spend) : '',
+            spendStyle: spend ? 'font-family:var(--fig);font-size:14px' : 'display:none',
+            bill: ev ? ev[0] : '',
+            billStyle: ev
+              ? `margin-top:8px;font-size:10px;padding:3px 6px;${ev[1] === 'in' ? 'background:color-mix(in oklab,var(--pos) 18%,transparent);color:var(--pos)' : 'background:color-mix(in oklab,var(--accent) 16%,transparent);color:var(--ink)'}`
+              : 'display:none',
+          };
+        });
+      })(),
+
+      ...(() => {
+        const e = st.ed;
+        const chip = (label) => ({ label, active: st.edCategory === label, onClick: () => this.setState({ edCategory: label }) });
+        const owners = (labels) => labels.map(([label, key]) => ({
+          label, active: st.edOwner === key, onClick: () => this.setState({ edOwner: key }),
+        }));
+        const toggle = (label, note, on, key, onText, offText, tone) => ({
+          label, note, state: on ? onText : offText,
+          style: `font-size:11.5px;${on ? (tone ?? 'color:var(--accent)') : 'color:var(--ink3)'}`,
+          onClick: () => this.setState((s2) => ({ [key]: !s2[key] })),
+        });
+        const field = (label, value, wide) => ({ label, value, style: wide ? 'grid-column:1 / -1' : '' });
+        if (!e) return { edOpen: false, ed: { fields: [], toggles: [], chips: [], owners: [], currencies: [] } };
+
+        const row = e.row;
+        const isNew = !row;
+        const currencies = ['AED', 'USD', 'INR'].map((label) => ({
+          label, active: st.edCurrency === label, onClick: () => this.setState({ edCurrency: label }),
+        }));
+        const D = {
+          transaction: {
+            kicker: isNew ? 'New entry' : 'Edit transaction',
+            title: isNew ? 'Add a transaction' : row.merchant,
+            hasAmount: true, amountLabel: 'Amount', amount: isNew ? '0' : row.amount,
+            fields: [
+              field('Merchant', isNew ? 'Type a merchant name' : row.merchant, true),
+              field('Date', isNew ? '28 Aug 2026' : `${row.date} 2026`),
+              field('Account', isNew ? 'ENBD Current' : row.account),
+            ],
+            hasChips: true, chipsLabel: 'Category', chips: TX_CATEGORIES.map(chip),
+            hasOwners: true, ownersLabel: 'Whose spend',
+            toggles: [
+              toggle('Split across categories', st.edA ? 'Groceries 280 · Household 132' : 'One amount, one category', st.edA, 'edA', 'On · 2 parts', 'Off'),
+              toggle('Needs review', 'Flags it for the other person to check', st.edB, 'edB', 'Flagged', 'Clear', WARN),
+            ],
+            footer: isNew ? 'Saved entries sync to both members and land in this month straight away.' : 'Edits are logged with your name and the previous value.',
+          },
+          budget: {
+            kicker: isNew ? 'New budget' : 'Edit budget',
+            title: isNew ? 'Set a category budget' : `${row.name} budget`,
+            hasAmount: true, amountLabel: 'Monthly limit', amount: isNew ? '0' : row.limit,
+            fields: [
+              field('Applies from', 'September 2026'),
+              field('Repeats', 'Every month'),
+              field('Spent so far', isNew ? '—' : row.spent),
+              field('Projected close', isNew ? '—' : row.projected),
+            ],
+            hasChips: isNew, chipsLabel: 'Category', chips: TX_CATEGORIES.map(chip),
+            hasOwners: false,
+            toggles: [
+              toggle('Roll unspent into next month', 'Useful for travel and gifts', st.edA, 'edA', 'On', 'Off'),
+              toggle('Alert at 90%', 'Both members get a Telegram nudge', st.edB, 'edB', 'On', 'Off'),
+            ],
+            footer: 'Changing a limit reprices the year view and the projected close immediately.',
+          },
+          bill: {
+            kicker: isNew ? 'New commitment' : 'Edit commitment',
+            title: isNew ? 'Add a bill or EMI' : row.name,
+            hasAmount: true, amountLabel: 'Amount', amount: isNew ? '0' : row.amount,
+            fields: [
+              field('Name', isNew ? 'e.g. Salik top-up' : row.name, true),
+              field('Next due', isNew ? '1 Sep 2026' : row.next),
+              field('Repeats', 'Monthly'),
+              field('Account', 'ENBD Current'),
+              field('Ends', 'No end date'),
+            ],
+            hasChips: true, chipsLabel: 'Category', chips: TX_CATEGORIES.map(chip),
+            hasOwners: true, ownersLabel: 'Paid by',
+            toggles: [
+              toggle('Autopay', 'Skip the reminder, still show on the calendar', st.edA, 'edA', 'On', 'Off'),
+              toggle('Variable amount', 'Estimate from the last three bills', st.edB, 'edB', 'On', 'Off'),
+            ],
+            footer: 'Commitments drive the next-30-days strip and the fixed-vs-variable split.',
+          },
+          income: {
+            kicker: isNew ? 'New income' : 'Edit income',
+            title: isNew ? 'Add expected income' : row.name,
+            hasAmount: true, amountLabel: 'Expected amount', amount: isNew ? '0' : row.amount,
+            fields: [field('Source', isNew ? 'e.g. Salary' : row.name, true), field('Expected on', '15th'), field('Into', 'ENBD Current')],
+            hasOwners: true, ownersLabel: 'Earned by',
+            toggles: [toggle('Flag when late', 'Appears in Needs attention after 2 days', st.edA, 'edA', 'On', 'Off')],
+            footer: 'Late income shows on Overview rather than quietly lowering your savings rate.',
+          },
+          account: {
+            kicker: isNew ? 'New account' : 'Edit account',
+            title: isNew ? 'Add an account' : row.name,
+            hasAmount: true, amountLabel: 'Current balance', amount: isNew ? '0' : (row.aed ?? row.value),
+            fields: [
+              field('Name', isNew ? 'e.g. ADCB Savings' : row.name, true),
+              field('Type', row?.type ?? 'Bank'),
+              field('Currency', st.edCurrency),
+              field('Valued', row?.updated ?? 'Today'),
+            ],
+            hasOwners: true, ownersLabel: 'Owner',
+            toggles: [
+              toggle('Counts toward net worth', 'Turn off for tracked-only accounts', !st.edA, 'edA', 'Yes', 'No', POS),
+              toggle('Manual balance', 'You update it; no feed attached', st.edB, 'edB', 'Manual', 'Auto'),
+            ],
+            footer: 'Balances in USD or INR are converted at display time; the stored value keeps its own currency.',
+          },
+          holding: {
+            kicker: isNew ? 'New holding' : 'Edit holding',
+            title: isNew ? 'Add a holding' : row.name,
+            hasAmount: true, amountLabel: 'Value', amount: isNew ? '0' : row.value,
+            fields: [
+              field('Ticker or fund', isNew ? 'e.g. VWRA' : row.name, true),
+              field('Units', row?.units ?? '0'),
+              field('Price', row?.price ?? '—'),
+              field('Account', 'Interactive Brokers'),
+            ],
+            hasChips: true, chipsLabel: 'Asset class',
+            chips: ['Global equity', 'US equity', 'UAE equity', 'India equity', 'India mutual funds', 'Bonds & sukuk', 'Crypto', 'Cash'].map(chip),
+            hasOwners: true, ownersLabel: 'Held by',
+            toggles: [toggle('Auto-refresh price', 'Daily at 18:00 GST', !st.edA, 'edA', 'On', 'Off', POS)],
+            footer: 'Asset class drives the allocation cards; owner drives the Both / Me / Wife split.',
+          },
+          goal: {
+            kicker: isNew ? 'New goal' : 'Edit goal',
+            title: isNew ? 'Add a goal' : row.name,
+            hasAmount: true, amountLabel: 'Target', amount: isNew ? '0' : row.saved,
+            fields: [
+              field('Name', isNew ? 'e.g. Japan trip' : row.name, true),
+              field('Target date', row?.eta ?? 'Dec 2027'),
+              field('Funded from', 'Mashreq Savings'),
+              field('Monthly contribution', 'AED 4,000'),
+            ],
+            hasOwners: true, ownersLabel: 'Owner',
+            toggles: [toggle('Show on Overview', 'Adds a progress row to the home screen', !st.edA, 'edA', 'On', 'Off', POS)],
+            footer: 'Contributions can be logged manually or linked to a recurring transfer.',
+          },
+          debt: {
+            kicker: 'Edit debt',
+            title: row?.name ?? 'Debt',
+            hasAmount: true, amountLabel: 'Outstanding', amount: row?.balance ?? '0',
+            fields: [
+              field('Interest rate', row?.rate ?? '0%'),
+              field('Monthly payment', 'AED 2,410'),
+              field('Debt-free', row?.free ?? '—'),
+              field('Extra payment', 'AED 0'),
+            ],
+            toggles: [toggle('Prioritise in payoff order', 'Overrides highest-rate-first', st.edA, 'edA', 'On', 'Off')],
+            footer: 'Payoff order and the interest saved figure recalculate from these numbers.',
+          },
+          forecast: {
+            kicker: 'Assumptions', title: 'Forecast assumptions',
+            hasAmount: true, amountLabel: 'Monthly saving', amount: '30,000',
+            fields: [
+              field('Investment return', '6% a year'),
+              field('Property growth', '0% a year'),
+              field('Salary growth', '4% a year'),
+              field('Inflation', '2.5% a year'),
+              field('Horizon', '2029'),
+            ],
+            toggles: [toggle('Include one-off events', 'School fees, car replacement in 2028', !st.edA, 'edA', 'On', 'Off', POS)],
+            footer: 'Assumptions apply to the forecast chart, the FI date and the mortgage-cleared date.',
+          },
+          category: {
+            kicker: isNew ? 'New category' : 'Edit category',
+            title: isNew ? 'Add a category' : row.name,
+            fields: [
+              field('Name', isNew ? 'e.g. Pets' : row.name, true),
+              field('Group', 'Flexible'),
+              field('Matching rules', row?.count ?? 'None yet'),
+              field('Default owner', 'Shared'),
+            ],
+            toggles: [
+              toggle('Include in budget', 'Appears in the month and year views', !st.edA, 'edA', 'Yes', 'No', POS),
+              toggle('Hide when empty', 'Keeps the budget list short', st.edB, 'edB', 'On', 'Off'),
+            ],
+            footer: 'Rules run on Telegram intake first, then on manual entries.',
+          },
+          member: {
+            kicker: isNew ? 'Invite' : 'Member',
+            title: isNew ? 'Invite someone' : 'Wife',
+            fields: [
+              field('Name', isNew ? 'Their name' : 'Wife', true),
+              field('Email', isNew ? 'name@email.com' : 'hidden'),
+              field('Role', isNew ? 'Read-only' : 'Partner'),
+              field('Telegram', isNew ? 'Not linked' : 'Linked'),
+            ],
+            toggles: [
+              toggle('Can edit transactions', 'Add, modify and delete', !st.edA, 'edA', 'Yes', 'No', POS),
+              toggle('Can see investments', 'Wealth section and holdings', !st.edB, 'edB', 'Yes', 'No', POS),
+            ],
+            footer: isNew ? 'They get an email invite; nothing is shared until they accept.' : 'Changes take effect the next time they open the app.',
+          },
+        }[e.kind];
+
+        return {
+          edOpen: true,
+          ed: {
+            hasAmount: false, hasChips: false, hasOwners: false,
+            chips: [], toggles: [], fields: [],
+            currencies,
+            owners: owners([['Me', 'Primary'], ['Wife', 'Partner'], ['Shared', 'Shared']]),
+            saveLabel: isNew ? `Add ${e.kind === 'transaction' ? 'transaction' : e.kind}` : 'Save changes',
+            deleteLabel: isNew ? '' : 'Delete',
+            deleteStyle: `margin-left:auto;font-size:12px;${isNew ? 'display:none' : 'color:var(--neg)'}`,
+            ...D,
+          },
+        };
+      })(),
+      closeEd: () => this.setState({ ed: null }),
+      addTx: () => this.open('transaction'),
+      addBudget: () => this.open('budget'),
+      addBill: () => this.open('bill'),
+      addIncome: () => this.open('income'),
+      addAccount: () => this.open('account'),
+      addHolding: () => this.open('holding'),
+      addGoal: () => this.open('goal'),
+      addCategory: () => this.open('category'),
+      addMember: () => this.open('member'),
+      editMember: () => this.open('member', { name: 'Wife' }),
+      editForecast: () => this.open('forecast', { name: 'Forecast' }),
+
+      // ── Settings ───────────────────────────────────────────────────
+      isSettings: st.screen === 'settings',
+      goSettings: () => this.setState({ screen: 'settings', sub: DEFAULT_SUB.settings }),
+      isSettingsHousehold: st.screen === 'settings' && sub === 'household',
+      isSettingsCategories: st.screen === 'settings' && sub === 'categories',
+      integrations: INTEGRATIONS.map(([name, note, status, tone]) => ({
+        name, note, status,
+        style: `font-size:11.5px;${tone === 'pos' ? POS : WARN}`,
+      })),
+      categoryRows: CATEGORY_ROWS.map(([name, note, count]) => ({
+        name, note, count, onEdit: () => this.open('category', { name, count }),
+      })),
+      refresh: this.refresh,
+
+      themeLabel: st.theme === 'light' ? 'Dark mode' : 'Light mode',
+      toggleTheme: this.toggleTheme,
+
+      isMTD: st.period === 'MTD', isQTD: st.period === 'QTD', isYTD: st.period === 'YTD',
+      setMTD: () => this.setState({ period: 'MTD' }),
+      setQTD: () => this.setState({ period: 'QTD' }),
+      setYTD: () => this.setState({ period: 'YTD' }),
+
+      openLabel: openCount === 0 ? 'All clear' : `${openCount} open`,
+      resolvedNote: doneCount === 0
+        ? 'Resolve items here without leaving Overview.'
+        : openCount === 0
+          ? 'Nothing left to review. Next check-in 1 Sep.'
+          : `${doneCount} resolved just now`,
+      attention: ATTENTION.map((a) => {
+        const done = !!resolved[a.id];
+        return {
+          ...a, done,
+          title: done ? a.doneTitle : a.title,
+          meta: done ? a.doneMeta : a.meta,
+          action: done ? 'Undo' : a.action,
+          onResolve: () => this.setState((s) => ({ resolved: { ...s.resolved, [a.id]: !s.resolved[a.id] } })),
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>
