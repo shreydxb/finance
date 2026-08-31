@@ -40,6 +40,8 @@ test('the dump covers every table exactly once', () => {
     'access_party_mappings',
     'access_party_mapping_history',
     'access_party_reconciliation_runs',
+    'account_ownership_history',
+    'account_ownership_reconciliation_runs',
   ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
   }
@@ -109,6 +111,51 @@ test('SHR-194 reconciliation evidence is financial and restores after its refere
   assert.ok(
     names.indexOf('access_party_mappings') < names.indexOf('access_party_mapping_history'),
     'history restores after the mapping rows its composite foreign key targets'
+  )
+})
+
+test('SHR-154 account ownership evidence is financial and restores after its references', () => {
+  // Ownership history is the only record that an account's economic ownership
+  // was ever different: lose it and a restored database asserts the current
+  // owner as though it had always been true. The run records are what make a
+  // re-applied manifest a replay rather than a second reconciliation.
+  const history = BACKUP_TABLES.find((table) => table.name === 'account_ownership_history')
+  const runs = BACKUP_TABLES.find(
+    (table) => table.name === 'account_ownership_reconciliation_runs'
+  )
+  assert.ok(history)
+  assert.ok(runs)
+  assert.equal(history.financial, true)
+  assert.equal(runs.financial, true)
+  // The account reference is a typed logical reference rather than a foreign
+  // key, so history survives an account being deleted and only the economic
+  // household ordering is load-bearing.
+  assert.deepEqual((history as { dependsOn?: readonly string[] }).dependsOn, [
+    'economic_households',
+  ])
+  assert.deepEqual((runs as { dependsOn?: readonly string[] }).dependsOn, ['economic_households'])
+
+  const names = BACKUP_TABLES.map((table) => table.name)
+  assert.ok(
+    names.indexOf('economic_households') < names.indexOf('account_ownership_history'),
+    'ownership history restores after the economic household it references'
+  )
+})
+
+test('accounts restore after the economic parties a reconciled account references', () => {
+  // SHR-154 gave accounts a stable owner_party_id foreign key. Restoring the
+  // accounts table before economic_parties would fail on that key for any
+  // account whose ownership has been reconciled.
+  const accounts = BACKUP_TABLES.find((table) => table.name === 'accounts')
+  assert.ok(accounts)
+  assert.deepEqual((accounts as { dependsOn?: readonly string[] }).dependsOn, ['economic_parties'])
+
+  const names = BACKUP_TABLES.map((table) => table.name)
+  assert.ok(names.indexOf('economic_households') < names.indexOf('economic_parties'))
+  assert.ok(names.indexOf('economic_parties') < names.indexOf('accounts'))
+  assert.ok(
+    names.indexOf('accounts') < names.indexOf('transactions'),
+    'the tables that reference accounts still restore after it'
   )
 })
 

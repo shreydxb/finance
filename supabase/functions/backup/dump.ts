@@ -17,7 +17,19 @@
 export const BACKUP_TABLES = [
   // No dependencies.
   { name: 'categories', financial: true },
-  { name: 'accounts', financial: true },
+  // SHR-193 durable economic identity substrate. A party UUID is the stable
+  // reference every later attribution package points at, and a mapping row is
+  // the reviewed record of which access identity represents which party — both
+  // are irrecoverable by inspection, so both are household record rather than
+  // operational telemetry. Restore order follows the foreign keys: households,
+  // then parties, then the mapping decisions that reference both.
+  //
+  // They restore ahead of `accounts` because SHR-154 gave an account a stable
+  // owner_party_id: a reconciled account references a party row directly, so
+  // restoring accounts first would violate that foreign key.
+  { name: 'economic_households', financial: true },
+  { name: 'economic_parties', financial: true, dependsOn: ['economic_households'] },
+  { name: 'accounts', financial: true, dependsOn: ['economic_parties'] },
   { name: 'income', financial: true },
   { name: 'settings', financial: true },
   // Depend on the above.
@@ -43,14 +55,6 @@ export const BACKUP_TABLES = [
   // unverifiable, so both are household record, not operational telemetry.
   { name: 'category_name_history', financial: true, dependsOn: ['categories'] },
   { name: 'category_aliases', financial: true, dependsOn: ['categories', 'category_name_history'] },
-  // SHR-193 durable economic identity substrate. A party UUID is the stable
-  // reference every later attribution package points at, and a mapping row is
-  // the reviewed record of which access identity represents which party — both
-  // are irrecoverable by inspection, so both are household record rather than
-  // operational telemetry. Restore order follows the foreign keys: households,
-  // then parties, then the mapping decisions that reference both.
-  { name: 'economic_households', financial: true },
-  { name: 'economic_parties', financial: true, dependsOn: ['economic_households'] },
   {
     name: 'access_party_mappings',
     financial: true,
@@ -69,6 +73,25 @@ export const BACKUP_TABLES = [
   },
   {
     name: 'access_party_reconciliation_runs',
+    financial: true,
+    dependsOn: ['economic_households'],
+  },
+  // SHR-154 durable account ownership evidence. The stable ownership fact
+  // itself rides along inside `accounts` (ownership_kind/owner_party_id), but
+  // the history is the only record that an account's economic ownership was
+  // ever different — a restore that lost it would assert the current owner as
+  // though it had always been true — and the run records are what make a
+  // re-applied manifest a replay rather than a second reconciliation. The
+  // account reference in history is a typed logical reference rather than a
+  // foreign key — evidence outlives the account it describes — so only the
+  // economic household ordering is load-bearing for a restore.
+  {
+    name: 'account_ownership_history',
+    financial: true,
+    dependsOn: ['economic_households'],
+  },
+  {
+    name: 'account_ownership_reconciliation_runs',
     financial: true,
     dependsOn: ['economic_households'],
   },
