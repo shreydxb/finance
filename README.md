@@ -23,6 +23,7 @@ npm run demo:telegram # walk the Telegram intake flow against mocked payloads
 
 ## Structure
 
+- `docs/v6/reference` — authoritative SHR-151 V6 visual artifact, tokens, and desktop/mobile/accessibility parity checklists
 - `src/components` — shared UI components
 - `src/screens` — one folder/file per Phase-1 screen (Home, Accounts, Transactions,
   Cash Flow, Budget, Recurring, Goals, Settings)
