@@ -35,6 +35,9 @@ test('the dump covers every table exactly once', () => {
     'audit_events',
     'category_name_history',
     'category_aliases',
+    'economic_households',
+    'economic_parties',
+    'access_party_mappings',
   ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
   }
@@ -54,6 +57,31 @@ test('durable category lifecycle evidence is financial and restores after its re
   assert.deepEqual((aliases as { dependsOn?: readonly string[] }).dependsOn, [
     'categories',
     'category_name_history',
+  ])
+})
+
+test('durable economic identity substrate is financial and restores after its references', () => {
+  // A party UUID is the stable identity later attribution packages reference,
+  // and a mapping decision records which access identity was reviewed as
+  // representing which party. Neither can be reconstructed by inspection, and
+  // restoring a mapping before its party or household would violate the
+  // composite foreign key that keeps a mapping inside one economic household.
+  const households = BACKUP_TABLES.find((table) => table.name === 'economic_households')
+  const parties = BACKUP_TABLES.find((table) => table.name === 'economic_parties')
+  const mappings = BACKUP_TABLES.find((table) => table.name === 'access_party_mappings')
+  assert.ok(households)
+  assert.ok(parties)
+  assert.ok(mappings)
+  assert.equal(households.financial, true)
+  assert.equal(parties.financial, true)
+  assert.equal(mappings.financial, true)
+  assert.deepEqual((households as { dependsOn?: readonly string[] }).dependsOn ?? [], [])
+  assert.deepEqual((parties as { dependsOn?: readonly string[] }).dependsOn, [
+    'economic_households',
+  ])
+  assert.deepEqual((mappings as { dependsOn?: readonly string[] }).dependsOn, [
+    'economic_households',
+    'economic_parties',
   ])
 })
 
