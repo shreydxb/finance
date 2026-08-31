@@ -69,7 +69,7 @@ findings each one closes, and the verification evidence.
 | `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — applied and independently production-QA-passed | SHR-113 Phase A/B |
 | `044_manual_transaction_safety` | Validated SECURITY INVOKER manual create/correction with durable request replay, explicit reviewed truth, Transfer containment, and minimal validated split confirmation; no data rewrite or financial-engine change — applied and production-QA-passed | SHR-126 |
 | `045_immutable_audit_substrate` | Immutable typed action evidence, owner-only private append primitive, service-only QA reference writer, redacted member read RPC, explicit ACL/RLS, replay semantics, and backup coverage; no backfill or production-writer integration — repository only, not applied | SHR-191 |
-| `046_category_lifecycle_protection` | `categories.system_code` / `archived_at` / `updated_at`, a closed `transfer \| savings_investment` vocabulary, database-level system-code immutability and system-category archive/delete protection, a no-hard-delete guard, fail-closed archive, immutable `category_name_history`, explicitly separate `category_aliases` with a compatibility-active → history-only lifecycle, least-privilege ACL/RLS, and backup coverage; **no system code is seeded, no reference is backfilled, and no rename/archive product path is enabled** — repository only, not applied | SHR-196 |
+| `046_category_lifecycle_protection` | `categories.system_code` / `archived_at` / `updated_at`, a closed `transfer \| savings_investment` vocabulary, database-level system-code immutability and system-category archive/delete protection, a no-hard-delete guard, **fully fail-closed rename, archive and reactivation for every role including the database owner's ordinary DML**, immutable `category_name_history`, explicitly separate `category_aliases` with a compatibility-active → history-only lifecycle, least-privilege ACL/RLS, and backup coverage; **no system code is seeded, no reference is backfilled, and no rename/archive path exists at all** — repository only, not applied | SHR-196 |
 
 ## Rules
 
@@ -146,7 +146,7 @@ approved codes to a real category is SHR-197's evidence-reviewed work, and it
 is deliberately **not** inferred from the current `Transfer` or
 `Savings & Investments` labels.
 
-Three things about `046` are easy to misread and worth stating plainly:
+Four things about `046` are easy to misread and worth stating plainly:
 
 - **Operator authority is not a new role.** The guards distinguish the
   database-owner/migration path (the role that owns `public.categories`) from
@@ -154,13 +154,27 @@ Three things about `046` are easy to misread and worth stating plainly:
   That is the existing administrative trust root, not an invented taxonomy
   administrator, and the owner can still disable a trigger by DDL — the same
   honest boundary `045` documents.
-- **Archive is substrate, not a feature.** Every application role is refused
-  outright; even on the operator path an archive attempt fails closed while any
-  budget row or category rule references the category, because SHR-167 owns the
-  current-plan predicate and SHR-160 owns atomic rule lifecycle. That block is a
-  conservative placeholder, not the final eligibility rule.
-- **History is not an alias.** A rename writes immutable
-  `category_name_history` evidence and nothing else. A former label becomes
-  resolvable only when someone explicitly registers a `category_aliases` row,
-  and retiring that alias to `history_only` releases the label again — ordinary
-  former names are never permanently reserved.
+- **Rename does not exist here, for anyone.** Any change to `categories.name`
+  is refused for every role, the database owner's ordinary `UPDATE` included.
+  Category text still carries financial meaning — `transactions.category`,
+  `category_rules.category` and `041`'s classification all read it — and
+  SHR-157 R12 requires a measurable zero-text-semantic-consumer inventory
+  before a label may change. `updateCategory` in the app therefore has no
+  working rename path after this migration; group and icon edits are
+  unaffected.
+- **Archive does not exist here either.** Archive and reactivation are refused
+  for every role, again including ordinary owner DML, and **no eligibility
+  predicate is consulted**: a placeholder that let some archives through would
+  be an operational archive algorithm, and SHR-167 owns the current-plan
+  predicate while SHR-160 owns atomic rule lifecycle. The one place an archive
+  timestamp may appear is an `INSERT` on the operator path, which is what a
+  backup re-import does; that cannot become an archive capability, because
+  archiving a live category that way would mean deleting it first and `DELETE`
+  is refused for every role.
+- **History is not an alias.** The rename-history writer stays wired even
+  though no rename can reach it, so whichever package meets the gate inherits
+  working evidence rather than an untested trigger; QA exercises it through an
+  owner-DDL fixture, never a callable path. A former label becomes resolvable
+  only when someone explicitly registers a `category_aliases` row, and retiring
+  that alias to `history_only` releases the label again — ordinary former names
+  are never permanently reserved.

@@ -32,6 +32,36 @@ async function makeCategory(client, name, group = 'Wants') {
   return rows[0]
 }
 
+/**
+ * The only way to produce rename evidence after this package: disable the
+ * lifecycle guard by owner DDL inside the test's own transaction, rename, and
+ * re-enable it.
+ *
+ * This is deliberately not a path anything can call. It needs table ownership
+ * and a schema-level ALTER, so no product surface, API role or service role
+ * reaches it, and it is not a rename capability — it is the fixture that keeps
+ * the history substrate honest, so whichever package eventually meets
+ * SHR-157's zero-text-semantic-consumer gate inherits working evidence rather
+ * than an untested trigger.
+ */
+async function renameUnderDisabledGuardFixture(client, id, newName) {
+  await client.query('alter table public.categories disable trigger categories_lifecycle_guard')
+  try {
+    await client.query(`update public.categories set name = $2 where id = $1`, [id, newName])
+  } finally {
+    await client.query('alter table public.categories enable trigger categories_lifecycle_guard')
+  }
+}
+
+/** An archived category, reachable only the way a backup re-import reaches it. */
+async function restoreArchivedCategory(client, name) {
+  const { rows } = await client.query(
+    `insert into public.categories (name, "group", archived_at) values ($1, 'Wants', now()) returning *`,
+    [name]
+  )
+  return rows[0]
+}
+
 async function makeSystemCategory(client, name, code) {
   const category = await makeCategory(client, name)
   const { rows } = await client.query(
@@ -254,7 +284,109 @@ for (const role of ['authenticated', 'service_role']) {
       await client.query('reset role')
     })
   })
+
+  test(`${role} cannot rename an ordinary category either`, async () => {
+    await withTx(async (client) => {
+      // SHR-157 R12: no display label may change until a measurable
+      // zero-text-semantic-consumer inventory is zero. transactions.category,
+      // category_rules.category and 041's classification all still read
+      // category text, so a rename can still change what a row means.
+      const category = await makeCategory(client, `SHR196 ordinary rename ${role}`)
+      await actAs(client, role, role === 'authenticated' ? SHREY_ID : null)
+      await expectReject(
+        client,
+        () =>
+          client.query(`update public.categories set name = $2 where id = $1`, [
+            category.id,
+            `SHR196 ordinary rename ${role} v2`,
+          ]),
+        /SHR196_CATEGORY_RENAME_NOT_ENABLED/
+      )
+      // The exact statement shape PostgREST issues for src/lib/categories.js's
+      // updateCategory, which sends name/group/icon together.
+      await expectReject(
+        client,
+        () =>
+          client.query(
+            `update public.categories set name = $2, "group" = 'Needs', icon = '🧾' where id = $1`,
+            [category.id, `SHR196 ordinary rename ${role} v3`]
+          ),
+        /SHR196_CATEGORY_RENAME_NOT_ENABLED/
+      )
+      await client.query('reset role')
+
+      const unchanged = await client.query(`select name from public.categories where id = $1`, [
+        category.id,
+      ])
+      assert.equal(unchanged.rows[0].name, `SHR196 ordinary rename ${role}`)
+    })
+  })
+
+  test(`${role} cannot archive or reactivate an ordinary category`, async () => {
+    await withTx(async (client) => {
+      const category = await makeCategory(client, `SHR196 ordinary archive ${role}`)
+      const archived = await restoreArchivedCategory(client, `SHR196 restored archived ${role}`)
+      await actAs(client, role, role === 'authenticated' ? SHREY_ID : null)
+      await expectReject(
+        client,
+        () => client.query(`update public.categories set archived_at = now() where id = $1`, [category.id]),
+        /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+      )
+      await expectReject(
+        client,
+        () => client.query(`update public.categories set archived_at = null where id = $1`, [archived.id]),
+        /SHR196_CATEGORY_REACTIVATION_NOT_ENABLED/
+      )
+      await expectReject(
+        client,
+        () =>
+          client.query(
+            `insert into public.categories (name, "group", archived_at) values ($1, 'Wants', now())`,
+            [`SHR196 born archived ${role}`]
+          ),
+        /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+      )
+      await client.query('reset role')
+    })
+  })
 }
+
+test('the database owner cannot rename, archive or reactivate an ordinary category either', async () => {
+  await withTx(async (client) => {
+    // The review's blocker: ordinary owner DML must not be a lifecycle
+    // capability. Only owner DDL — dropping or disabling the guard, the
+    // documented administrative trust root — can reach past this.
+    const category = await makeCategory(client, 'SHR196 owner lifecycle')
+    const archived = await restoreArchivedCategory(client, 'SHR196 owner restored archived')
+
+    await expectReject(
+      client,
+      () =>
+        client.query(`update public.categories set name = 'SHR196 owner lifecycle v2' where id = $1`, [
+          category.id,
+        ]),
+      /SHR196_CATEGORY_RENAME_NOT_ENABLED/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update public.categories set archived_at = now() where id = $1`, [category.id]),
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update public.categories set archived_at = null where id = $1`, [archived.id]),
+      /SHR196_CATEGORY_REACTIVATION_NOT_ENABLED/
+    )
+    await expectReject(
+      client,
+      () =>
+        client.query(`update public.categories set archived_at = now() + interval '1 day' where id = $1`, [
+          archived.id,
+        ]),
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+    )
+  })
+})
 
 test('the migration/operator path itself cannot reassign or clear a registered code', async () => {
   await withTx(async (client) => {
@@ -338,50 +470,54 @@ test('no path deletes an ordinary category either — removal is archive, not de
   })
 })
 
-test('production archive is unavailable to every application path', async () => {
+test('no rename, archive or reactivation API exists in any schema', async () => {
   await withTx(async (client) => {
-    const category = await makeCategory(client, 'SHR196 unarchivable by app')
-
-    await actAs(client, 'authenticated', SHREY_ID)
-    await expectReject(
-      client,
-      () => client.query(`update public.categories set archived_at = now() where id = $1`, [category.id]),
-      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
-    )
-    await expectReject(
-      client,
-      () =>
-        client.query(
-          `insert into public.categories (name, "group", archived_at) values ('SHR196 born archived', 'Wants', now())`
-        ),
-      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
-    )
-    await client.query('reset role')
-
-    await actAs(client, 'service_role')
-    await expectReject(
-      client,
-      () => client.query(`update public.categories set archived_at = now() where id = $1`, [category.id]),
-      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
-    )
-    await client.query('reset role')
-
-    // No RPC anywhere exposes archive, rename or reactivation either.
     const { rows } = await client.query(`
-      select p.proname
+      select n.nspname as schema_name, p.proname
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public'
-        and (p.proname like '%categor%')
-        and (p.proname like '%archiv%' or p.proname like '%rename%' or p.proname like '%reactivat%'
-             or p.proname like '%delete%' or p.proname like '%resolve%')
+      where n.nspname in ('public', 'private')
+        and (p.proname like '%archiv%' or p.proname like '%rename%'
+             or p.proname like '%reactivat%' or p.proname like '%unarchiv%')
     `)
-    assert.deepEqual(rows, [], 'SHR-196 must not publish a category lifecycle RPC')
+    assert.deepEqual(rows, [], 'SHR-196 must publish no rename or lifecycle-transition callable')
+
+    // Pinned rather than merely "none new": the only category-named RPC
+    // PostgREST can reach is 026's pre-existing split writer, so a lifecycle
+    // RPC added later cannot slip in unnoticed.
+    const { rows: categoryRpcs } = await client.query(`
+      select distinct p.proname
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname like '%categor%'
+      order by p.proname
+    `)
+    assert.deepEqual(
+      categoryRpcs.map(({ proname }) => proname),
+      ['replace_category_split'],
+      'SHR-196 adds no category RPC, and the inherited split writer is unchanged'
+    )
   })
 })
 
-test('archive fails closed while the budget and rule predicates are undefined', async () => {
+test('archive stays shut even for a category with no budget or rule reference', async () => {
   await withTx(async (client) => {
+    // The earlier revision let the operator archive an unreferenced category
+    // and consulted budget/rule references as a placeholder predicate. Both
+    // are gone: a placeholder that lets *some* archives through is an
+    // operational archive algorithm, and SHR-167/SHR-160 own that decision.
+    const unreferenced = await makeCategory(client, 'SHR196 unreferenced')
+    await expectReject(
+      client,
+      () =>
+        client.query(`update public.categories set archived_at = now() where id = $1`, [
+          unreferenced.id,
+        ]),
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+    )
+
+    // Referenced categories are refused by that same unconditional rule, not
+    // by a reference-specific predicate.
     const budgeted = await makeCategory(client, 'SHR196 budgeted')
     await client.query(
       `insert into public.budgets (category_id, monthly_limit, "group") values ($1, 500, 'Flexible')`,
@@ -390,7 +526,7 @@ test('archive fails closed while the budget and rule predicates are undefined', 
     await expectReject(
       client,
       () => client.query(`update public.categories set archived_at = now() where id = $1`, [budgeted.id]),
-      /SHR196_CATEGORY_ARCHIVE_BUDGET_PREDICATE_UNDEFINED/
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
     )
 
     const ruled = await makeCategory(client, 'SHR196 ruled')
@@ -401,36 +537,84 @@ test('archive fails closed while the budget and rule predicates are undefined', 
     await expectReject(
       client,
       () => client.query(`update public.categories set archived_at = now() where id = $1`, [ruled.id]),
-      /SHR196_CATEGORY_ARCHIVE_RULE_LIFECYCLE_UNDEFINED/
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
     )
+
+    // And no budget or rule row was disturbed by the refusals.
+    const { rows } = await client.query(
+      `select
+         (select count(*)::integer from public.budgets where category_id = $1) as budget_rows,
+         (select count(*)::integer from public.category_rules where category = $2) as rule_rows`,
+      [budgeted.id, ruled.name]
+    )
+    assert.equal(rows[0].budget_rows, 1)
+    assert.equal(rows[0].rule_rows, 1)
   })
 })
 
-test('the lifecycle fields themselves work structurally on the operator path', async () => {
+test('the migration consults no archive eligibility predicate at all', () => {
+  assert.doesNotMatch(
+    MIGRATION_SOURCE,
+    /PREDICATE_UNDEFINED|RULE_LIFECYCLE_UNDEFINED/,
+    'the placeholder budget/rule archive predicates must be gone, not merely unreachable'
+  )
+  assert.doesNotMatch(
+    MIGRATION_SOURCE,
+    /from public\.budgets/i,
+    'the lifecycle guard must not read budgets — that is SHR-167 semantics'
+  )
+  assert.doesNotMatch(
+    MIGRATION_SOURCE,
+    /from public\.category_rules/i,
+    'the lifecycle guard must not read category rules — that is SHR-160 semantics'
+  )
+})
+
+test('updated_at stays database-authored on the presentation edits that remain allowed', async () => {
   await withTx(async (client) => {
-    // Archive is not a product capability, but the substrate a later package
-    // builds on has to be real rather than decorative.
     const category = await makeCategory(client, 'SHR196 lifecycle substrate')
-    // updated_at is written by the database, not accepted from the caller: a
-    // client-supplied value is overwritten rather than trusted.
+    // A caller-supplied value is overwritten rather than trusted.
     await client.query(
-      `update public.categories set archived_at = now(), updated_at = '2000-01-01T00:00:00Z' where id = $1`,
+      `update public.categories set icon = '🧾', updated_at = '2000-01-01T00:00:00Z' where id = $1`,
       [category.id]
     )
-    const archived = await client.query(
-      `select archived_at, updated_at, updated_at = now() as database_authored
+    const { rows } = await client.query(
+      `select icon, archived_at, updated_at = now() as database_authored
        from public.categories where id = $1`,
       [category.id]
     )
-    assert.notEqual(archived.rows[0].archived_at, null)
-    assert.equal(archived.rows[0].database_authored, true, 'updated_at is database-authored')
+    assert.equal(rows[0].icon, '🧾')
+    assert.equal(rows[0].archived_at, null, 'a presentation edit must not touch lifecycle state')
+    assert.equal(rows[0].database_authored, true, 'updated_at is database-authored')
+  })
+})
 
-    await client.query(`update public.categories set archived_at = null where id = $1`, [category.id])
-    const reactivated = await client.query(
-      `select archived_at from public.categories where id = $1`,
-      [category.id]
+test('archived state is representable, but only the way a restore reaches it', async () => {
+  await withTx(async (client) => {
+    // The lifecycle column has to be real rather than decorative, and a backup
+    // re-import has to be able to put a historically archived row back. That
+    // is an INSERT of a row that does not exist — never a transition on a live
+    // one, because archiving a live category through INSERT would mean
+    // deleting it first, and DELETE is refused for every role.
+    const restored = await restoreArchivedCategory(client, 'SHR196 archived by restore')
+    assert.notEqual(restored.archived_at, null)
+
+    const live = await makeCategory(client, 'SHR196 live category')
+    await expectReject(
+      client,
+      () => client.query(`delete from public.categories where id = $1`, [live.id]),
+      /SHR196_CATEGORY_DELETE_FORBIDDEN/
     )
-    assert.equal(reactivated.rows[0].archived_at, null)
+    await expectReject(
+      client,
+      () => client.query(`update public.categories set archived_at = now() where id = $1`, [live.id]),
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+    )
+    await expectReject(
+      client,
+      () => client.query(`update public.categories set archived_at = null where id = $1`, [restored.id]),
+      /SHR196_CATEGORY_REACTIVATION_NOT_ENABLED/
+    )
   })
 })
 
@@ -456,15 +640,15 @@ test('category identity and creation evidence are immutable', async () => {
 
 // ── 5. History versus aliases ────────────────────────────────────────────
 
-test('a rename records immutable history and creates no resolver alias', async () => {
+test('the rename-history substrate records evidence and creates no resolver alias', async () => {
   await withTx(async (client) => {
+    // Production rename is shut, so this is the only way to reach the history
+    // writer at all — owner DDL, inside this transaction. It proves the
+    // substrate whichever package meets the zero-text-semantic-consumer gate
+    // will inherit; it is not a rename path anything can call.
     const category = await makeCategory(client, 'SHR196 before rename')
-
-    await actAs(client, 'authenticated', SHREY_ID)
-    await client.query(`update public.categories set name = 'SHR196 after rename' where id = $1`, [
-      category.id,
-    ])
-    await client.query('reset role')
+    await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [SHREY_ID])
+    await renameUnderDisabledGuardFixture(client, category.id, 'SHR196 after rename')
 
     const { rows: history } = await client.query(
       `select previous_name, new_name, changed_by_access_user_id, change_reason_code, schema_version
@@ -476,21 +660,30 @@ test('a rename records immutable history and creates no resolver alias', async (
     assert.equal(history[0].new_name, 'SHR196 after rename')
     assert.equal(history[0].changed_by_access_user_id, SHREY_ID, 'the access actor is recorded, not inferred')
     assert.equal(history[0].change_reason_code, 'direct_name_change')
+    assert.equal(history[0].schema_version, 1)
 
     const { rows: aliases } = await client.query(
       `select count(*)::integer as aliases from public.category_aliases where category_id = $1`,
       [category.id]
     )
     assert.equal(aliases[0].aliases, 0, 'history must never silently become an active resolver alias')
+
+    // And with the guard back on, the same rename is refused again.
+    await expectReject(
+      client,
+      () =>
+        client.query(`update public.categories set name = 'SHR196 third name' where id = $1`, [
+          category.id,
+        ]),
+      /SHR196_CATEGORY_RENAME_NOT_ENABLED/
+    )
   })
 })
 
 test('immutable history cannot be updated or deleted by any path', async () => {
   await withTx(async (client) => {
     const category = await makeCategory(client, 'SHR196 history immutability')
-    await client.query(`update public.categories set name = 'SHR196 history immutability v2' where id = $1`, [
-      category.id,
-    ])
+    await renameUnderDisabledGuardFixture(client, category.id, 'SHR196 history immutability v2')
 
     await expectReject(
       client,
@@ -509,9 +702,7 @@ test('immutable history cannot be updated or deleted by any path', async () => {
 test('a historical label is not globally reserved just because it appears in history', async () => {
   await withTx(async (client) => {
     const category = await makeCategory(client, 'SHR196 released label')
-    await client.query(`update public.categories set name = 'SHR196 released label v2' where id = $1`, [
-      category.id,
-    ])
+    await renameUnderDisabledGuardFixture(client, category.id, 'SHR196 released label v2')
     const reused = await makeCategory(client, 'SHR196 released label')
     assert.equal(reused.name, 'SHR196 released label')
   })
@@ -520,9 +711,7 @@ test('a historical label is not globally reserved just because it appears in his
 test('an alias distinguishes compatibility-active from retired history-only state', async () => {
   await withTx(async (client) => {
     const category = await makeCategory(client, 'SHR196 alias owner')
-    await client.query(`update public.categories set name = 'SHR196 alias owner v2' where id = $1`, [
-      category.id,
-    ])
+    await renameUnderDisabledGuardFixture(client, category.id, 'SHR196 alias owner v2')
     const { rows: history } = await client.query(
       `select name_history_id from public.category_name_history where category_id = $1`,
       [category.id]
@@ -819,7 +1008,7 @@ test('anon reaches no category lifecycle mutation', async () => {
 
 // ── 7. Consumer behaviour is untouched ───────────────────────────────────
 
-test('the household can still create and rename ordinary categories exactly as before', async () => {
+test('the household can still create categories and make the presentation edits that remain approved', async () => {
   await withTx(async (client) => {
     await actAs(client, 'authenticated', SHREY_ID)
     const { rows: created } = await client.query(
@@ -828,11 +1017,25 @@ test('the household can still create and rename ordinary categories exactly as b
     assert.equal(created[0].system_code, null, 'a new category is ordinary by default')
     assert.equal(created[0].archived_at, null)
 
-    const { rows: renamed } = await client.query(
-      `update public.categories set name = 'SHR196 v1 parity renamed' where id = $1 returning name`,
+    // Group and icon are presentation metadata with no financial meaning, so
+    // editing them stays available exactly as before.
+    const { rows: edited } = await client.query(
+      `update public.categories set "group" = 'Wants', icon = '🎁' where id = $1 returning name, "group", icon`,
       [created[0].id]
     )
-    assert.equal(renamed[0].name, 'SHR196 v1 parity renamed')
+    assert.equal(edited[0].name, 'SHR196 v1 parity', 'the name is untouched by a presentation edit')
+    assert.equal(edited[0].group, 'Wants')
+    assert.equal(edited[0].icon, '🎁')
+
+    // The name is not, because category text still carries financial meaning.
+    await expectReject(
+      client,
+      () =>
+        client.query(`update public.categories set name = 'SHR196 v1 parity renamed' where id = $1`, [
+          created[0].id,
+        ]),
+      /SHR196_CATEGORY_RENAME_NOT_ENABLED/
+    )
     await client.query('reset role')
   })
 })
@@ -874,9 +1077,7 @@ test('legacy Transfer and Savings & Investments classification behaviour is unch
 test('the encrypted backup covers the new evidence and a restore preserves it', async () => {
   await withTx(async (client) => {
     const category = await makeCategory(client, 'SHR196 backup subject')
-    await client.query(`update public.categories set name = 'SHR196 backup subject v2' where id = $1`, [
-      category.id,
-    ])
+    await renameUnderDisabledGuardFixture(client, category.id, 'SHR196 backup subject v2')
     const { rows: historyRows } = await client.query(
       `select name_history_id from public.category_name_history where category_id = $1`,
       [category.id]
@@ -887,6 +1088,7 @@ test('the encrypted backup covers the new evidence and a restore preserves it', 
     )
     await client.query(`select private.retire_category_alias_v1($1::uuid)`, [aliasRows[0].alias_id])
     const system = await makeSystemCategory(client, 'SHR196 backup anchor', 'transfer')
+    const archived = await restoreArchivedCategory(client, 'SHR196 backup archived')
 
     // PostgREST exports every row as JSON, so timestamps stay exact strings.
     const asJson = async (sql, params) =>
@@ -894,7 +1096,7 @@ test('the encrypted backup covers the new evidence and a restore preserves it', 
 
     const categories = await asJson(
       `select to_jsonb(c) as row from public.categories c where c.id = any($1::uuid[])`,
-      [[category.id, system.id]]
+      [[category.id, system.id, archived.id]]
     )
     const history = await asJson(
       `select to_jsonb(h) as row from public.category_name_history h where h.category_id = $1`,
@@ -953,9 +1155,18 @@ test('the encrypted backup covers the new evidence and a restore preserves it', 
     )
     const sourceCategories = await asJson(
       `select to_jsonb(c) as row from public.categories c where c.id = any($1::uuid[]) order by c.name`,
-      [[category.id, system.id]]
+      [[category.id, system.id, archived.id]]
     )
-    assert.deepEqual(restoredCategories, sourceCategories, 'ids, names, codes and lifecycle survive')
+    assert.deepEqual(
+      restoredCategories,
+      sourceCategories,
+      'ids, names, system codes and archive state survive'
+    )
+    assert.equal(
+      restoredCategories.filter((row) => row.archived_at !== null).length,
+      1,
+      'a historically archived category must survive the round trip archived'
+    )
     assert.deepEqual(
       await asJson(`select to_jsonb(r) as row from restored_category_name_history r`),
       history,

@@ -14,6 +14,21 @@ export async function createCategory(category) {
   return data
 }
 
+/**
+ * Presentation edits only, from migration 046 onward.
+ *
+ * The database refuses any change to `categories.name` for every role, because
+ * category text still carries financial meaning (`transactions.category`,
+ * `category_rules.category`, and 041's canonical classification all read it),
+ * and SHR-157 requires a measurable zero-text-semantic-consumer gate before a
+ * label may change. Group and icon edits are unaffected and still work.
+ *
+ * This helper is left as-is on purpose: the database is the single authority
+ * on what may change, and duplicating the rule here would create a second,
+ * weaker one. A rename attempt therefore fails at the database with
+ * `SHR196_CATEGORY_RENAME_NOT_ENABLED`; surfacing that to the household is
+ * SHR-158's Settings work, not this package's.
+ */
 export async function updateCategory(id, patch) {
   const { data, error } = await supabase.from('categories').update(patch).eq('id', id).select().single()
   if (error) throw error

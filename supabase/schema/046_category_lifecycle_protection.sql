@@ -9,15 +9,24 @@
 --   * no category is given a system code here, and none is inferred from a
 --     name — after this migration every categories.system_code is still NULL;
 --   * no transaction or category-rule stable reference is added or backfilled;
---   * no rename API, archive API, reactivate API or resolver is enabled;
+--   * no rename, archive, reactivate or resolver path exists — not as an API,
+--     and not as ordinary DML for any role, the database owner included;
 --   * no financial classification, budget actual, canonical view, Telegram
 --     path or consumer read changes.
 --
 -- What it does add is the boundary the later packages depend on: a closed
 -- system-code vocabulary, an assignment path only the migration/operator
 -- authority can use, immutability of an assigned code, protection of a system
--- category from archive and delete, a fail-closed archive path, immutable
--- rename history, and an explicitly separate alias lifecycle.
+-- category from archive and delete, fully fail-closed rename and archive,
+-- immutable rename history, and an explicitly separate alias lifecycle.
+--
+-- One distinction runs through the guards and is worth stating once, because
+-- it is the whole shape of this package: an operational lifecycle transition
+-- is unavailable, while restoring historical state stays possible through the
+-- narrowest mechanism that can do it. Concretely, UPDATE is refused for every
+-- rename, archive and reactivation, and only an INSERT — a row that does not
+-- exist yet, which is what a backup re-import writes — may carry an archive
+-- timestamp, and then only on the migration/operator path.
 
 begin;
 
@@ -58,7 +67,7 @@ alter table public.categories add constraint categories_system_not_archivable_ch
 comment on column public.categories.system_code is
   'SHR-196 controlled system semantic. NULL for every ordinary category and for every row today. Only transfer and savings_investment are accepted; assignment is a migration/operator action (SHR-197), and an assigned code is immutable to every ordinary path. It is not an authorization concept and never participates in RLS.';
 comment on column public.categories.archived_at is
-  'SHR-196 lifecycle substrate. NULL is active. No product or API archive path is enabled: SHR-167 owns the current-budget predicate and SHR-160 owns atomic rule lifecycle, so archive fails closed until both exist.';
+  'SHR-196 lifecycle substrate. NULL is active. Archive and reactivation are fail-closed for every role including the database owner: SHR-167 owns the current-budget predicate and SHR-160 owns atomic rule lifecycle, and no eligibility predicate is consulted here because defining one would be an archive algorithm SHR-196 has no authority to write. Only a restore INSERT on the operator path may carry a historical archive timestamp.';
 comment on column public.categories.updated_at is
   'Database-authored. Set by the lifecycle guard on every UPDATE; seeded from created_at for rows that predate SHR-196.';
 
@@ -218,44 +227,39 @@ begin
       raise exception 'SHR196_SYSTEM_CODE_ASSIGNMENT_FORBIDDEN' using errcode = '42501';
     end if;
 
+    -- Lifecycle transition is unavailable in SHR-196, for every role. An
+    -- UPDATE is how an existing category would actually be archived or
+    -- reactivated in production, so this is the capability that has to stay
+    -- shut: SHR-167 owns what a "currently active" budget plan means and
+    -- SHR-160 owns deterministic, atomic rule enable/disable, and neither
+    -- exists yet. Deliberately no eligibility predicate is consulted — a
+    -- placeholder that let *some* archives through would be an operational
+    -- archive algorithm this package has no authority to define.
     if new.archived_at is distinct from old.archived_at then
       if coalesce(new.system_code, old.system_code) is not null then
         raise exception 'SHR196_SYSTEM_CATEGORY_ARCHIVE_FORBIDDEN' using errcode = '55000';
       end if;
-      if not v_operator then
-        raise exception 'SHR196_CATEGORY_ARCHIVE_NOT_ENABLED' using errcode = '55000';
+      if old.archived_at is not null and new.archived_at is null then
+        raise exception 'SHR196_CATEGORY_REACTIVATION_NOT_ENABLED' using errcode = '55000';
       end if;
-      if old.archived_at is null and new.archived_at is not null then
-        -- Fail closed rather than invent the missing predicates. SHR-167 owns
-        -- what a "currently active" budget plan means and SHR-160 owns
-        -- deterministic rule enable/disable; until both exist, any reference
-        -- blocks archive. This is a temporary conservative block, not the
-        -- final eligibility rule, and historical references must not block
-        -- lifecycle forever.
-        if exists (select 1 from public.budgets b where b.category_id = old.id) then
-          raise exception 'SHR196_CATEGORY_ARCHIVE_BUDGET_PREDICATE_UNDEFINED' using errcode = '55000';
-        end if;
-        if exists (select 1 from public.category_rules r where r.category = old.name) then
-          raise exception 'SHR196_CATEGORY_ARCHIVE_RULE_LIFECYCLE_UNDEFINED' using errcode = '55000';
-        end if;
-      end if;
+      raise exception 'SHR196_CATEGORY_ARCHIVE_NOT_ENABLED' using errcode = '55000';
     end if;
 
+    -- Rename is likewise shut for every role. SHR-157 R12 requires a
+    -- measurable zero-text-semantic-consumer inventory before a display label
+    -- may change, and today `transactions.category`, `category_rules.category`
+    -- and the canonical classification in 041 all still read category text —
+    -- so a rename can still change what a row means. SHR-196 is foundation
+    -- only and introduces no rename path, product or operator.
+    --
+    -- The history substrate below stays in place rather than waiting for that
+    -- package: when the gate is met and this branch is relaxed, evidence
+    -- recording is already wired in and cannot be forgotten.
     if new.name is distinct from old.name then
-      -- Display-only rename of a registered system category is blocked while
-      -- any consumer still reads category text. SHR-157 R12 requires a
-      -- measurable zero-text-semantic-consumer inventory before it opens.
-      if old.system_code is not null and not v_operator then
+      if old.system_code is not null then
         raise exception 'SHR196_SYSTEM_CATEGORY_RENAME_FORBIDDEN' using errcode = '55000';
       end if;
-      if exists (
-        select 1 from public.category_aliases a
-        where a.state = 'compatibility_active'
-          and a.alias_name = new.name
-          and a.category_id <> new.id
-      ) then
-        raise exception 'SHR196_CATEGORY_NAME_ALIAS_CONFLICT' using errcode = '23505';
-      end if;
+      raise exception 'SHR196_CATEGORY_RENAME_NOT_ENABLED' using errcode = '55000';
     end if;
 
     new.updated_at := now();
@@ -266,6 +270,16 @@ begin
   if new.system_code is not null and not v_operator then
     raise exception 'SHR196_SYSTEM_CODE_ASSIGNMENT_FORBIDDEN' using errcode = '42501';
   end if;
+
+  -- The one place an archived category may appear is a restore. Re-importing
+  -- an encrypted backup has to be able to put a historically archived row
+  -- back exactly as it was, and that is an INSERT of a row that does not
+  -- exist, not a lifecycle transition on one that does.
+  --
+  -- This cannot be turned into an archive capability: archiving a live
+  -- category through INSERT would mean deleting it first, and DELETE is
+  -- refused for every role including the operator. Application roles are
+  -- refused here outright.
   if new.archived_at is not null and not v_operator then
     raise exception 'SHR196_CATEGORY_ARCHIVE_NOT_ENABLED' using errcode = '55000';
   end if;
@@ -303,7 +317,7 @@ end;
 $$;
 
 comment on function private.record_category_name_history() is
-  'SHR-196 trigger-only history writer. It records evidence of a rename; it never registers a compatibility alias, which is a separate explicit decision.';
+  'SHR-196 trigger-only history writer. It records evidence of a rename; it never registers a compatibility alias, which is a separate explicit decision. No production rename reaches it while the lifecycle guard refuses every name change: it is wired now so that whichever package meets the zero-text-semantic-consumer gate cannot enable rename without evidence, and it is exercised in QA through an isolated owner-DDL fixture rather than through any callable rename path.';
 
 create or replace function private.reject_category_history_mutation()
 returns trigger

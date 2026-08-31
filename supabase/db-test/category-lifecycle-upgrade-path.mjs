@@ -190,29 +190,85 @@ try {
   await assertUpgradeInvariants('046 rerun')
 
   // And the guards are live on the upgraded database, not only on a fresh one.
-  await client.query('begin')
-  await client.query('set local role authenticated')
-  await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [
-    '00000000-0000-0000-0000-000000000001',
-  ])
-  await assert.rejects(
-    client.query(
-      `update public.categories set system_code = 'transfer' where name = 'Transfer'`
-    ),
+  // Each probe runs in its own aborted transaction so nothing persists.
+  async function refuses(role, sql, expected) {
+    await client.query('begin')
+    try {
+      if (role) {
+        await client.query(`set local role ${role}`)
+        if (role === 'authenticated') {
+          await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [
+            '00000000-0000-0000-0000-000000000001',
+          ])
+        }
+      }
+      await assert.rejects(client.query(sql), expected, `${role ?? 'operator'}: ${sql}`)
+    } finally {
+      await client.query('rollback')
+    }
+  }
+
+  for (const role of ['authenticated', 'service_role', null]) {
+    // Rename is fail-closed for the application, the service path and the
+    // database owner's ordinary DML alike.
+    await refuses(
+      role,
+      `update public.categories set name = 'Renamed' where name = 'Other'`,
+      /SHR196_CATEGORY_RENAME_NOT_ENABLED/
+    )
+    // ...as are archive and reactivation, with no eligibility predicate
+    // consulted for either.
+    await refuses(
+      role,
+      `update public.categories set archived_at = now() where name = 'Other'`,
+      /SHR196_CATEGORY_ARCHIVE_NOT_ENABLED/
+    )
+    await refuses(
+      role,
+      `delete from public.categories where name = 'Other'`,
+      /SHR196_CATEGORY_DELETE_FORBIDDEN/
+    )
+  }
+
+  await refuses(
+    'authenticated',
+    `update public.categories set system_code = 'transfer' where name = 'Transfer'`,
     /SHR196_SYSTEM_CODE_ASSIGNMENT_FORBIDDEN/
   )
-  await client.query('rollback')
 
+  // Reactivation needs an archived row, which only the restore INSERT can
+  // produce — and that row is then just as frozen as every other.
   await client.query('begin')
-  await client.query('set local role authenticated')
-  await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [
-    '00000000-0000-0000-0000-000000000001',
-  ])
-  await assert.rejects(
-    client.query(`delete from public.categories where name = 'Other'`),
-    /SHR196_CATEGORY_DELETE_FORBIDDEN/
-  )
-  await client.query('rollback')
+  try {
+    const restored = await client.query(
+      `insert into public.categories (name, "group", archived_at)
+       values ('SHR-196 upgrade archived marker', 'Wants', now()) returning id`
+    )
+    await assert.rejects(
+      client.query(`update public.categories set archived_at = null where id = $1`, [
+        restored.rows[0].id,
+      ]),
+      /SHR196_CATEGORY_REACTIVATION_NOT_ENABLED/
+    )
+  } finally {
+    await client.query('rollback')
+  }
+
+  // The presentation edits the contract still approves keep working.
+  await client.query('begin')
+  try {
+    await client.query('set local role authenticated')
+    await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [
+      '00000000-0000-0000-0000-000000000001',
+    ])
+    const edited = await client.query(
+      `update public.categories set icon = '🧾' where name = 'Other' returning name, icon`
+    )
+    assert.equal(edited.rows[0].name, 'Other')
+    assert.equal(edited.rows[0].icon, '🧾')
+  } finally {
+    await client.query('rollback')
+  }
 
   console.log('SHR-196 through-044 → 045 → 046 upgrade and restart paths passed.')
 } finally {

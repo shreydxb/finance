@@ -137,11 +137,21 @@ new table's export/restore shape, not a claim that a full production re-import
 of every table has been rehearsed.
 
 SHR-196 extends the same drill to category identity. A category carrying a
-system code, a renamed category, its immutable rename history and a retired
-alias are exported through the manifest, restored into clean tables with the
-production constraints, and compared exactly — ids, names, system codes,
-archive state, history and alias lifecycle all survive. The restored copy is
-then re-checked: an unapproved system code and a duplicate system anchor are
+system code, a historically archived category, a renamed category, its
+immutable rename history and a retired alias are exported through the manifest,
+restored into clean tables with the production constraints, and compared
+exactly — ids, names, system codes, archive state, history and alias lifecycle
+all survive, and the archived row comes back archived.
+
+That archived row is why the lifecycle guard treats `INSERT` and `UPDATE`
+differently. Archive and reactivation are refused for every role as lifecycle
+transitions, but a re-import has to be able to write a row that was already
+archived when the backup was taken, so an `INSERT` on the operator path may
+carry an archive timestamp. It cannot be turned into an archive capability:
+archiving a live category that way would mean deleting it first, and `DELETE`
+is refused for every role.
+
+The restored copy is then re-checked: an unapproved system code and a duplicate system anchor are
 still rejected, an archived system category is still impossible, history is
 still immutable, and — once the lifecycle guard is re-attached — `history_only`
 is still terminal and alias evidence is still undeletable. Both new tables are
