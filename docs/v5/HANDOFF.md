@@ -1,60 +1,107 @@
-# Our Money v6 handoff — SHR-196 category lifecycle and system-code protection foundation
+# Our Money v6 handoff — SHR-194 evidence-reviewed access-to-party reconciliation and mapping lifecycle
 
 Date: 31 August 2026
 
-Branch: `claude/shr-196-category-lifecycle-v4j5ov`
+Branch: `claude/shr-194-access-party-reconciliation-bwwjly`
 
-Exact reviewed base: `3662be1c589b9c01fc74302098abceb3fbe2363e` (SHR-191, `main`)
+Exact reviewed base: `6fcbaa8752b1ef06ea6159534a471e3a0fac5abb` (SHR-193, `main`)
 
-The immutable PR head, PR URL, and final CI conclusions are recorded in the SHR-196 Linear implementation handoff because embedding a commit's own SHA would change it.
+The immutable PR head, PR URL, and final CI conclusions are recorded in the SHR-194 Linear implementation handoff because embedding a commit's own SHA would change it.
 
 ## Outcome
 
-This bounded Tier-3 package is P02 in the V6.0 convergence sequence: the database substrate that must exist before category stable-reference reconciliation. It adds lifecycle and system-code protection to `categories`, immutable rename history, and an explicitly separate alias lifecycle.
+This bounded Tier-3 package is P04 in the V6.0 convergence sequence: the reconciliation and lifecycle layer on top of SHR-193's empty economic identity substrate. It adds a read-only preflight, a transactional evidence-gated manifest path, the audited mapping create/change/deactivate lifecycle, immutable decision history, the SHR-191 typed audit policy for mapping decisions, and one narrow context API.
 
-It is deliberately dormant from the product's point of view. No category receives a system code, nothing is backfilled, no rename or archive path becomes usable, no resolver exists, and no consumer, classification, budget actual, canonical view, Telegram path or UI behaviour changes.
+**It is capability, not data.** Applying migration `048` creates no economic household, no party, no mapping decision and no audit event. Rows appear only when a separately approved manifest is applied, and **no manifest is approved** — see "Production manifest" below. No financial consumer behaviour changes, no financial RLS policy differs, and no historical financial fact is read for inference or written.
 
 ## Database contract
 
-Migration `046_category_lifecycle_protection.sql` adds:
+Migration `048_access_party_reconciliation.sql` adds:
 
-- `categories.system_code` — nullable, uniquely indexed where present, constrained to exactly `transfer` and `savings_investment`, NULL on every row after the migration;
-- `categories.archived_at` — nullable lifecycle field, NULL is active;
-- `categories.updated_at` — database-authored, seeded from each row's own `created_at`;
-- `public.category_name_history` — immutable rename evidence written by a trigger, with a closed reason vocabulary and the access identity from `auth.uid()` where one exists;
-- `public.category_aliases` — explicitly registered compatibility aliases with a `compatibility_active` → terminal `history_only` lifecycle and a partial unique index that constrains only active aliases;
-- `private.guard_category_lifecycle()` and the alias/history guards — invoker-mode triggers, so the acting role is real;
-- `private.assign_category_system_code_v1(...)`, `private.register_category_alias_v1(...)` and `private.retire_category_alias_v1(...)` — named operator paths for SHR-197 and SHR-198, executable by no API role and called by nothing in this package.
+- `public.access_party_mapping_history` — append-only per-decision history with a monotonic `decision_version`, the before and after status and party of each transition, the database-authored decision time, the acting access identity and the evidence reference. Composite foreign keys bind the row to its own mapping's household and both party references to that same household;
+- `public.access_party_reconciliation_runs` — the immutable record of an applied manifest, keyed by a unique manifest reference and carrying the manifest digest and the roster digest actually proven at apply time;
+- `private.access_roster_digest_v1()`, `private.access_party_preflight_v1()`, `private.access_party_roster_v1()` — the read-only preflight;
+- `private.create_economic_party_v1(...)` — approved party creation;
+- `private.set_access_party_mapping_v1(...)`, `private.deactivate_access_party_mapping_v1(...)`, `private.current_access_party_mapping_v1(...)` — the ordinary lifecycle;
+- `private.reconcile_access_parties_v1(...)` — the transactional manifest path;
+- `public.access_scope_context_v1(p_economic_household_id default null)` — the context API, the only product surface this package adds;
+- `private.reject_access_party_evidence_mutation()` / `..._truncate()` and their triggers — append-only enforcement on both new tables;
+- an additive unique constraint on `access_party_mappings (mapping_id, household_id)`, added only so the history table's composite foreign key has something to target. It is implied by the primary key and constrains nothing new.
 
-## Protection model
+It also widens three `audit_events` check constraints additively and replaces two function bodies. Both SHR-191 QA branches are reproduced verbatim, so every 045 assertion and every existing payload digest is unaffected.
 
-Assignment of a system code is reachable only from the database-owner/migration authority — the role that owns `public.categories`, of which `anon`, `authenticated` and `service_role` are not members. Once assigned, no path the guard can see may change or clear the code, operator included: reassignment would silently move a financial semantic between rows. A registered system category can never be archived or deleted, enforced by both the guard and `categories_system_not_archivable_check`, and its rename is rejected by a distinct, more specific error.
+## Mapping lifecycle
 
-Category hard delete is refused for every role and TRUNCATE is refused on all three tables.
+`create` is an ordinary `INSERT`, `change` and `deactivate` are ordinary `UPDATE`s — which is exactly what makes SHR-193's lifecycle trigger author the decision timestamp. Every transition writes one history row and one audit event in the same transaction.
 
-**Rename, archive and reactivation are fail-closed for every role, the database owner's ordinary DML included.** Category text still carries financial meaning — `transactions.category`, `category_rules.category` and `041`'s classification all read it — so SHR-157 R12's measurable zero-text-semantic-consumer inventory must be zero before a label may change. And no archive eligibility predicate is consulted at all: a placeholder that let some archives through would be an operational archive algorithm, not a deferral. SHR-167 owns the current-plan predicate; SHR-160 owns atomic rule lifecycle.
+**"Archive" means what the SHR-193 schema can express.** That schema gave *parties* an archive lifecycle and gave mappings three statuses and no archive column, so deactivating a mapping moves the decision to `access_only`. Household authorization is untouched, the mapping row and its whole history survive, the party survives, and the withdrawal is itself a new audited decision. No mapping row is ever deleted and no `archived_at` column was invented for one.
 
-The line the guards draw is between an operational lifecycle transition and the restoration of historical state. A transition is an `UPDATE` on a row that exists, and every rename, archive and reactivation is refused. A restore is an `INSERT` of a row that does not exist, and only there — and only on the operator path — may an archive timestamp appear, because an encrypted backup has to be re-importable exactly as it was. That is not a back door: archiving a live category through `INSERT` would mean deleting it first, and `DELETE` is refused for every role.
+**Re-applying a decision already exactly in force is an explicit no-op**: no new decision time, no history row, no audit event, and the call reports `changed = false`. That is not a swallowed mismatch — there is nothing different to record — and it is what makes a retry safe. A decision that differs in any way is a real change and is recorded as one.
 
-Rename history and resolver aliases stay separate. The history writer stays wired even though no rename can reach it, so whichever package meets the gate inherits working evidence rather than an untested trigger; QA exercises it through an isolated owner-DDL fixture — disabling the guard inside the test's own transaction — which needs table ownership and a schema-level ALTER and is therefore reachable by no product surface, API role or service role. A former label becomes resolvable only through an explicit alias registration, and retiring that alias releases the label rather than reserving an ordinary former name forever. Collision handling is exact text equality on purpose: no normalization algorithm has been specified or reviewed, and inventing one would have created a second authoritative identity rule.
+Concurrency is deterministic and fail-closed at three independent levels: a transaction-scoped advisory lock on the exact decision subject, `SELECT ... FOR UPDATE` on the existing row, and — if both were bypassed — the unique key on `(mapping_id, decision_version)` plus SHR-193's own unique key on `(household_id, auth_user_id)`. Neither an ambiguous current state nor a lost history row is representable. A real two-connection race is exercised in the upgrade runner and proves consecutive decision versions, a single-valued current mapping, a contiguous history chain and one audit event per decision.
 
-Authorization is unchanged. Both new tables enable RLS with a single member `SELECT` policy rooted in `private.is_household_member()`; no API role holds INSERT/UPDATE/DELETE; `service_role` holds raw `SELECT` only for the encrypted export. Every new function lives in `private`, pins an empty `search_path`, and is executable by no API role. Category lifecycle and `system_code` never appear in an RLS predicate, and no taxonomy administrator role is invented. As with SHR-191, trigger-based protection binds ordinary and accidentally over-granted application paths while the database owner remains the documented administrative trust root.
+## The SHR-193 restore boundary is not used
 
-## Bounded application containment
+`private.restore_access_party_mapping_v1()` remains SHR-193's administrative disaster-recovery path and is not this package's writer. Proven four ways:
 
-`src/lib/categories.js`'s `deleteCategory` no longer issues a destructive request. v6 approved no user or API category hard delete, and migration `046` enforces that at the database boundary for every path; leaving the client helper issuing a `DELETE` would have meant sending a request that can only fail. The Settings screen still imports it and is otherwise untouched — replacing that control with archive UX is SHR-158's work, not this package's.
+- no SHR-194 function's body references it or sets `shr193.restore_mapping_id` — asserted by inspecting `pg_get_functiondef` for all nine functions, not by reading the source;
+- the ordinary writer refuses to run at all, with `SHR194_RESTORE_TOKEN_SET_ON_ORDINARY_DECISION`, if that token is set before it is called;
+- the SHR-193 lifecycle trigger is neither disabled, dropped nor replaced, asserted against `pg_trigger` on both a fresh and an upgraded database;
+- the restore function still exists exactly once, still invoker-mode, still executable by no API role.
 
-`updateCategory` is deliberately left as-is and documented rather than changed. The database is the single authority on what may change, and duplicating the rename rule in the client would create a second, weaker one; after `046` a rename attempt fails at the database with `SHR196_CATEGORY_RENAME_NOT_ENABLED`, so the helper provides no working rename path. Group and icon edits still work unchanged, which is what the household actually uses it for. Surfacing the refusal in the Settings form is SHR-158's work.
+Every ordinary new decision has its `decided_at` authored by the database, and an archived party is still refused outright on every ordinary path.
 
-Nothing else in the application changed. `listCategories` and `createCategory` behave exactly as before, and a household member can still create a category and edit its group and icon.
+## Audit contract
 
-## Backup, restore, and migration safety
+SHR-191 anticipated this: "future audited mutation RPCs may call it inside their own transaction after that action receives an independently reviewed typed policy." So `048` registers SHR-194's typed policy on the existing substrate rather than creating a parallel audit table. `private.append_audit_event_v1`'s 13-argument signature is unchanged — every 045 grant, revoke and test still applies to exactly that function — and what changed is that producer, kinds, versions, outcome code and change evidence are derived per action instead of hardcoded to the QA policy.
 
-The backup manifest now carries `category_name_history` and `category_aliases` as financial record, ordered after `categories` so a restore never violates their foreign keys. Focused coverage exports a system-coded category, a historically archived category, a renamed category, its immutable history and a retired alias through the manifest contract, restores them into isolated tables with the production constraints, and compares the complete JSON representation — including a check that the archived row comes back archived. The restored copy is then re-checked: an unapproved code and a duplicate system anchor are still rejected, an archived system category is still impossible, history is still immutable, and — once the lifecycle guard is re-attached — `history_only` is still terminal and alias evidence is still undeletable.
+Three actions: `economic.access_party_mapping.created | .changed | .deactivated`, producer `shr194.access_party_mapping`, target kind `economic.access_party_mapping` (the mapping), evidence kind `economic.access_party_mapping_decision` (the history row for that exact decision version). The **audit event derives its versions and change projection from the history row named by `p_evidence_id`**, which is the important property: an event cannot disagree with the decision it describes, and cannot exist for a decision that never happened.
 
-The migration is additive and restart-safe throughout: guarded column, constraint, index, table, function, trigger and policy creation, and a one-time `updated_at` backfill guarded by `where updated_at is null`. Upgrade coverage builds the schema through migration `044` — the exact state production is in — applies `045` then `046`, and asserts that every existing category's id, name, group, icon and `created_at` is unchanged, that no code is seeded, that nothing is archived, that `updated_at` still equals `created_at`, that no history, alias or audit row is synthesized, and that a representative transaction, the budgets and the category rules are byte-identical at the same tuple identity. It then applies `046` a second time and re-asserts all of it.
+The projection is closed to exactly seven keys — `field_code`, `before_code`, `after_code`, `before_party_id`, `after_party_id`, `household_id`, `evidence_ref_digest` — enforced by the table's own check constraint, so an extra key is rejected. It carries coded states and opaque identifiers only; the free-text evidence reference appears as a SHA-256 digest, never verbatim, so no name, email address or request body reaches audit. Acting provenance is `authenticated_user` + `operator_api` when an access identity is supplied (and SHR-191's insert trigger still requires that identity to be a current household member), or `system` + `migration` for the migration/operator authority. No new actor kind and no new surface code was introduced.
 
-The one physical change to existing rows is the `updated_at` backfill, which writes a new MVCC tuple version per category. Every value a consumer can observe is identical; that is what the upgrade comparison asserts, and it is why `ctid` stability is asserted on `transactions` rather than on `categories`.
+`public.audit_history_v1` gained the new target kind and is otherwise unchanged: same membership authorization, same redaction, Telegram sender refs still never returned.
+
+Audit failure rolls back the mutation it was recording — proven by making the audit append fail on a non-member actor and asserting no mapping, no history and no audit row survives.
+
+## Context API
+
+`public.access_scope_context_v1(p_economic_household_id default null)`, `SECURITY DEFINER`, executable by `authenticated` only, authorized by `private.is_household_member()` and nothing else.
+
+It distinguishes four states — `mapped`, `access_only`, `unreviewed`, `unmapped` — and returns the caller's economic party if any, the economic household, the active party count, and `scope_options`. Options always lead with the whole-household scope (`scope_code: 'both'`, `counted_once: true`), followed by the household's **active** economic parties; an archived party stays resolvable for historical reads but is never offered as a new choice. `Me` and `Partner` are computed presentation codes, Partner only when precisely one other active party exists, and neither is stored.
+
+Cross-household containment is structural rather than an added policy: the caller's own mapping decision names their economic household, so they can only ever see the household a reviewed decision placed them in. Naming any other household returns forbidden whether or not it exists, and a caller holding decisions in two households gets a fail-closed ambiguity error rather than a guess.
+
+It is deliberately not a financial aggregation engine. It returns no amount, no balance, no allocation, no share, weight, percentage or ratio — asserted by walking the returned structure for fractional keys and for any numeric value in the scope options at all — and no email address or Telegram identity.
+
+## Authorization, ACL and RLS
+
+Authorization is unchanged, and the upgrade runner proves it as a diff rather than a claim: the entire pre-existing policy set is byte-identical across `048`, and the financial policy set is byte-identical all the way back to the through-`044` production shape. `private.is_household_member()` is still the only predicate, no policy anywhere consults economic identity, no role is created, and no household RBAC is invented.
+
+Both new tables enable RLS. `access_party_mapping_history` gets one member `SELECT` policy — the same terms as the mapping decisions it describes, which `047` already grants members. `access_party_reconciliation_runs` follows the `audit_events` pattern instead: no API read at all, and `service_role` `SELECT` only for the encrypted export, because run records carry roster digests and manifest references and answer no product question.
+
+No API role holds `INSERT`, `UPDATE` or `DELETE` on either table. Every writer, preflight and roster function lives in `private`, pins an empty `search_path`, is invoker-mode so the operator check sees the role that actually issued the statement, checks `private.economic_identity_operator_authority()` itself, and is executable by no API role — so a browser session or an Edge Function cannot reach a mapping decision even if a policy were misconfigured. `private.access_party_roster_v1()` in particular returns email evidence and is unreachable from any API surface.
+
+## Production manifest — not approved, and not invented
+
+**No approved manifest exists.** Checked: the SHR-194 Linear issue has no comments, attachments or documents; the parent SHR-156 states the manifest requirement without supplying one; a workspace document search returns nothing; and the repository contains no manifest.
+
+Read-only production inspection confirms the *shape* the issue describes is consistent with reality — three access identities in `household_members`, and none of `economic_households`, `economic_parties`, `access_party_mappings` or `audit_events` exists yet — but which login represents which human, and which is the access-only test identity, is a human decision. Deriving it from the email addresses I can see would be exactly the inference this package exists to forbid.
+
+So the mechanism and its fixtures are implemented and the decisions are not. `docs/data-ops/shr-194-access-party-manifest.md` is the procedure and an explicitly unfilled template. **A human must complete step 2 of that document and record the approval in Linear before any production reconciliation may run.**
+
+## Backup, restore and migration safety
+
+`access_party_mapping_history` and `access_party_reconciliation_runs` are both `financial` in the backup manifest, ordered after the tables their foreign keys target. Coverage exports a decision that was created, changed and then deactivated, restores it into a clean table with the production constraints, and compares the complete JSON representation — every decision version, both party sides and the database-authored timestamps survive in order. That ordering is the point: a restore that lost the middle decision would produce a plausible but false history. The restored copy is then re-checked and is still append-only, and its shape constraints still refuse a creation that claims a previous state or a deactivation meaning anything other than mapped → access_only.
+
+The migration is additive and restart-safe throughout: guarded constraint, index, table, function, trigger and policy creation, no backfill, and no `UPDATE` of any existing row. Upgrade coverage builds the schema through `044` — the exact state production is in — applies `045`, `046`, `047` then `048`, and asserts every financial row is byte- **and tuple-**identical, that no economic or audit row is created, that the policy set is unchanged, that no ownership column or `household_id` reaches any financial table, and that the SHR-193 restore boundary is intact. It then applies `048` twice more and re-asserts all of it, applies a production-shaped manifest for real, and re-applies `048` a fourth time over live decisions to prove a rerun disturbs no applied evidence and rewrites no history.
+
+## Three SHR-193 assertions were made exact, not weakened
+
+Three assertions in `economic_identity.test.mjs` were written as name-pattern proxies for SHR-193's scope and now match SHR-194's objects. Each was rewritten to assert the claim it was actually protecting, and each is now stronger:
+
+- *"no party join/allocation table"* was a `table_name ilike '%part%'` probe. It now asserts structurally, across every table in the schema, that none holds more than one foreign key to `economic_parties` — with the one exception named and explained, since history's two party columns are the before and after of a single transition, not a join — plus that no fractional-ownership column exists anywhere in the substrate.
+- *"nothing may reference mapping decisions"* now asserts that every inbound foreign key is `RESTRICT` or `NO ACTION`, never cascade or set-null. The claim was always about silent cascades; a `RESTRICT` reference makes a mapping harder to remove, never easier, and the assertion now proves that of every referencing table rather than relying on there being none.
+- *"the four guards, the operator predicate and the restore boundary"* counted six matched functions. It now names those six explicitly and still applies every property check — invoker-mode, pinned `search_path`, no API `EXECUTE` — to all fourteen functions the probe matches, so the coverage went up rather than down.
 
 ## Validation
 
@@ -62,28 +109,35 @@ Local validation completed against a real PostgreSQL 16 server on this host:
 
 - `npm ci` — pass;
 - `npm run lint` — pass, zero errors and the six pre-existing warnings;
-- `npm run test:node` — pass, 527/527 (was 526; +1 backup manifest test);
+- `npm run test:node` — pass, 529/529 (was 528; +1 backup manifest test);
 - `npm run test:ui` — pass, 9 files and 89/89;
 - `npm run build` — pass;
 - `npm audit --omit=dev --audit-level=high` — pass, zero vulnerabilities;
-- `npm run test:db` — pass, 154/154 (was 110; +44 SHR-196 cases) plus both upgrade-path runners.
+- `npm run test:db` — pass, 268/268 (was 200; +68 SHR-194 cases) plus all four upgrade-path runners;
+- `git diff --check` — clean.
 
 ## Protected boundaries
 
-- No system-code seed, no inference from a current category name, and no reinterpretation of the legacy `Transfer` or `Savings & Investments` rows.
-- No `transactions.category_id` or `category_rules.category_id`, no backfill, no consumer cutover, no V2 resolver.
-- No rename, archive or reactivation path of any kind — not an RPC, and not ordinary DML for any role including the database owner. No budget-active predicate, no rule precedence or enabled lifecycle.
-- No financial classification, canonical equation, budget actual, income, net-worth, account valuation, household scope or economic-ownership change.
-- No category ownership or default-owner concept, no taxonomy administrator role, no RLS change.
-- No audit-action allowlist expansion and no synthesized history of any kind.
-- No production migration, data change, deployment, Netlify change, or merge.
+- No economic household, party, mapping decision or audit event is created by applying the migration, and no production manifest is approved or executed.
+- No identity is inferred from a name, email address, Telegram id, account, transaction, category, goal or historical percentage.
+- The test access identity remains `access_only`; its authorization is neither removed nor changed.
+- The SHR-193 restore function and token are not used, and its lifecycle trigger is not weakened, disabled or bypassed. No equivalent restore path is introduced.
+- No transaction, account, income, recurring item, goal, budget, investment or net-worth fact is rewritten; no financial table receives an ownership or attribution column; no `household_id` is fanned out.
+- No Telegram sender storage or association migration; no Telegram id is an economic key.
+- No financial RLS policy diff, no new role, no household RBAC, no API-role mutation grant, no fractional allocation.
+- No production migration, data change, DDL, DML, Edge Function or backup deployment, Netlify change, or merge.
 
 The PR remains unmerged and is labeled `[skip netlify]` because this package has no site change.
 
+## Release ordering
+
+`048` depends on `045`, `046` and `047`, none of which is applied. SHR-191's release condition stands and is not weakened: `045` must be applied together with the deployment of the reviewed backup source, so audit evidence cannot accumulate before backup coverage exists. `048` writes audit evidence, so it is downstream of that condition rather than an exception to it.
+
 ## Next ownership boundaries
 
-- **SHR-197** — evidence-reviewed system-code assignment and stable-reference reconciliation, including the transaction and rule UUID references and their manifest backfill.
-- **SHR-198** — V2 resolver, canonical classification and writer compatibility.
-- **SHR-160** — category-rule identity, deterministic precedence and enabled/disabled lifecycle, which archive enablement depends on.
-- **SHR-167** — the current-budget predicate archive also depends on.
-- **SHR-158** — Settings Categories UI, including whatever replaces the delete control.
+- **The human manifest approval** — step 2 of `docs/data-ops/shr-194-access-party-manifest.md`. Nothing downstream can reconcile production until it exists.
+- **SHR-195** — transaction and posted-income stable attribution references.
+- **SHR-154** — account ownership and joint-allocation compatibility.
+- **SHR-171** — recurring and expected-income plan scope.
+- **SHR-178** — canonical goal progress and lifecycle, including goal ownership, which stays deferred and unassigned.
+- **SHR-160 / 184** — category-rule identity precedence and the Telegram association migration.

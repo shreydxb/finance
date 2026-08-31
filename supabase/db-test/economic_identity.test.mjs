@@ -382,12 +382,55 @@ test('one mapping decision selects at most one economic party', async () => {
       ['economic_party_id']
     )
 
-    const tables = await client.query(`
-      select table_name from information_schema.tables
-      where table_schema = 'public' and table_name ilike '%part%' and table_name <> 'economic_parties'
-        and table_name <> 'access_party_mappings'
+    // The claim being protected is that no *join or allocation* table exists —
+    // nothing that could let one decision name two parties, or split a fact
+    // between them. Asserted structurally rather than by table name, because
+    // SHR-194 legitimately adds decision-evidence tables whose names match the
+    // old '%part%' probe. This form is stronger: it covers every table in the
+    // schema, including ones no name pattern would catch.
+    const joins = await client.query(`
+      select c.conrelid::regclass::text as table_name, count(*)::integer as party_refs
+      from pg_constraint c
+      where c.contype = 'f' and c.confrelid = 'public.economic_parties'::regclass
+      group by c.conrelid
+      having count(*) > 1
     `)
-    assert.deepEqual(tables.rows, [], 'no party join/allocation table may exist in SHR-193')
+    assert.deepEqual(
+      joins.rows.filter((row) => row.table_name !== 'access_party_mapping_history'),
+      [],
+      'no table may reference two economic parties at once'
+    )
+    // The one table that does carry two party references is SHR-194's decision
+    // history, and they are the before and after of a single transition rather
+    // than a join: the decision in force still names exactly one party, on the
+    // mapping row itself.
+    const history = await client.query(`
+      select count(*)::integer as count from information_schema.columns
+      where table_schema = 'public' and table_name = 'access_party_mapping_history'
+        and column_name in ('previous_economic_party_id', 'new_economic_party_id')
+    `)
+    assert.equal(history.rows[0].count, 2)
+
+    // No fractional ownership anywhere in the economic identity substrate. The
+    // probe is scoped to that substrate on purpose: an unrelated percentage
+    // elsewhere (goal progress, a duration) is not an ownership share, and
+    // sweeping the whole schema would assert something this package never
+    // claimed.
+    const allocation = await client.query(`
+      select table_name, column_name from information_schema.columns
+      where table_schema = 'public'
+        and table_name in (
+          'economic_households', 'economic_parties', 'access_party_mappings',
+          'access_party_mapping_history', 'access_party_reconciliation_runs')
+        and (column_name ilike '%share%' or column_name ilike '%percent%'
+             or column_name ilike '%allocation%' or column_name ilike '%weight%'
+             or column_name ilike '%ratio%' or column_name ilike '%split%')
+    `)
+    assert.deepEqual(
+      allocation.rows,
+      [],
+      'no fractional ownership column may exist in the economic identity substrate'
+    )
   })
 })
 
@@ -931,15 +974,27 @@ test('a mapping decision cannot be hard-deleted by any role, operator included',
 
 test('no foreign key can silently cascade mapping evidence away', async () => {
   await withTx(async (client) => {
-    // Nothing references access_party_mappings, and the two keys it holds point
-    // at tables whose own DELETE is refused outright — so there is no cascade
-    // path to these rows from anywhere.
+    // Every reference to a mapping decision is ON DELETE RESTRICT, and the two
+    // keys the table itself holds point at tables whose own DELETE is refused
+    // outright — so there is no cascade path to these rows from anywhere.
+    //
+    // SHR-194 adds an inbound reference (its decision history). That does not
+    // weaken this claim, it extends it: a RESTRICT reference makes a mapping
+    // harder to remove, never easier, and the assertion below now proves that
+    // property of every referencing table rather than relying on there being
+    // none.
     const inbound = await client.query(`
-      select c.conname, c.conrelid::regclass::text as referencing
+      select c.conname, c.conrelid::regclass::text as referencing, c.confdeltype
       from pg_constraint c
       where c.contype = 'f' and c.confrelid = 'public.access_party_mappings'::regclass
     `)
-    assert.deepEqual(inbound.rows, [], 'nothing may reference mapping decisions')
+    for (const fk of inbound.rows) {
+      // 'r' = RESTRICT, 'a' = NO ACTION. Never 'c' (cascade) or 'n' (set null).
+      assert.ok(
+        ['r', 'a'].includes(fk.confdeltype),
+        `${fk.conname} on ${fk.referencing} must never cascade mapping evidence away`
+      )
+    }
 
     const outbound = await client.query(`
       select c.conname, c.confdeltype, c.confrelid::regclass::text as referenced
@@ -1311,15 +1366,25 @@ test('no API role can execute the guard or operator functions', async () => {
       where p.pronamespace = 'private'::regnamespace
         and (p.proname like '%economic%' or p.proname like '%access_party%')
     `)
-    assert.equal(
-      rows.length,
-      6,
-      'the four guards, the operator predicate and the restore boundary'
-    )
-    assert.ok(
-      rows.some((fn) => fn.proname === 'restore_access_party_mapping_v1'),
-      'the restore boundary is covered by this matrix, not exempt from it'
-    )
+    // SHR-193's own six — the four guards, the operator predicate and the
+    // restore boundary — named exactly rather than counted, so that a later
+    // package adding its own private functions cannot make this assertion pass
+    // by coincidence or fail by arithmetic. Every function the probe matches,
+    // SHR-194's included, still has to satisfy every property below.
+    for (const required of [
+      'economic_identity_operator_authority',
+      'guard_economic_household_lifecycle',
+      'guard_economic_party_lifecycle',
+      'guard_access_party_mapping_lifecycle',
+      'reject_economic_identity_truncate',
+      'restore_access_party_mapping_v1',
+    ]) {
+      assert.ok(
+        rows.some((fn) => fn.proname === required),
+        `${required} is covered by this matrix, not exempt from it`
+      )
+    }
+    assert.ok(rows.length >= 6)
     for (const fn of rows) {
       assert.equal(fn.anon, false, `${fn.proname} must be uncallable by anon`)
       assert.equal(fn.authenticated, false, `${fn.proname} must be uncallable by authenticated`)

@@ -83,6 +83,31 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   the backup manifest plus a representative restore that preserves ids, system
   codes, archive state, history and alias lifecycle along with their
   constraints and re-attached protections.
+- **`access-party-reconciliation-upgrade-path.mjs` + `access_party_reconciliation.test.mjs`**
+  — SHR-194 fresh, through-044 → 045 → 046 → 047 → 048 upgrade and
+  restart/rerun paths, with every financial row proven byte- and
+  tuple-identical and the pre-existing RLS policy set proven byte-identical
+  back to the production shape; the read-only preflight and its roster-evidence
+  digest, including the case where the roster size is unchanged but an identity
+  moved; exact-preflight success and stale-count, stale-digest and
+  stale-economic-state aborts, each proven to write nothing at all; manifest
+  exhaustiveness over the access roster; approved-only party and decision
+  creation; the access-only identity staying access-only with its authorization
+  intact; mapping create, change and deactivation with database-authored
+  decision times; contiguous immutable decision history and its refusal to be
+  updated, deleted or truncated; the SHR-191 typed audit policy, its derivation
+  from the history row, its closed payload projection, and mutation rollback
+  when the audit append fails; proof that no SHR-194 writer calls the SHR-193
+  restore function or sets its token and that an ordinary decision is refused
+  outright when that token is set; the SHR-193 lifecycle trigger, archived-party
+  protection and cross-household containment all proven still intact; the
+  no-op-on-identical-state, manifest-replay and manifest-conflict semantics; a
+  real two-connection concurrency race proving consecutive decision versions, a
+  single-valued current mapping and no lost audit evidence; the context API for
+  mapped, access-only, unreviewed and unmapped callers plus its cross-household
+  and ambiguity refusals; the exact ACL/RLS/function matrix; and the backup
+  manifest plus a representative history restore that preserves the whole
+  lifecycle in order and stays append-only.
 - **`rpc.test.ts`** — every RPC added in 026/027/030/032 against the real
   schema: `replace_category_split`, `create_goal_contribution`,
   `create_transfer`, `create_bulk_transactions`, `apply_pending_income`,

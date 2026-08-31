@@ -162,6 +162,27 @@ Restore order matters for these two. `category_name_history` references
 `categories`, and `category_aliases` references both, so the manifest lists
 them after `categories` and the dependency test enforces it.
 
+SHR-194 extends the drill again, to reconciliation evidence. A mapping decision
+that was created, changed and then deactivated is exported through the manifest,
+restored into a clean table with the production constraints, and compared
+exactly — every decision version, its before and after party, and its
+database-authored decision timestamp all survive in order. That ordering is the
+point: a restore that lost the middle decision would produce a plausible but
+false history, in which the current mapping looks as though it had always been
+true. The restored copy is then re-checked and is still append-only, and its
+shape constraints still refuse a creation that claims a previous state or a
+deactivation that means anything other than mapped → access_only.
+
+Both new tables are `financial`. `access_party_mapping_history` is the only
+record that a decision was ever different, and `access_party_reconciliation_runs`
+is what makes a re-applied manifest a replay rather than a second set of
+decisions — losing it would turn a retry into a duplicate reconciliation.
+
+Restore order matters for these two as well. `access_party_mapping_history`
+holds composite foreign keys into `access_party_mappings` and
+`economic_parties`, and the run records reference `economic_households`, so the
+manifest lists both after those tables and the dependency test enforces it.
+
 **Not** backed up: Edge Function secrets, the Supabase project configuration,
 Auth users, and the database schema itself (migrations live in
 `supabase/schema/`, which is in git). A backup restores your *data* into an

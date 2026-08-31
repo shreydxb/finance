@@ -38,6 +38,8 @@ test('the dump covers every table exactly once', () => {
     'economic_households',
     'economic_parties',
     'access_party_mappings',
+    'access_party_mapping_history',
+    'access_party_reconciliation_runs',
   ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
   }
@@ -83,6 +85,31 @@ test('durable economic identity substrate is financial and restores after its re
     'economic_households',
     'economic_parties',
   ])
+})
+
+test('SHR-194 reconciliation evidence is financial and restores after its references', () => {
+  // Mapping history is the only record that a decision was ever different: lose
+  // it and a restored database asserts the current mapping as though it had
+  // always been true. The run records are what make a re-applied manifest a
+  // replay rather than a second set of decisions.
+  const history = BACKUP_TABLES.find((table) => table.name === 'access_party_mapping_history')
+  const runs = BACKUP_TABLES.find((table) => table.name === 'access_party_reconciliation_runs')
+  assert.ok(history)
+  assert.ok(runs)
+  assert.equal(history.financial, true)
+  assert.equal(runs.financial, true)
+  assert.deepEqual((history as { dependsOn?: readonly string[] }).dependsOn, [
+    'economic_households',
+    'economic_parties',
+    'access_party_mappings',
+  ])
+  assert.deepEqual((runs as { dependsOn?: readonly string[] }).dependsOn, ['economic_households'])
+
+  const names = BACKUP_TABLES.map((table) => table.name)
+  assert.ok(
+    names.indexOf('access_party_mappings') < names.indexOf('access_party_mapping_history'),
+    'history restores after the mapping rows its composite foreign key targets'
+  )
 })
 
 test('immutable audit evidence is classified as financial and restore-order independent', () => {

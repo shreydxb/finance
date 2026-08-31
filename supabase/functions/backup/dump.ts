@@ -56,6 +56,22 @@ export const BACKUP_TABLES = [
     financial: true,
     dependsOn: ['economic_households', 'economic_parties'],
   },
+  // SHR-194 durable reconciliation evidence. Mapping history is the only
+  // record that a decision was ever different — losing it would leave a
+  // restored database asserting the current mapping as if it had always been
+  // true — and the run records are what make a re-applied manifest a replay
+  // rather than a second set of decisions. Restore order follows the foreign
+  // keys: history after the mappings it references, runs after the households.
+  {
+    name: 'access_party_mapping_history',
+    financial: true,
+    dependsOn: ['economic_households', 'economic_parties', 'access_party_mappings'],
+  },
+  {
+    name: 'access_party_reconciliation_runs',
+    financial: true,
+    dependsOn: ['economic_households'],
+  },
   { name: 'forecast_events', financial: false },
   { name: 'category_rules', financial: false },
   { name: 'notifications', financial: false },
