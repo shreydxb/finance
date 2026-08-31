@@ -1,11 +1,10 @@
 # Schema
 
 SQL migrations for `our-rokda` (`wrxqgfbolryveivgdjia`), applied in numeric
-order. Production is verified through `043` as of 24 August 2026. Migration
-`043` is the additive SHR-113 authoritative snapshot foundation and is applied
-with all nine existing Legacy rows unchanged. Its scheduler is **INACTIVE /
-not installed**; the separately gated Phase-C operational configuration lives
-under `supabase/scheduler/`.
+order. Production is verified through `044` as of 31 August 2026. Migration
+`045` is the repository-only SHR-191 immutable audit foundation pending
+independent Tier-3 review; it is not applied. The separately gated SHR-113
+Phase-C operational configuration lives under `supabase/scheduler/`.
 
 `001`–`007` were run by hand in the SQL Editor and so do not appear in
 `supabase migration list`; `008` onward do.
@@ -63,7 +62,8 @@ findings each one closes, and the verification evidence.
 | `041_canonical_financial_metrics_phase_a` | Additive canonical ledger/income/account/goal views, period/balance/investment/budget functions, split identity, quality metadata — applied; production QA found the debt-quality predicate fixed by `042` | SHR-111 Phase A |
 | `042_fix_canonical_debt_quality` | Recreates only the security-invoker goal-progress view so positive target is save-up-only and pay-down quality uses starting balance + linked liability — applied | SHR-111 / SHR-121 |
 | `043_authoritative_net_worth_snapshots` | Additive logical runs, append-only attempt evidence, immutable valuation manifests, service-only capture, read-only history, and nullable `nw_daily` provenance; no history rewrite and no scheduler installation — applied and independently production-QA-passed | SHR-113 Phase A/B |
-| `044_manual_transaction_safety` | Validated SECURITY INVOKER manual create/correction with durable request replay, explicit reviewed truth, Transfer containment, and minimal validated split confirmation; no data rewrite or financial-engine change — repository only, not applied | SHR-126 |
+| `044_manual_transaction_safety` | Validated SECURITY INVOKER manual create/correction with durable request replay, explicit reviewed truth, Transfer containment, and minimal validated split confirmation; no data rewrite or financial-engine change — applied and production-QA-passed | SHR-126 |
+| `045_immutable_audit_substrate` | Immutable typed action evidence, owner-only private append primitive, service-only QA reference writer, redacted member read RPC, explicit ACL/RLS, replay semantics, and backup coverage; no backfill or production-writer integration — repository only, not applied | SHR-191 |
 
 ## Rules
 
@@ -123,3 +123,8 @@ in production. It did not backfill, reconstruct, or update any existing
 `nw_daily` row; `nw_snapshots` remains untouched/deprecated. No pg_cron/pg_net
 job is installed by the migration. Phase-C activation remains a separate,
 explicitly reviewed operational step documented in `supabase/scheduler/`.
+
+`044_manual_transaction_safety` is applied and independently verified in
+production. `045_immutable_audit_substrate` is repository-only: no audit table,
+writer, read contract, or audit row exists in production until a separate
+reviewed release authorizes the unchanged migration and backup-function source.

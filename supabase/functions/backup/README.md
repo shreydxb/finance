@@ -124,7 +124,15 @@ raising it later does not orphan older backups.
 
 ## What is and is not covered
 
-Backed up: every table, including `settings`.
+Backed up by current repository source: every allowlisted table, including
+`settings` and immutable `audit_events`. The deployed backup function must be
+checked separately; repository coverage does not prove a production deployment.
+
+SHR-191 adds an automated representative audit restore: one exported raw audit
+row is inserted into a clean table with the production constraints, compared
+exactly, and then proven immutable under UPDATE/DELETE. This is evidence for the
+new table's export/restore shape, not a claim that a full production re-import
+of every table has been rehearsed.
 
 **Not** backed up: Edge Function secrets, the Supabase project configuration,
 Auth users, and the database schema itself (migrations live in

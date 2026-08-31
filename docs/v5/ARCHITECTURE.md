@@ -1,6 +1,6 @@
 # Our Money v5 architecture
 
-Status: canonical v5 direction, updated for SHR-113 Phase C planning. Statements labeled **current** describe repository implementation. Production is verified through migration `043` and the reviewed Phase-B Edge/frontend deployments. The Phase-C scheduler configuration is repository-only pending independent review and is not active.
+Status: canonical implemented direction, updated for the SHR-191 repository package. Statements labeled **current** describe repository implementation. Production is verified through migration `044`; migration `045` and its backup-manifest change are repository-only pending independent Tier-3 review and are not applied or deployed.
 
 ## Product boundary
 
@@ -80,6 +80,8 @@ Postgres/database logic remains authoritative for durable money calculations and
 - `private.is_household_member()` is a non-exposed security-definer primitive with an empty pinned search path because membership-policy recursion otherwise occurs. Authenticated receives only schema usage and function execution needed by RLS; the schema must not be exposed through the Data API.
 - Public reporting views over household data, including `v_transactions_aed`, use caller privileges with `security_invoker` so their underlying table RLS remains authoritative.
 - The service role belongs only in trusted server/Edge Function code.
+- Migration `045` adds `audit_events` as immutable, post-cutover-only action evidence. It is not ownership, provenance, quality, attention, integration logging, or telemetry. Browser roles have no raw table privileges; service role has raw SELECT only for encrypted backup. An owner-only private append primitive is reached in this package only through a service-only, typed QA fixture RPC, and future production actions require their own reviewed wrappers. Authenticated household reads use the redacted `audit_history_v1` RPC, which derives `auth.uid()`, authorizes through `private.is_household_member()`, and never returns the private Telegram sender reference.
+- Audit UPDATE/DELETE is rejected by a database trigger even after an accidental application-role grant. The actual trust boundary is explicit: the database owner can intentionally change DDL, disable a trigger, or bypass the contract and therefore remains an administrative trust root.
 - `pending_actions` is trusted Telegram coordination and audit state, not household browser data. It is policy-free with RLS enabled, grants no table or RPC access to anonymous/authenticated callers, and grants the service role direct `SELECT` only. Proposal creation, one-time prompt binding, claim, apply, cancel, and expiry are six service-role-only `SECURITY DEFINER` RPCs with an empty pinned `search_path` and fully qualified references. Their atomic predicates preserve requester + chat + prompt binding, database-time expiry, immutable proposal identity, and non-reopenable terminal state without granting the Edge Function direct state-column updates.
 - Multi-row financial writes use atomic database functions where implemented.
 - Production migrations and deployments are explicit gated actions, not automatic consequences of implementation.
@@ -94,4 +96,5 @@ Postgres/database logic remains authoritative for durable money calculations and
 - `nw_snapshots` remains deprecated and is not populated. Gaps and skipped-incomplete days remain visible gaps; historical FX/quotes/account values are not invented.
 - Investment positions and transaction cash flows are separate concepts. Typed chat investment purchases currently record cash outflow, not authoritative holding quantity/cost.
 - The codebase supports two known people plus Joint labels, while access is enforced by authenticated household membership rather than row-level owner isolation.
+- The SHR-191 audit registry initially admits only two QA fixture actions. No production financial/category/party/Telegram writer is audited until a later domain package extends the allowlist and adopts atomic audit inside that writer.
 - Repository comments and historical docs may state a migration was live on a past date. Treat that as evidence from that date, not a substitute for checking current live state.

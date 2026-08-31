@@ -32,6 +32,10 @@ export const BACKUP_TABLES = [
   { name: 'nw_snapshot_attempt_events', financial: true },
   { name: 'nw_snapshot_items', financial: true },
   { name: 'nw_daily', financial: true },
+  // Immutable action evidence has logical typed references rather than FKs,
+  // so it is restore-order independent. It is irrecoverable household record,
+  // not disposable operational telemetry.
+  { name: 'audit_events', financial: true },
   { name: 'forecast_events', financial: false },
   { name: 'category_rules', financial: false },
   { name: 'notifications', financial: false },

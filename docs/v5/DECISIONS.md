@@ -160,3 +160,13 @@ There is no automatic cron retry window. Failures that reach orchestration remai
 
 The permanent scheduler configuration is version-controlled under `supabase/scheduler/` but deliberately separate from the portable application-schema migration chain, because applying it is a separately approved hosted-infrastructure gate. A private postgres-owned SECURITY INVOKER dispatcher reads the function URL, least-privilege platform JWT, and operator secret from Vault, pins an empty search path, and is executable by no API role. pg_cron/pg_net evidence and Edge logs provide transport observability; the existing snapshot run/attempt/item model remains the authoritative business evidence.
 
+## ADR-018 — Audit is immutable typed action evidence, not domain truth
+
+Status: accepted and implemented in repository migration `045`; independent Tier-3 review and production apply pending — 2026-08-31 — SHR-191
+
+`audit_events` records who/what performed an allowlisted action, the typed target/evidence references, request/correlation/causation/idempotency references, outcome, and a minimized action-specific change projection. It does not determine economic ownership, fact provenance, financial quality, attention, integration health, notification delivery, or telemetry.
+
+Raw browser DML is absent. An owner-only private append primitive is reachable only through independently reviewed typed wrappers; SHR-191 provides a service-only QA wrapper and no production mutation integration. Authenticated reads use a redacted definer RPC whose authorization root remains `private.is_household_member()`. Actor, owner, party, category, and Telegram identity are forbidden as RLS predicates.
+
+Successful replay returns the original event only when the canonical payload is identical. A collision fails and distinct actions do not collapse. UPDATE/DELETE triggers protect immutable evidence even after accidental application-role grants, while the database owner remains the explicit DDL/administrative trust boundary. No historical audit is synthesized and V1 has no purge.
+
