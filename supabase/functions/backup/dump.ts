@@ -43,6 +43,19 @@ export const BACKUP_TABLES = [
   // unverifiable, so both are household record, not operational telemetry.
   { name: 'category_name_history', financial: true, dependsOn: ['categories'] },
   { name: 'category_aliases', financial: true, dependsOn: ['categories', 'category_name_history'] },
+  // SHR-193 durable economic identity substrate. A party UUID is the stable
+  // reference every later attribution package points at, and a mapping row is
+  // the reviewed record of which access identity represents which party — both
+  // are irrecoverable by inspection, so both are household record rather than
+  // operational telemetry. Restore order follows the foreign keys: households,
+  // then parties, then the mapping decisions that reference both.
+  { name: 'economic_households', financial: true },
+  { name: 'economic_parties', financial: true, dependsOn: ['economic_households'] },
+  {
+    name: 'access_party_mappings',
+    financial: true,
+    dependsOn: ['economic_households', 'economic_parties'],
+  },
   { name: 'forecast_events', financial: false },
   { name: 'category_rules', financial: false },
   { name: 'notifications', financial: false },
