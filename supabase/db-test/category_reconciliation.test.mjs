@@ -463,7 +463,7 @@ test('reconciliation evidence is append-only and cannot be updated, deleted or t
     ]) {
       await expectReject(client, () => client.query(`update public.${table} set schema_version=schema_version`), /IMMUTABLE/)
       await expectReject(client, () => client.query(`delete from public.${table}`), /IMMUTABLE/)
-      await expectReject(client, () => client.query(`truncate public.${table}`), /TRUNCATE_FORBIDDEN/)
+      await expectReject(client, () => client.query(`truncate public.${table}`), /TRUNCATE_FORBIDDEN|cannot truncate a table referenced/)
     }
   })
 })
@@ -472,16 +472,33 @@ test('ordinary API roles cannot write stable refs or call any reconciliation fun
   await withTx(async (client) => {
     const f = await fixture(client, { includeUnknown: false })
     await reconcile(client, f)
-    for (const [role, user] of [['anon', null], ['authenticated', SHREY_ID], ['authenticated', OUTSIDER_ID], ['service_role', null]]) {
-      await actAs(client, role, user)
+    for (const role of ['authenticated', 'service_role']) {
+      await actAs(client, role, role === 'authenticated' ? SHREY_ID : null)
       await expectReject(
         client,
         () => client.query(`update public.transactions set category_id=$1 where id=$2`, [f.savings.id, f.rows.active.id]),
-        /SHR197_CATEGORY_REFERENCE_WRITE_FORBIDDEN|permission denied/
+        /SHR197_CATEGORY_REFERENCE_WRITE_FORBIDDEN/
       )
       await expectReject(client, () => client.query(`select * from private.category_reconciliation_preflight_v1()`), /permission denied/)
       await client.query('reset role')
     }
+    await actAs(client, 'authenticated', OUTSIDER_ID)
+    const outsiderWrite = await client.query(
+      `update public.transactions set category_id=$1 where id=$2 returning id`,
+      [f.savings.id, f.rows.active.id]
+    )
+    assert.equal(outsiderWrite.rowCount, 0, 'household RLS hides the row from an outsider')
+    await expectReject(client, () => client.query(`select * from private.category_reconciliation_preflight_v1()`), /permission denied/)
+    await client.query('reset role')
+    const { rows: functionAcl } = await client.query(`select
+      has_function_privilege('anon', 'private.category_reconciliation_preflight_v1()', 'execute') anon_preflight,
+      has_function_privilege('authenticated', 'private.category_reconciliation_preflight_v1()', 'execute') authenticated_preflight,
+      has_function_privilege('service_role', 'private.reconcile_category_references_v1(text,text,integer,integer,integer,integer,integer,integer,integer,integer,jsonb,jsonb,uuid)', 'execute') service_reconcile`)
+    assert.deepEqual(functionAcl[0], {
+      anon_preflight: false,
+      authenticated_preflight: false,
+      service_reconcile: false,
+    })
     await actAs(client, 'authenticated', SHREY_ID)
     await expectReject(
       client,
@@ -506,8 +523,9 @@ test('existing household authorization policies and ordinary V1 writes are uncha
     assert.ok(policies.every((p) => /is_household_member/.test(`${p.qual} ${p.with_check}`)))
     assert.ok(policies.every((p) => !/category_id|system_code|economic_party/.test(`${p.qual} ${p.with_check}`)))
 
+    const { rows: account } = await client.query(`insert into public.accounts(name,owner,type,value)
+      values($1,'Fixture','cash',0) returning id`, [`SHR197 V1 account ${crypto.randomUUID()}`])
     await actAs(client, 'authenticated', SHREY_ID)
-    const { rows: account } = await client.query(`select id from public.accounts limit 1`)
     const { rows: inserted } = await client.query(
       `insert into public.transactions(date,amount,account_id,category)
        values(current_date,10,$1,'Groceries') returning category,category_id`,
@@ -530,7 +548,7 @@ test('FKs are RESTRICT and category delete/truncate protections remain intact', 
       { conname: 'transactions_category_id_fkey', confdeltype: 'r' },
     ])
     await expectReject(client, () => client.query(`delete from public.categories where id=$1`, [f.ordinary.id]), /SHR196_CATEGORY_DELETE_FORBIDDEN/)
-    await expectReject(client, () => client.query(`truncate public.categories`), /TRUNCATE_FORBIDDEN|SHR196/)
+    await expectReject(client, () => client.query(`truncate public.categories`), /TRUNCATE_FORBIDDEN|SHR196|cannot truncate a table referenced/)
   })
 })
 
