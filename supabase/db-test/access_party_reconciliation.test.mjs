@@ -1751,6 +1751,12 @@ test('reconciliation rewrites no financial fact and touches no Telegram associat
 
 test('SHR-194 adds no ownership or attribution column to any financial table', async () => {
   await withTx(async (client) => {
+    // This suite runs against the fully migrated database, so it cannot tell by
+    // itself which migration added a column. accounts.owner_party_id is SHR-154's
+    // (migration 049) and is excluded by name rather than by pattern, so anything
+    // else appearing here still fails. That SHR-194 itself adds no column at all
+    // is proved directly by access-party-reconciliation-upgrade-path.mjs, which
+    // applies 048 over through-044 and diffs the whole column set.
     const { rows } = await client.query(`
       select table_name, column_name
         from information_schema.columns
@@ -1762,6 +1768,7 @@ test('SHR-194 adds no ownership or attribution column to any financial table', a
          and (column_name like '%economic%'
               or column_name like '%party%'
               or column_name = 'household_id')
+         and not (table_name = 'accounts' and column_name = 'owner_party_id')
     `)
     assert.deepEqual(rows, [], 'financial ownership migrates under its own downstream contracts')
   })

@@ -19,6 +19,15 @@ Status: semantic map of the schema represented by `supabase/schema/001` through 
 
 Account ownership labels are not authorization. Household membership/RLS controls access.
 
+Migration `049` adds `ownership_kind` and `owner_party_id` as an additive stable ownership reference, and is in the repository, not production. `ownership_kind` is `personal` (exactly one economic party, named by `owner_party_id`), `household` (genuinely shared household truth, one row counted once, no party) or `unreconciled` (no reviewed economic fact yet, and the default every existing row carries). There is no fractional ownership: no share, weight, percentage or split column exists, and a shared account is never duplicated per party.
+
+- `owner` is retained unchanged and is still authoritative for every consumer that has not been cut over — `canonical_balance_sheet`, `canonical_investment_metrics`, `nw_snapshot_items.owner`, `nw_daily.by_owner`, and the Accounts, Investments and Wealth screens. It stays freely mutable presentation/compatibility text.
+- The stable reference is never derived from `owner`. `Shrey`, `Tarika`, `Joint`, `Both`, `Me` and `Partner` are labels; only an approved manifest assigns ownership.
+- Ownership is not authorization and appears in no RLS predicate. No API role can assign it; the reconciliation writer is operator-only.
+- `owner_party_id` is a typed logical reference rather than a foreign key, so ordinary financial writes to `accounts` are never coupled to identity-substrate locks. The ownership guard resolves the party on every write that sets it — restores included — and `047` forbids party deletion, so a reference cannot dangle.
+- `public.account_ownership_history` is append-only per-account decision evidence and holds `account_id` as a typed logical reference rather than a foreign key, so deleting an account still works and the evidence outlives it. `public.account_ownership_reconciliation_runs` is the immutable manifest record and the replay/idempotency key.
+- `public.v_account_ownership_v2` and `public.canonical_balance_sheet_v2(scope, owner_party_id)` are the additive V2 read adapters. No existing consumer reads them; the cutovers belong to SHR-173, SHR-153, SHR-172 and SHR-158.
+
 ### Transaction — current
 
 `transactions` represents ledger activity with date, amount, currency, account, category/subcategory, owner, source, review state, Telegram provenance, soft deletion, items, idempotency, grouping, assignment, and optional goal association.
@@ -103,9 +112,11 @@ Phase C proposes no new financial entity. Its operational configuration creates 
 
 `settings` stores JSON configuration such as FX, preferences, FIRE assumptions, household shares, and Telegram configuration. Settings that affect money require validation and should use atomic RPCs where provided (`save_telegram_settings`).
 
-### First-class household/party model — planned
+### First-class household/party model — partly in repository, not production
 
-The repository currently embeds known person names and Joint labels in several places. Replacing those strings with a generalized household/party model would be a separate migration and compatibility project, not an assumption for current code.
+Migrations `047`/`048` add the N-party economic identity substrate and its evidence-reviewed access reconciliation, and `049` adds the account-ownership stable reference on top. All three are repository-only.
+
+The repository still embeds person names and `Joint` labels in several places, and those remain the operative semantics until each consumer's own cutover issue migrates it. `049` is deliberately additive: it installs the reference and the adapters and changes no consumer. Transaction/posted-income attribution (SHR-195), recurring planning scope (SHR-171) and goal planning scope (SHR-178) are still unbuilt.
 
 ## Immutable audit evidence — current in repository, not production
 

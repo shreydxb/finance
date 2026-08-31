@@ -1424,6 +1424,13 @@ test('no financial table receives ownership or attribution in SHR-193', async ()
       'budgets', 'category_rules', 'nw_snapshots', 'nw_daily', 'pending_actions',
       'forecast_events', 'settings',
     ]
+    // This suite runs against the fully migrated database, so it cannot tell by
+    // itself which migration added a column. accounts.ownership_kind and
+    // accounts.owner_party_id are SHR-154's (migration 049) and are excluded by
+    // exact name rather than by pattern, so anything else appearing here still
+    // fails. That SHR-193 itself adds no column at all is proved directly by
+    // economic-identity-upgrade-path.mjs, which applies 047 over through-044 and
+    // diffs the whole column set.
     const { rows } = await client.query(`
       select table_name, column_name from information_schema.columns
       where table_schema = 'public' and table_name = any($1)
@@ -1432,6 +1439,8 @@ test('no financial table receives ownership or attribution in SHR-193', async ()
              or column_name like '%attribution%'
              or column_name like '%ownership%'
              or column_name like '%scope_kind%')
+        and not (table_name = 'accounts'
+                 and column_name in ('ownership_kind', 'owner_party_id'))
     `, [financialTables])
     assert.deepEqual(
       rows, [],
