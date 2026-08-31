@@ -1,95 +1,98 @@
-# SHR-152 implementation handoff
+# SHR-197 implementation handoff
 
-Status: implementation and local Tier-2 validation complete; independent UI/accessibility review required before merge.
+Status: capability and evidence implementation complete; independent Tier-3 category/data reconciliation review required before merge or any production authorization.
 
-## Git and delivery boundary
+## Git and release boundary
 
-- Issue: `SHR-152 — Native responsive shell and shared interaction patterns`
-- Branch: `shreydxb1/shr-152-native-responsive-shell-and-shared-interaction-patterns`
-- Base: `4af63b28d7d414e364c6b119348650e2f81f51e3` (freshly fetched `origin/main`)
-- Package: shell and shared presentation primitives only
-- Netlify: intentionally skipped for this PR because no preview/deploy credit was authorized; screenshots are committed for review
-- Database tests: not run; no database, Supabase, schema, migration, RLS, RPC, Function, or backend path changed
+- Issue: `SHR-197 — Category stable-reference reconciliation and evidence manifest`.
+- PR: `#30` from `shreydxb1/shr-197-category-stable-reference-reconciliation-and-evidence`.
+- Base: `a35eb62df303036630e6f588c113b07bd0206b07`, the fetched and verified `origin/main` at implementation start.
+- Migration: `050_category_stable_reference_reconciliation.sql` only.
+- Production was inspected read-only and remains at migration 044. Migrations 045–050 were not applied.
+- No production manifest was created, inferred, approved, or executed. No production UUID mapping appears in this branch.
+- Migration 045 still must release with its reviewed backup source. This branch updates that source for migration 050 but does not deploy it.
+- The immutable final head and exact-head CI run identifiers are recorded in PR #30 and the Linear implementation handoff after CI completes.
 
-## Implemented shell
+## Additive stable-reference schema
 
-- Persistent `216px` desktop sidebar with text-first Overview, Money, Wealth, Planning, Settings order.
-- Whole-household scope is visible as truthful non-interactive context; no personal allocation choices are fabricated.
-- At `<=900px`, the shell becomes a column with a full-width top region and contained horizontally scrollable five-destination navigation. The former bottom navigation is removed.
-- Main content uses the reference `1240px` maximum and `34px 40px 64px` desktop / `22px 18px 80px` responsive padding.
-- Page hierarchy is section kicker → `27px` Newsreader title → rule-based secondary tabs → existing route content.
-- Settings is promoted into the V6 primary IA without changing any Settings route or screen semantics.
+- Adds nullable `public.transactions.category_id` and `public.category_rules.category_id` references to `public.categories(id)` with `ON UPDATE RESTRICT ON DELETE RESTRICT`.
+- Migration application is inert: it seeds no system code, performs no backfill, and changes no legacy classification text.
+- `NULL` remains a valid unresolved/uncategorized value. It is never converted to `Other`.
+- Active and soft-deleted transactions use the same explicit reconciliation path.
+- No V1 reader, writer, calculation, rule resolver, Telegram path, or consumer is cut over to the new references.
+- Existing migration 046 category lifecycle, alias/history, rename, archive/reactivation, and hard-delete protections are preserved.
 
-## Tokens and shared primitives
+## Evidence-gated reconciliation
 
-- Central light/dark Command Center palette, accent, positive/negative/warning roles, rules, content/sidebar dimensions, low-radius geometry, and 120/140/180ms motion.
-- IBM Plex Sans, Newsreader, and optional IBM Plex Mono load through the existing Google Fonts strategy; no font binaries or package dependencies were added.
-- Contrast-safe rendered microcopy/status variants supplement the exact frozen reference colors where the prototype fails WCAG AA.
-- Restyled buttons, semantic fields, statuses/badges, quality/attention states, loading/empty/error states, panels/cards, chart frame/data alternative, overlays, utility sheet, and route detail drawer.
-- Added reusable `SectionHeader`, `SegmentedControl`, `KpiGroup`/`Kpi`, and horizontally contained `DataTable` primitives.
-- Existing legacy screen aliases now inherit V6 palette, typography, reduced geometry, flat/no-shadow treatment, tabular editorial figures, and 44px form/control targets without domain screen rewrites.
+- `private.category_reconciliation_preflight_v1()` produces exact deterministic evidence: category UUID/name/system-code/archive state and transaction/rule counts by legacy label, including NULL, unknown, ambiguous, active, and soft-deleted coverage.
+- `private.category_reconciliation_state_digest_v1()` and `private.category_classification_text_digest_v1()` bind the complete reviewed source state and byte-preserved V1 classification text with SHA-256 digests.
+- `private.reconcile_category_references_v1(...)` accepts only an explicit, exhaustive manifest and the exact expected preflight digest/counts. It never derives a target UUID from a live category-name join.
+- The only permitted initial system codes are `transfer` and `savings_investment`; both require explicit reviewed UUIDs. Any missing, extra, duplicate, stale, ambiguous, mismatched, or invalid declaration aborts before mutation.
+- Every distinct non-NULL transaction or rule label must have exactly one manifest decision: `mapped` with an explicit category UUID or `unresolved_unknown` without one. Unknown values remain unresolved.
+- Table/advisory locks, complete prechecks, and one database transaction provide fail-closed, no-partial-write behavior.
+- Exact same manifest reference plus exact same content is an idempotent replay. Reusing a reference with different content fails closed.
 
-## Routing, focus, and dirty-form preservation
+## Durable evidence and audit boundary
 
-- Route definitions, aliases, query sanitation, deep-link UUID identity, history state, Back/Forward behavior, detail-to-list return, and route-owned screen mapping are unchanged.
-- Only presentation metadata changes: Settings is a primary destination.
-- Existing `NavigationSafetyProvider`, browser `beforeunload`, route confirmation, and `ProtectedForm` contracts are unchanged and pass their tests.
-- Page-title focus, detail invoker restoration, Radix drawer focus containment, Escape handling, and trigger focus restoration remain intact. The native preferences sheet now explicitly handles Escape and returns focus.
+- Append-only evidence tables record reviewed state, exact approved manifest content, explicit system assignments, per-row resolutions, unresolved rows, execution time, replay receipts, and mismatch status:
+  - `category_reconciliation_runs`
+  - `category_reconciliation_system_entries`
+  - `category_reconciliation_manifest_entries`
+  - `category_reconciliation_row_evidence`
+  - `category_reconciliation_replay_evidence`
+- UPDATE, DELETE, and TRUNCATE are guarded; raw API roles cannot mutate evidence or invoke private preflight/reconciliation functions.
+- `private.category_reconciliation_mismatch_report_v1(run_id)` deterministically reports post-run reference/text drift against evidence.
+- SHR-191's typed `audit_events` contract is unchanged. The bounded append-only reconciliation ledger is the audit surface for this one-time classification-reference capability; no generic financial audit payload was introduced.
+- Evidence stores identifiers, legacy labels, resolution outcomes, counts, and digests only; it does not copy transaction amounts, descriptions, notes, or other raw financial payloads.
 
-## Responsive and accessibility evidence
+## RLS and ACL evidence
 
-- Browser QA: 1440×1200, 900×900, and 390×844; light and dark.
-- At 900px: desktop sidebar hidden, mobile top region displayed, no document overflow.
-- At 390px: top navigation scrolls from 390px viewport to a contained 550px row; document remains 390px wide; visible navigation/preferences targets are 44px.
-- Mobile preferences sheet measured 390px wide at a 390px viewport, focused its named heading, closed on Escape, and returned focus to the trigger.
-- Semantic skip link, complementary sidebar, named primary/section navigation, one main landmark, route `aria-current`, named dialogs, labeled fields, status/live regions, focus-visible and forced-colors treatments are retained.
-- Reduced motion suppresses nonessential animation and visual tests assert the reduced duration.
-- Axe: no violations in foundation light/dark or shell-with-open-drawer runs.
+- Existing household authorization remains rooted in `private.is_household_member`; economic-party ownership is not used as authorization.
+- Existing transaction, rule, and category RLS policies and grants are not broadened.
+- New evidence tables have RLS enabled with no raw API policies. `anon` and `authenticated` have no privileges; `service_role` receives SELECT only for backup export.
+- Private functions have PUBLIC/anon/authenticated/service-role EXECUTE revoked. Reconciliation therefore requires a deliberately privileged database session and does not create an API mutation surface.
+- Stable-reference guard triggers prevent ordinary API roles from inserting or changing `category_id`; an outsider still sees zero writable household rows.
+- FK rejection, archived-category explicit mapping, system-category guards, hard-delete/TRUNCATE protections, and category lifecycle non-regression are covered by database tests.
 
-## Parity disposition for SHR-152
+## Classification and financial parity
 
-Desktop PASS: 216px sidebar; content width/padding; five-item IA/order/active state; whole-household context; theme utility; kicker/title/tabs; serif/sans hierarchy; flat/rule geometry; semantic colors; 430px detail drawer; focus/keyboard/reduced motion.
+- Reconciliation writes only stable UUID references and the two controlled system codes; transaction `category` and rule `category` text are asserted byte-identical before and after.
+- A classification digest covers every active and soft-deleted transaction plus every category rule, preserving NULL explicitly.
+- NULL and `Other` are independently tested as distinct states; archived and unknown labels remain independently represented.
+- The canonical financial parity runner remains unchanged and passes because no V1 calculation consumes `category_id` or `system_code`.
+- This capability preserves current classification only. It asserts no provenance verification, transfer pairing/group repair, transaction correction, or historical semantic reconstruction.
 
-Desktop PARTIAL: sidebar status/attention summaries are not shown because there is no truthful shell-level contract; legacy domain screens inherit the shared system but their final V6 compositions remain downstream work.
+## Backup and restore
 
-Desktop DEFERRED: every Overview, Activity, Budget, Recurring, Insights, Net Worth, Accounts, Investments, Plan, Goals, Debt Payoff, Forecasts, Household, and Categories screen-specific parity item maps to SHR-155/164/170/177/180/181/158.
+- Backup export now includes category system codes, both stable-reference columns, and all reconciliation evidence tables.
+- Restore ordering is categories → accounts → stable-referencing transactions/rules → reconciliation run/manifest/row/replay evidence, preserving foreign keys.
+- Round-trip tests cover stable UUIDs, both system codes, active and soft-deleted transactions, NULLs, archived-category evidence, exact legacy text, and replay evidence.
+- Backup format/version compatibility remains coupled to the migration release order; no backup function was deployed.
 
-Mobile PASS: exact 900px column/top-nav transformation; contained horizontal navigation; responsive content padding; single-column shared KPI behavior; 44px targets; no bottom nav; full-width safe-viewport sheets/drawers; contained 660px table overflow primitive; no page overflow at 390px.
+## Validation
 
-Mobile PARTIAL: existing domain grids/tables receive global shared treatment, but screen-specific hiding/reflow and chart-label decisions are deliberately deferred.
+- `npm ci`: PASS.
+- `npm run lint`: PASS with 0 errors and 7 pre-existing warnings.
+- `npm run test:node`: PASS, 534/534.
+- `npm run test:ui`: PASS, 91/91 across 9 files.
+- `npm run test:db`: PostgreSQL-backed CI coverage includes fresh setup, six dedicated upgrade/restart/replay runners, and 348 database tests. Exact-head result is recorded externally in PR #30 and Linear.
+- `npm run build`: PASS, 216 modules transformed.
+- `npm audit --omit=dev --audit-level=high`: PASS, 0 vulnerabilities.
+- `git diff --check`: PASS.
+- Local PostgreSQL was unavailable, so PostgreSQL execution evidence comes from the repository's GitHub Actions PostgreSQL service on the exact PR head.
 
-Mobile DEFERRED: all domain-screen reading-order, table/card transformation, calendar, holdings, forecast and settings-specific checks map to their downstream issues.
+## Reviewer hotspots
 
-## Six quarantine confirmations
+1. Verify canonical JSON/digest ordering binds every stated preflight dimension and cannot admit stale evidence.
+2. Verify exhaustive manifest validation, explicit UUID writes, ambiguity/unknown handling, and no hidden live-name authority.
+3. Verify locking and prevalidation put every expected mismatch before the first write and rollback late failures atomically.
+4. Verify exact replay versus conflicting-reference semantics and append-only evidence protection.
+5. Verify stable-reference guards, RESTRICT FKs, existing category lifecycle protections, and household RLS/ACL non-regression.
+6. Verify backup ordering and the migration-045/reviewed-backup release coupling before any production authorization.
 
-1. No shared/household allocation, duplication, 50/50, 69/31, or two-person scope behavior was added.
-2. No investment history, chart history, series, return, or metric was added or synthesized.
-3. No role, permission, invitation, or authorization behavior was added.
-4. No category lifecycle, owner, Other, uncategorized, delete, or rule semantics changed.
-5. No Planning → Plan orchestration behavior was added.
-6. No backup, refresh, sync, schedule, freshness, or integration claim was added.
+## Explicit stop boundary
 
-## Exact local validation
-
-- `npm ci`: PASS — 184 packages installed.
-- `npm run lint`: PASS — 0 errors, 7 pre-existing warnings.
-- `npm run test:node`: PASS — 533/533.
-- `npm run test:ui`: PASS — 91/91 across 9 files.
-- `npm run test:visual`: PASS — 5/5 (12 committed shell/foundation theme+viewport baselines plus axe/focus/target/reduced-motion checks).
-- `npm run build`: PASS — 216 modules transformed.
-- `npm audit --omit=dev --audit-level=high`: PASS — 0 vulnerabilities.
-- `git diff --check`: PASS (Git emitted only the repository's existing LF→CRLF working-copy notices).
-
-## Visual evidence
-
-- `tests/visual/__screenshots__/shell-desktop-{light,dark}.png`
-- `tests/visual/__screenshots__/shell-breakpoint-{light,dark}.png`
-- `tests/visual/__screenshots__/shell-phone-{light,dark}.png`
-- Updated foundation desktop/tablet/mobile light/dark baselines.
-
-## Safety and deferred work
-
-- No financial calculation, data contract, route behavior, write behavior, authorization, or backend code changed.
-- No production credential, read, write, apply, migration, preview, deploy, or merge occurred.
-- Downstream faithful screen work remains exclusively in SHR-155, SHR-164, SHR-170, SHR-177, SHR-180, SHR-181, and SHR-158.
-- Exact PR/head/CI identifiers are recorded in the PR and Linear implementation handoff after exact-head CI.
+- Do not merge or self-approve this PR.
+- Do not apply migration 050 or migrations 045–049 to production.
+- Do not infer production system-category UUIDs from names or construct a production manifest without explicit human approval in Linear.
+- Do not run reconciliation, deploy backup code, modify production data, or start SHR-198/SHR-195 from this handoff.
