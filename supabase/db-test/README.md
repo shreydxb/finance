@@ -69,6 +69,20 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   household isolation; exact replay/collision/distinct-action semantics;
   append failure atomicity; backup manifest and representative restore with
   immutable evidence preserved.
+- **`category-lifecycle-upgrade-path.mjs` + `category_lifecycle.test.mjs`** —
+  SHR-196 fresh, through-044 → 045 → 046 upgrade and restart/rerun paths, with
+  existing category ids/names/groups/icons/created_at and every category-text
+  consumer proven unchanged; the closed system-code vocabulary and its
+  single-anchor uniqueness; assignment, change, clear, archive, delete and
+  rename attempts through `anon`, `authenticated`, `service_role`, the named
+  operator functions and the database-owner path; the no-hard-delete and
+  no-truncate guards; fail-closed archive while the budget and rule predicates
+  are undefined; rename history that is immutable and creates no resolver
+  alias; alias compatibility-active → terminal history-only lifecycle with
+  collision handling and label release; the exact ACL/RLS/function matrix; and
+  the backup manifest plus a representative restore that preserves ids, system
+  codes, archive state, history and alias lifecycle along with their
+  constraints and re-attached protections.
 - **`rpc.test.ts`** — every RPC added in 026/027/030/032 against the real
   schema: `replace_category_split`, `create_goal_contribution`,
   `create_transfer`, `create_bulk_transactions`, `apply_pending_income`,

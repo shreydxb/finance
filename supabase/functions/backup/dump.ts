@@ -36,6 +36,13 @@ export const BACKUP_TABLES = [
   // so it is restore-order independent. It is irrecoverable household record,
   // not disposable operational telemetry.
   { name: 'audit_events', financial: true },
+  // SHR-196 durable category lifecycle evidence. Immutable rename history and
+  // registered compatibility aliases are the only record that a category's
+  // display label ever changed, and the alias table is what a resolver will
+  // later trust — losing either would make restored category identity
+  // unverifiable, so both are household record, not operational telemetry.
+  { name: 'category_name_history', financial: true, dependsOn: ['categories'] },
+  { name: 'category_aliases', financial: true, dependsOn: ['categories', 'category_name_history'] },
   { name: 'forecast_events', financial: false },
   { name: 'category_rules', financial: false },
   { name: 'notifications', financial: false },
