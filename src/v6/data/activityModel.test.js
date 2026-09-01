@@ -3,12 +3,13 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { normalizeCanonicalLedgerRows } from '../../lib/canonicalContracts.js'
-import { resolveAppHref } from '../../lib/routes.js'
+import { detailHref, resolveAppHref } from '../../lib/routes.js'
 import { activityFixtureReads, ACTIVITY_FIXTURE_TODAY } from '../fixtures/activityFixture.js'
 import { ACTIVITY_GAPS } from './activityGaps.js'
 import {
   applyFilters,
   buildActivityModel,
+  resolveDetail,
   buildCalendar,
   buildCapabilities,
   filterOptions,
@@ -132,7 +133,9 @@ test('category and owner are the recorded labels, never inferred from descriptio
   assert.equal(unlabelled.categoryLabel, 'Uncategorised')
   assert.equal(unlabelled.classificationReason, 'uncategorised_consumption')
   assert.equal(unlabelled.owner, null)
-  assert.equal(unlabelled.ownerLabel, 'Unassigned')
+  // Not "Unassigned": that would state an attribution decision the ledger
+  // never made. The datum is a recorded text label, absent here.
+  assert.equal(unlabelled.ownerLabel, 'Not recorded')
 
   // Both carry their gap so the label is never read as stable truth.
   assert.equal(model.gaps.categoryIdentity.gap, ACTIVITY_GAPS.categoryIdentity)
@@ -233,7 +236,7 @@ test('filter options are the labels present in the loaded rows, not a guessed ta
   const model = await loadedModel()
   const options = filterOptions(model.allRows)
   assert.ok(options.categories.includes('Uncategorised'))
-  assert.ok(options.owners.includes('Unassigned'))
+  assert.ok(options.owners.includes('Not recorded'))
   assert.ok(!options.categories.includes('Housing'))
 })
 
@@ -281,4 +284,86 @@ test('filtering everything out is distinguished from an empty period', async () 
 test('the Activity fixtures satisfy the real canonical ledger normaliser', async () => {
   const rows = normalizeCanonicalLedgerRows(await activityFixtureReads.listLedgerRows())
   assert.equal(rows.length, 12)
+})
+
+/* ── Recorded owner label is not economic attribution ───────────────────── */
+
+test('the owner datum is a recorded label and its absence is stated, not decided', async () => {
+  const model = await loadedModel()
+  const labels = model.allRows.map((row) => row.ownerLabel)
+
+  // Nothing normalises a label into a party, a share, or an assignment.
+  for (const forbidden of ['Unassigned', 'Shared', 'Both', 'Joint', 'Household 50%']) {
+    assert.equal(labels.includes(forbidden), false, forbidden)
+  }
+  assert.ok(labels.includes('Not recorded'))
+  assert.ok(labels.includes('Fixture person A'))
+
+  // The row keeps the raw datum alongside its label, and never invents one.
+  const unlabelled = findActivityRow(model, 'aaaaaaaa-bbbb-4ccc-8ddd-000000000009')
+  assert.equal(unlabelled.owner, null)
+  assert.equal(model.gaps.attribution.gap, ACTIVITY_GAPS.stableAttribution)
+  assert.match(model.gaps.attribution.gap.reason, /recorded text label, not household ownership/)
+})
+
+test('filtering by a recorded label is exact text and creates no party identity', async () => {
+  const model = await loadedModel()
+  const exact = applyFilters(model.allRows, normalizeFilters({ owner: 'Fixture person A' }))
+  assert.equal(exact.length, 1)
+  // No fuzzy or identity-based matching: "Fixture person" resolves nothing.
+  assert.equal(applyFilters(model.allRows, normalizeFilters({ owner: 'Fixture person' })).length, 0)
+  assert.equal(applyFilters(model.allRows, normalizeFilters({ owner: 'fixture person a' })).length, 0)
+})
+
+/* ── Period-scoped detail deep links ────────────────────────────────────── */
+
+test('a detail link generated from a loaded row carries the row’s month', () => {
+  const id = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000001'
+  const query = new URLSearchParams({ year: '2026', month: '8' })
+  const href = detailHref('transaction', id, query)
+
+  assert.match(href, /year=2026/)
+  assert.match(href, /month=8/)
+
+  // Reopening that generated link loads the period containing the entry.
+  const reopened = resolveAppHref(href)
+  assert.equal(reopened.kind, 'screen')
+  assert.equal(reopened.screen, 'Activity')
+  assert.equal(reopened.detail.id, id)
+  assert.equal(reopened.searchParams.get('year'), '2026')
+  assert.equal(reopened.searchParams.get('month'), '8')
+})
+
+test('a real entry outside the loaded month resolves as outside-period, never as nonexistent', async () => {
+  const july = await composeActivity({
+    year: 2026, month: 7, today: ACTIVITY_FIXTURE_TODAY, reads: activityFixtureReads,
+  })
+  // The entry is real — it is simply in a month July never requested.
+  assert.equal(july.allRows.length, 0)
+
+  const detail = resolveDetail(july, 'aaaaaaaa-bbbb-4ccc-8ddd-000000000001')
+  assert.equal(detail.status, 'outside-period')
+  assert.equal(detail.row, null)
+  assert.equal(detail.slot.gap, ACTIVITY_GAPS.directLookup)
+  assert.match(detail.slot.gap.contract, /SHR-163/)
+  // The wording must not assert absence.
+  assert.doesNotMatch(detail.slot.gap.detail, /does not exist|deleted|missing transaction/i)
+  assert.match(detail.slot.gap.detail, /not missing/)
+
+  // The same id resolves normally once its own month is loaded.
+  const august = await loadedModel()
+  assert.equal(resolveDetail(august, 'aaaaaaaa-bbbb-4ccc-8ddd-000000000001').status, 'found')
+  assert.equal(resolveDetail(august, null).status, 'none')
+})
+
+test('detail resolution never reaches past the loaded period for a row', async () => {
+  const model = await loadedModel()
+  // `resolveDetail` reads only what the period contract returned; there is no
+  // direct-by-id reader anywhere in the V6 Activity surface.
+  const screen = readFileSync(new URL('../ActivityScreen.jsx', import.meta.url), 'utf8')
+  const compose = readFileSync(new URL('composeActivity.js', import.meta.url), 'utf8')
+  for (const text of [screen, compose]) {
+    assert.doesNotMatch(text, /getTransactionById|listTransactions|\.eq\('id'/)
+  }
+  assert.equal(resolveDetail(model, 'aaaaaaaa-bbbb-4ccc-8ddd-999999999999').status, 'outside-period')
 })

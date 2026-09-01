@@ -13,7 +13,7 @@ machine-readable version of the tables below and is what the screen renders.
 |---|---|
 | Transaction rows | `v_canonical_ledger_aed` via `listCanonicalLedgerRows` over the month |
 | Row amount | the row's own `amount_aed` (never a client-side conversion or sum) |
-| Category label, owner label, description | the row's own `category`, `owner`, `note`, verbatim |
+| Category label, recorded owner label, description | the row's own `category`, `owner`, `note`, verbatim |
 | Economic classification and its reason | `economic_classification`, `classification_reason` |
 | Review state and quality | `needs_review`, `quality_status` |
 | Transfer direction, split group | `transfer_direction`, `group_kind` |
@@ -28,7 +28,8 @@ machine-readable version of the tables below and is what the screen renders.
 | Search and filter across the whole ledger | The controls narrow the canonical rows already read for the month. There is no stable household-wide search or filter contract, and an empty result must never read as "the household has no such transaction". | SHR-163 |
 | Per-day monetary totals in the calendar | No contract publishes a per-day total; adding the rows up in the browser would create a household figure nothing stands behind. | SHR-163 |
 | Bill / EMI / expected-income markers | The legacy recurring schedule is not canonical. | SHR-171 |
-| Owner as a stable economic-party reference | Owner is a recorded text label, not a stable attribution, and must not be read as ownership or as a share of a shared fact. | SHR-195 |
+| Owner as a stable economic-party reference | The column, filter and search scope are named **Recorded owner label** / **All recorded labels**, and the SHR-195 gap is stated beside the filter and beneath the list — not only in the drawer. Exact-text filtering of the loaded rows remains; nothing maps a label to an economic party, infers identity, normalises shared ownership or invents an allocation. An entry with no label reads **Not recorded**, never "Unassigned", which would state an attribution decision the ledger never made. | SHR-195 |
+| Direct lookup of one entry by id | Detail resolution is scoped to the loaded month, because no canonical contract reads a single entry by id. A generated detail link carries the month it was created in, so it reopens the right period. A link that still cannot resolve renders an explicit "not in the period being reviewed" state that says the entry is **not missing** — never a generic nonexistent-transaction state. | SHR-163 |
 | Stable category identity | The label is shown exactly as the ledger reports it and is never inferred from description text. | SHR-198 |
 | Merchant / payee identity | The ledger carries the free-text note recorded with the entry; there is no resolved merchant behind it. | SHR-169 |
 | The paired side of a transfer | Pairing entries in the browser could join two unrelated movements. | SHR-159 |
@@ -77,7 +78,9 @@ attention conditions. The attention registry remains SHR-192's.
   money comes from `canonical_period_metrics`, not from adding the visible rows.
 * **Month navigation.** The prototype shows a static range caption. Activity
   navigates by month through the route query, and cannot step past the current
-  month.
+  month. The screen also pins the month it resolved into the query on arrival
+  (by replacement, adding no history entry), so every detail link it generates
+  carries the period containing the entry.
 
 ## Prototype demo values
 

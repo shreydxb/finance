@@ -34,8 +34,14 @@ export const ACTIVITY_GAPS = Object.freeze({
   stableAttribution: Object.freeze({
     id: 'activity-attribution',
     contract: 'SHR-195 — transaction and posted-income stable attribution references',
-    reason: 'Owner is the label recorded on the entry.',
-    detail: 'These are recorded text labels, not stable economic-party references. They must not be read as ownership, as a share of a shared fact, or as an attribution the household can rely on.',
+    reason: 'The owner column is a recorded text label, not household ownership.',
+    detail: 'Whatever text was recorded on the entry is shown verbatim and can be filtered on exactly. It is not a stable economic-party reference, so it must not be read as who owns the money, as a share of a shared fact, or as an attribution the household can rely on. Nothing here normalises it into an economic party.',
+  }),
+  directLookup: Object.freeze({
+    id: 'activity-direct-lookup',
+    contract: 'SHR-163 — stable Activity read, search, filter and calendar contract',
+    reason: 'This entry is not in the period being reviewed.',
+    detail: 'Detail resolution is scoped to the month Activity has loaded, because no canonical contract supports reading a single entry directly by id. This entry is not missing and may well exist — it simply was never requested. Choose the month it belongs to and open it from the list.',
   }),
   categoryIdentity: Object.freeze({
     id: 'activity-category-identity',

@@ -67,7 +67,9 @@ test('neither the list nor the calendar overflows the page, down to 320px and at
 test('the desktop table keeps every column and the calendar keeps seven', async ({ page }) => {
   await openActivity(page, VIEWPORTS[2])
   const headers = await page.getByRole('columnheader').allTextContents()
-  expect(headers).toEqual(['Date', 'Description', 'Category', 'Owner', 'Account', 'Amount (AED)'])
+  expect(headers).toEqual([
+    'Date', 'Description', 'Category', 'Recorded owner label', 'Account', 'Amount (AED)',
+  ])
   await expect(page.locator('.v6-col-owner').first()).toBeVisible()
 
   await openActivity(page, VIEWPORTS[2], { query: '?view=calendar' })
@@ -141,9 +143,48 @@ test('a deep-linked drawer opens full width on a phone and closes back to the li
   expect(Math.round(width)).toBe(390)
   expect(await hasHorizontalOverflow(page)).toBe(false)
 
+  // The drawer stacks: its header sits above the scrolling body, not beside it.
+  const stacked = await dialog.evaluate((node) => {
+    const [header, body] = node.children
+    return header.getBoundingClientRect().bottom <= body.getBoundingClientRect().top + 1
+      && Math.round(body.getBoundingClientRect().width) === Math.round(node.getBoundingClientRect().width)
+  })
+  expect(stacked).toBe(true)
+
   await dialog.getByRole('button', { name: /Back to Activity/ }).click()
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('table')).toBeVisible()
+})
+
+test('the recorded owner label is never presented as authoritative ownership', async ({ page }) => {
+  await openActivity(page, VIEWPORTS[2])
+  await expect(page.getByRole('columnheader', { name: 'Recorded owner label' })).toBeVisible()
+  await expect(page.getByLabel('Recorded owner label')).toBeVisible()
+  await expect(page.getByRole('option', { name: 'All recorded labels' })).toHaveCount(1)
+
+  const text = await page.locator('#main-content').innerText()
+  expect(text).not.toMatch(/\bAll owners\b/)
+  expect(text).not.toMatch(/\bUnassigned\b/)
+  expect(text).toMatch(/recorded text label, not household ownership/)
+  expect(text).toMatch(/SHR-195/)
+})
+
+test('an entry outside the loaded month states the SHR-163 limit, not absence', async ({ page }) => {
+  // July is loaded; the entry belongs to August.
+  await openActivity(page, VIEWPORTS[2], { query: `?year=2026&month=7&detail=${REVIEW_ID}` })
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+
+  const text = await dialog.innerText()
+  expect(text).toMatch(/not in the period being reviewed/)
+  expect(text).toMatch(/SHR-163/)
+  expect(text).toMatch(/not missing/)
+  expect(text).not.toMatch(/Record unavailable/)
+  expect(text).not.toMatch(/does not exist|not found/i)
+
+  // Back still returns to the list.
+  await dialog.getByRole('button', { name: /Back to Activity/ }).click()
+  await expect(dialog).toBeHidden()
 })
 
 test('no write control on the screen or in the drawer is operable', async ({ page }) => {
@@ -174,7 +215,7 @@ test('reduced motion renders the final Activity state immediately', async ({ pag
 test('Activity has no automated accessibility violations on desktop or phone', async ({ page }) => {
   for (const viewport of [VIEWPORTS[2], VIEWPORTS[0]]) {
     for (const theme of ['light', 'dark']) {
-      for (const query of ['', '?view=calendar', `?detail=${REVIEW_ID}`]) {
+      for (const query of ['', '?view=calendar', `?detail=${REVIEW_ID}`, `?year=2026&month=7&detail=${REVIEW_ID}`]) {
         await openActivity(page, viewport, { theme, query })
         const results = await new AxeBuilder({ page }).analyze()
         expect(results.violations, `${viewport.name}/${theme}/${query || 'list'}`).toEqual([])

@@ -272,6 +272,11 @@
 
 .detail-shell-content {
   display: flex;
+  /* Without an explicit direction the sticky header and the scrolling body
+     become side-by-side flex items — the drawer's title ends up beside its
+     content instead of above it. Proven by the SHR-164 Activity drawer, the
+     first detail surface with enough content to make it visible. */
+  flex-direction: column;
   height: 100dvh;
   max-height: none;
   width: min(100%, 430px);

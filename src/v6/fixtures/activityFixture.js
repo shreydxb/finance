@@ -105,8 +105,12 @@ const LEDGER = Object.freeze([
 ])
 
 export const activityFixtureReads = Object.freeze({
-  async listLedgerRows() {
-    return LEDGER
+  async listLedgerRows({ from, to } = {}) {
+    // Honour the requested window like the real contract does, so navigating
+    // to another month genuinely returns different rows — and a deep link to
+    // an entry outside the loaded month genuinely fails to resolve.
+    if (!from || !to) return LEDGER
+    return Object.freeze(LEDGER.filter((row) => row.date >= from && row.date <= to))
   },
   async listAccounts() {
     return fixtureReads.listAccounts()

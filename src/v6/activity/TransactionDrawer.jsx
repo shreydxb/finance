@@ -32,15 +32,15 @@ function SlotField({ label, slot }) {
  * invoking row all come from the shared `DetailShell` built in SHR-152 —
  * proven interaction infrastructure, not legacy presentation.
  */
-export default function TransactionDrawer({ row, model, onClose }) {
-  const { capabilities, gaps } = model
+export default function TransactionDrawer({ detail, model, onClose }) {
+  const { capabilities, gaps, period } = model
+  const row = detail.status === 'found' ? detail.row : null
 
   return (
     <DetailShell
       backLabel="Activity"
-      title={row?.description ?? 'Transaction'}
+      title={row ? (row.description ?? 'Transaction') : 'Entry outside this period'}
       onRequestClose={onClose}
-      unavailable={!row}
     >
       {row ? (
         <div className="v6-surface">
@@ -66,7 +66,7 @@ export default function TransactionDrawer({ row, model, onClose }) {
           <dl className="v6-drawer-fields">
             <Field label="Date">{formatDayMonthYear(row.date)}</Field>
             <Field label="Category">{row.categoryLabel}</Field>
-            <Field label="Owner">{row.ownerLabel}</Field>
+            <Field label="Recorded owner label">{row.ownerLabel}</Field>
             <SlotField label="Account" slot={row.account} />
             <Field label="Classification">{row.classificationLabel}</Field>
             <Field label="Quality">{row.quality}</Field>
@@ -102,7 +102,17 @@ export default function TransactionDrawer({ row, model, onClose }) {
             <UnavailableRegion slot={gaps.description} inline />
           </div>
         </div>
-      ) : null}
+      ) : (
+        // Deliberately not DetailShell's generic "record unavailable": that
+        // would present a real transaction as nonexistent when all that
+        // happened is that a different month was loaded.
+        <div className="v6-surface">
+          <UnavailableRegion slot={detail.slot} />
+          <p className="v6-unavailable-detail" style={{ marginTop: '14px' }}>
+            Activity has loaded {period.label}. Move to the month this entry belongs to and open it from the list.
+          </p>
+        </div>
+      )}
     </DetailShell>
   )
 }

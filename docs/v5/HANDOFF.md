@@ -1,13 +1,57 @@
 # SHR-164 implementation handoff
 
 Status: fresh V6 Money → Activity screen implemented on a bounded branch off
-the V6 integration branch. Ready for independent UI and transaction-safety
-review. Not merged, not approved, not deployed.
+the V6 integration branch, with the independent review's two blocking findings
+remediated. Ready for re-review at the remediation head. Not merged, not
+approved, not deployed.
+
+## Review round 1 — two blocking findings, both remediated
+
+Independent UI and transaction-safety review of head `ac25fc5` returned BLOCKED
+on two bounded frontend semantics issues. CI itself was green, and everything
+else reviewed positively.
+
+**1. Recorded owner text presented as authoritative ownership.** The gap was
+acknowledged in `activityGaps.js`, but the surface still said `Owner` /
+`All owners`, making compatibility text look like reliable household ownership.
+
+Remediated without starting SHR-195: the column, the filter, its default option
+and the search placeholder now name the datum — **Recorded owner label** /
+**All recorded labels** — and the SHR-195 gap is stated beside the filter and
+beneath the list, not only in the drawer. The empty case reads **Not recorded**
+rather than "Unassigned", which would have stated an attribution decision the
+ledger never made. Exact-text filtering remains; nothing maps a label to an
+economic party, infers identity, normalises shared ownership or invents an
+allocation.
+
+**2. `/money/activity/:uuid` was not a stable detail deep link.** `findActivityRow`
+searched only the loaded month, so a real transaction outside it appeared as a
+generic missing record.
+
+Remediated without starting SHR-163 and without a non-canonical direct reader:
+
+- The screen pins the month it resolved into the route query on arrival, by
+  replacement, so every detail link it generates carries the period containing
+  the entry and reopens it correctly.
+- `resolveDetail()` replaces `findActivityRow()` at the screen boundary and has
+  three outcomes — `found`, `outside-period`, `none`. The middle one renders an
+  explicit SHR-163 state saying direct lookup across the ledger is not
+  available, that only the selected month is loaded, and that failing to
+  resolve **does not mean the transaction does not exist**. It never uses
+  `DetailShell`'s generic "record unavailable".
+
+**A third defect surfaced while verifying the remediation** and was fixed:
+`.detail-shell-content` set `display: flex` with no direction, so the drawer's
+sticky header and scrolling body rendered side by side instead of stacked.
+Pre-existing in shared shell CSS; Activity is the first drawer with enough
+content to make it visible. One line, plus a Playwright assertion that the
+drawer stacks and its body spans the full width.
 
 ## Git and release boundary
 
 - Issue: `SHR-164 — Fresh Activity screen: list, calendar and transaction drawer`.
 - Branch: `claude/shr-164-v6-activity`, cut from `origin/v6`.
+- Review-1 head: `ac25fc59aa7440d54c0c69d60510f658b3113456` (BLOCKED). Remediation head recorded in PR #32 after CI completes.
 - Base: `d8f9cbad06b92f9981e24492cbc56bc6b857cfd4` — `origin/v6`, fetched and
   verified at implementation start; it carries SHR-155 as expected.
 - **PR targets `v6`, not `main`.** `main` was neither read from as a base nor
@@ -103,8 +147,8 @@ reports every capability `unavailable`, and `isWriteEnabled()` is `false`.
 | Command | Result |
 |---|---|
 | `npm run lint` | exit 0 |
-| `npm test` | **706 passing** — 575 node (base 555, **+20**) and 131 vitest (base 106, **+25**) |
-| `npm run test:visual` | 20 passing, including all 10 new Activity tests |
+| `npm test` | **714 passing** — 580 node (base 555, **+25**) and 134 vitest (base 106, **+28**) |
+| `npm run test:visual` | 22 passing, including all 12 new Activity tests |
 | `npm run build` | exit 0 |
 | `npm audit --audit-level=high` | 0 vulnerabilities |
 | `git diff --check` | clean |

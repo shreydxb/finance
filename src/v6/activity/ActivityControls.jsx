@@ -15,7 +15,7 @@ import { SORT_OPTIONS, VIEW_OPTIONS } from '../data/activityModel'
  *    misrepresent the product as not having the idea.
  */
 export default function ActivityControls({ model, onFilterChange, onViewChange }) {
-  const { filters, filterOptions, view, capabilities, reviewCount } = model
+  const { filters, filterOptions, view, capabilities, gaps, reviewCount } = model
 
   return (
     <section aria-label="Activity search and filters">
@@ -27,21 +27,22 @@ export default function ActivityControls({ model, onFilterChange, onViewChange }
             className="v6-input"
             type="search"
             value={filters.search}
-            placeholder="Description, category, owner or account"
+            placeholder="Description, category, recorded owner label or account"
             aria-describedby="v6-activity-search-gap"
             onChange={(event) => onFilterChange({ search: event.target.value })}
           />
         </div>
 
         <div className="v6-field">
-          <label htmlFor="v6-activity-owner">Owner</label>
+          <label htmlFor="v6-activity-owner">Recorded owner label</label>
           <select
             id="v6-activity-owner"
             className="v6-select"
             value={filters.owner}
+            aria-describedby="v6-activity-owner-gap"
             onChange={(event) => onFilterChange({ owner: event.target.value })}
           >
-            <option value="">All owners</option>
+            <option value="">All recorded labels</option>
             {filterOptions.owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
           </select>
         </div>
@@ -103,6 +104,10 @@ export default function ActivityControls({ model, onFilterChange, onViewChange }
             <span aria-hidden="true">+</span> Add transaction
           </button>
         </div>
+      </div>
+
+      <div id="v6-activity-owner-gap" style={{ marginTop: '12px' }}>
+        <UnavailableRegion slot={gaps.attribution} inline />
       </div>
 
       <div id="v6-activity-create-gap" style={{ marginTop: '12px' }}>

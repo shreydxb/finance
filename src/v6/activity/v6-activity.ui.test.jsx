@@ -56,7 +56,7 @@ describe('V6 Activity — composition and canonical rows', () => {
     const table = screen.getByRole('table')
 
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
-      'Date', 'Description', 'Category', 'Owner', 'Account', 'Amount (AED)',
+      'Date', 'Description', 'Category', 'Recorded owner label', 'Account', 'Amount (AED)',
     ])
 
     const row = within(table).getByRole('button', { name: 'Fixture grocery run' }).closest('tr')
@@ -68,7 +68,9 @@ describe('V6 Activity — composition and canonical rows', () => {
     expect(within(row).getByText('provisional')).toBeInTheDocument()
 
     expect(within(table).getByText('Uncategorised')).toBeInTheDocument()
-    expect(within(table).getByText('Unassigned')).toBeInTheDocument()
+    // An entry with no recorded label says exactly that — never "Unassigned",
+    // which would state an attribution decision the ledger never made.
+    expect(within(table).getByText('Not recorded')).toBeInTheDocument()
     expect(within(table).getByText('No description recorded')).toBeInTheDocument()
   })
 
@@ -77,6 +79,29 @@ describe('V6 Activity — composition and canonical rows', () => {
     expect(screen.getAllByText(/12 canonical entries/).length).toBeGreaterThan(0)
     expect(container.textContent).toMatch(/Consumption spend/)
     expect(container.textContent).toMatch(/Posted income/)
+  })
+
+  it('does not present the recorded owner label as authoritative ownership', async () => {
+    const { container } = await renderLoaded()
+
+    // The column, the filter and its default option all name the datum.
+    expect(screen.getByRole('columnheader', { name: 'Recorded owner label' })).toBeInTheDocument()
+    const filter = screen.getByLabelText('Recorded owner label')
+    expect(within(filter).getByRole('option', { name: 'All recorded labels' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox')).toHaveAttribute(
+      'placeholder', 'Description, category, recorded owner label or account',
+    )
+
+    // The SHR-195 gap sits beside the filter and the list, not only in the drawer.
+    expect(screen.getAllByText(/recorded text label, not household ownership/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText(/SHR-195/).length).toBeGreaterThanOrEqual(2)
+    expect(filter).toHaveAttribute('aria-describedby', 'v6-activity-owner-gap')
+
+    // No ownership vocabulary anywhere on the screen.
+    expect(container.textContent).not.toMatch(/\bAll owners\b/)
+    expect(container.textContent).not.toMatch(/\bUnassigned\b/)
+    expect(container.textContent).not.toMatch(/\bowned by\b/i)
+    expect(container.textContent).not.toMatch(/\bJoint\b|\bShared\b|50\/50/)
   })
 
   it('never renders a prototype demo value', async () => {
@@ -153,14 +178,24 @@ describe('V6 Activity — mutations stay inert', () => {
     expect(within(dialog).getByText('provisional')).toBeInTheDocument()
     expect(within(dialog).getByText('Needs review')).toBeInTheDocument()
     expect(within(dialog).getByText(/categorised_consumption/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/Owner is the label recorded on the entry/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/recorded text label, not household ownership/)).toBeInTheDocument()
     expect(within(dialog).getByText(/Provenance and audit history are not available/)).toBeInTheDocument()
   })
 
-  it('reports an unknown deep-linked entry as unavailable rather than inventing one', async () => {
-    await renderLoaded({ detailId: 'aaaaaaaa-bbbb-4ccc-8ddd-999999999999' })
+  it('never presents an entry outside the loaded period as nonexistent', async () => {
+    // A real fixture entry, deep-linked while a different month is loaded.
+    await renderLoaded({ query: { year: '2026', month: '7' }, detailId: REVIEW_ID })
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/Record unavailable/)).toBeInTheDocument()
+
+    expect(within(dialog).getByText(/This entry is not in the period being reviewed/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/no canonical contract supports reading a single entry directly by id/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/SHR-163/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Activity has loaded July 2026/)).toBeInTheDocument()
+
+    // Nothing claims the transaction is missing, deleted or unavailable.
+    expect(within(dialog).queryByText(/Record unavailable/)).not.toBeInTheDocument()
+    expect(within(dialog).queryByText(/no longer exists/)).not.toBeInTheDocument()
+    expect(dialog.textContent).not.toMatch(/not found|does not exist/i)
   })
 })
 
@@ -228,6 +263,33 @@ describe('V6 Activity — query state and interaction', () => {
     const { onOpenDetail } = await renderLoaded()
     await user.click(screen.getByRole('button', { name: 'Fixture grocery run' }))
     expect(onOpenDetail).toHaveBeenCalledWith('transaction', REVIEW_ID)
+  })
+
+  it('pins the reviewed month into the query so a generated detail link carries it', async () => {
+    // Arriving with no period, the screen writes the month it resolved into
+    // the query. Detail links are built from that query, so a link generated
+    // here reopens the month containing the entry.
+    const onRouteQueryChange = vi.fn()
+    render(
+      <ActivityScreen
+        routeQuery={{}}
+        onRouteQueryChange={onRouteQueryChange}
+        onOpenDetail={vi.fn(() => true)}
+        onCloseDetail={vi.fn(() => true)}
+        today={ACTIVITY_FIXTURE_TODAY}
+        reads={activityFixtureReads}
+      />,
+    )
+    await waitFor(() => expect(onRouteQueryChange).toHaveBeenCalledWith(
+      expect.objectContaining({ year: '2026', month: '8' }),
+    ))
+    // Written once, not on every render.
+    expect(onRouteQueryChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves an explicit period alone', async () => {
+    const { onRouteQueryChange } = await renderLoaded({ query: { year: '2026', month: '7' } })
+    expect(onRouteQueryChange).not.toHaveBeenCalled()
   })
 })
 

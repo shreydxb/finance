@@ -1,7 +1,7 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { canonicalReads } from './data/canonicalReads'
-import { findActivityRow, VIEW_OPTIONS } from './data/activityModel'
+import { resolveDetail, VIEW_OPTIONS } from './data/activityModel'
 import { monthPeriod, stepMonth } from './data/activityPeriods'
 import { useActivityData } from './data/useActivityData'
 import ActivityHeader from './activity/ActivityHeader'
@@ -88,11 +88,27 @@ export default function ActivityScreen({
     commitQuery({ year: String(next.year), month: String(next.month) })
   }, [commitQuery, period])
 
+  // A detail route is built from the screen's current query, so the query has
+  // to name the month explicitly before a row is opened. Otherwise a link
+  // generated while browsing the default month carries no period, and
+  // reopening it from another month cannot resolve the entry it points at.
+  // Written once, by replacement, so it adds no history entry.
+  const periodPinned = useRef(false)
+  useEffect(() => {
+    if (periodPinned.current || !model) return
+    if (routeQuery?.year && routeQuery?.month) {
+      periodPinned.current = true
+      return
+    }
+    periodPinned.current = true
+    commitQuery({ year: String(period.year), month: String(period.month) })
+  }, [commitQuery, model, period.month, period.year, routeQuery?.month, routeQuery?.year])
+
   const handleOpenRow = useCallback((id) => {
     onOpenDetail?.('transaction', id)
   }, [onOpenDetail])
 
-  const detailRow = findActivityRow(model, detailId)
+  const detail = resolveDetail(model, detailId)
 
   return (
     <div className="v6-surface" data-testid="v6-activity">
@@ -122,8 +138,8 @@ export default function ActivityScreen({
           {model.view === 'calendar'
             ? <ActivityCalendar model={model} />
             : <ActivityList model={model} onOpenRow={handleOpenRow} />}
-          {detailId ? (
-            <TransactionDrawer row={detailRow} model={model} onClose={() => onCloseDetail?.()} />
+          {detail.status !== 'none' ? (
+            <TransactionDrawer detail={detail} model={model} onClose={() => onCloseDetail?.()} />
           ) : null}
         </>
       )}

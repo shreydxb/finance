@@ -69,7 +69,7 @@ export default function ActivityList({ model, onOpenRow }) {
               <th scope="col">Date</th>
               <th scope="col">Description</th>
               <th scope="col">Category</th>
-              <th scope="col" className="v6-col-owner">Owner</th>
+              <th scope="col" className="v6-col-owner">Recorded owner label</th>
               <th scope="col" className="v6-col-account">Account</th>
               <th scope="col" className="v6-col-amount">Amount (AED)</th>
             </tr>
@@ -108,6 +108,12 @@ export default function ActivityList({ model, onOpenRow }) {
       </p>
       <div id="v6-activity-search-gap" style={{ marginTop: '10px' }}>
         <UnavailableRegion slot={searchGap} inline />
+      </div>
+      {/* Stated next to the column and filter it qualifies, not only in the
+          drawer: the header is where the datum is most likely to be misread
+          as household ownership. */}
+      <div style={{ marginTop: '10px' }}>
+        <UnavailableRegion slot={gaps.attribution} inline />
       </div>
     </>
   )

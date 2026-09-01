@@ -32,7 +32,9 @@ export const VIEW_OPTIONS = Object.freeze([
   { value: 'calendar', label: 'Calendar' },
 ])
 
-export const UNASSIGNED_OWNER = 'Unassigned'
+// Not "Unassigned": that would state an attribution decision the ledger never
+// made. The datum is a recorded text label, and its absence is exactly that.
+export const NO_OWNER_LABEL = 'Not recorded'
 export const UNCATEGORISED = 'Uncategorised'
 
 function sourced(contract, field) {
@@ -75,7 +77,7 @@ function buildRow(row, accountsById, accountsRead) {
     categoryLabel: category || UNCATEGORISED,
     classificationReason: row.classification_reason,
     owner: owner || null,
-    ownerLabel: owner || UNASSIGNED_OWNER,
+    ownerLabel: owner || NO_OWNER_LABEL,
     account: accountSlot(row, accountsById, accountsRead),
     accountId: row.account_id ?? null,
     currency: row.currency,
@@ -322,6 +324,7 @@ export function buildActivityModel(input) {
       transferPairing: activityGapSlot('transferPairing'),
       refundLinkage: activityGapSlot('refundLinkage'),
       provenance: activityGapSlot('provenance'),
+      directLookup: activityGapSlot('directLookup'),
     }),
   })
 }
@@ -329,6 +332,25 @@ export function buildActivityModel(input) {
 export function findActivityRow(model, id) {
   if (!id || !model) return null
   return model.allRows.find((row) => row.id === id) ?? null
+}
+
+/**
+ * Resolving a deep-linked entry has three outcomes, and conflating the last
+ * two would be a lie.
+ *
+ *  - `found`          — the entry is among the rows read for this period.
+ *  - `outside-period` — it is not, and Activity cannot say whether it exists:
+ *                       no canonical contract reads one entry by id, so the
+ *                       month is all that was requested. Reporting this as
+ *                       "record unavailable" would present a real transaction
+ *                       as nonexistent.
+ *  - `none`           — no entry was asked for.
+ */
+export function resolveDetail(model, id) {
+  if (!id) return Object.freeze({ status: 'none', row: null, gap: null })
+  const row = findActivityRow(model, id)
+  if (row) return Object.freeze({ status: 'found', row, gap: null })
+  return Object.freeze({ status: 'outside-period', row: null, slot: activityGapSlot('directLookup') })
 }
 
 export { ACTIVITY_GAPS }
