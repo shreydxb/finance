@@ -67,6 +67,14 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   renders the prototype's composition with every plan position failing closed
   under SHR-171 rather than carrying the legacy screen's non-canonical
   schedule forward. See `docs/v6/RECURRING_CONTRACT_GAPS.md`.
+* `src/screens/Reports.jsx` — the legacy Reports/Insights composition. It stays
+  in the repository (nothing is deleted in SHR-201) but no longer renders at
+  `/money/insights`, and `src/App.jsx` no longer imports it. The fresh screen
+  reads only canonical period metrics and canonical budget actuals; every
+  analytical comparison, merchant/payee position and explanatory conclusion
+  fails closed under SHR-169 instead of carrying forward legacy transaction
+  grouping or browser-side arithmetic. See
+  `docs/v6/INSIGHTS_CONTRACT_GAPS.md`.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the
@@ -80,5 +88,8 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   clustering them. It therefore makes no ledger, income or transaction read at
   all — the inference has nowhere to live — and `v6-boundary.test.js` fails the
   build if one appears. See `docs/v6/RECURRING_CONTRACT_GAPS.md`.
+  Insights has the same structural guard: only `getPeriodMetrics` and
+  `listBudgetActuals` may reach its composition, while raw rows, analytical
+  heuristics and every legacy financial writer are rejected.
 * `src/lib/PrefsContext`'s display-currency conversion — canonical values are
   AED and are rendered in AED rather than re-converted in the browser.

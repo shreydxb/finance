@@ -17,9 +17,9 @@ import OverviewScreen from './v6/OverviewScreen'
 import ActivityScreen from './v6/ActivityScreen'
 import BudgetScreen from './v6/BudgetScreen'
 import RecurringScreen from './v6/RecurringScreen'
+import InsightsScreen from './v6/InsightsScreen'
 import Accounts from './screens/Accounts'
 import Investments from './screens/Investments'
-import Reports from './screens/Reports'
 import Goals from './screens/Goals'
 import Debts from './screens/Debts'
 import Settings from './screens/Settings'
@@ -27,9 +27,11 @@ import Settings from './screens/Settings'
 // V6 screens replace legacy presentation progressively. `/overview` renders
 // the fresh V6 Overview (SHR-155), `/money/activity` the fresh V6 Activity
 // (SHR-164), `/money/budget` the fresh V6 Budget (SHR-199) and
-// `/money/recurring` the fresh V6 Recurring (SHR-200). The legacy
+// `/money/recurring` the fresh V6 Recurring (SHR-200), and
+// `/money/insights` the fresh V6 Insights (SHR-201). The legacy
 // `src/screens/Home.jsx`, `src/screens/Transactions.jsx`,
-// `src/screens/Budget.jsx` and `src/screens/Recurring.jsx` compositions are
+// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx` and
+// `src/screens/Reports.jsx` compositions are
 // retained in the repository but are no longer mounted, and are no longer
 // imported here.
 const BUILT_SCREENS = {
@@ -37,9 +39,9 @@ const BUILT_SCREENS = {
   Activity: ActivityScreen,
   Budget: BudgetScreen,
   Recurring: RecurringScreen,
+  Insights: InsightsScreen,
   Accounts,
   Investments,
-  Reports,
   Goals,
   Debts,
   Settings,
@@ -89,7 +91,7 @@ function Dashboard({ router }) {
     return true
   }
 
-  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring'])
+  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights'])
 
   const screenProps = {
     navigate,

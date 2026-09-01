@@ -32,7 +32,7 @@ test('every canonical destination direct-opens an existing production screen', (
     '/money/activity': 'Activity',
     '/money/budget': 'Budget',
     '/money/recurring': 'Recurring',
-    '/money/insights': 'Reports',
+    '/money/insights': 'Insights',
     '/wealth/net-worth': 'Accounts',
     '/wealth/accounts': 'Accounts',
     '/wealth/investments': 'Investments',

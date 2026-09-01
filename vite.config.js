@@ -22,6 +22,7 @@ export default defineConfig({
         v6ActivityPreview: resolve(import.meta.dirname, 'v6-activity-preview.html'),
         v6BudgetPreview: resolve(import.meta.dirname, 'v6-budget-preview.html'),
         v6RecurringPreview: resolve(import.meta.dirname, 'v6-recurring-preview.html'),
+        v6InsightsPreview: resolve(import.meta.dirname, 'v6-insights-preview.html'),
       },
     },
   },

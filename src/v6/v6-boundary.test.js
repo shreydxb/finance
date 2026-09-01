@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-const ROOT = new URL('.', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('.', import.meta.url))
 
 function walk(directory) {
   const entries = []
@@ -16,7 +17,10 @@ function walk(directory) {
 }
 
 const files = walk(ROOT)
-const sources = files.map((path) => ({ path: path.slice(ROOT.length), text: readFileSync(path, 'utf8') }))
+const sources = files.map((path) => ({
+  path: path.slice(ROOT.length).replaceAll('\\', '/'),
+  text: readFileSync(path, 'utf8'),
+}))
 
 test('the V6 surface has files to guard', () => {
   assert.ok(sources.length >= 25, `expected the V6 surface to contain modules, found ${sources.length}`)
@@ -77,6 +81,7 @@ test('the Overview model and its composition never import the Supabase client', 
     'data/activityModel.js', 'data/composeActivity.js', 'data/activityPeriods.js', 'data/activityGaps.js',
     'data/budgetModel.js', 'data/composeBudget.js', 'data/budgetPeriods.js', 'data/budgetGaps.js',
     'data/recurringModel.js', 'data/composeRecurring.js', 'data/recurringPeriods.js', 'data/recurringGaps.js',
+    'data/insightsModel.js', 'data/composeInsights.js', 'data/insightsPeriods.js', 'data/insightsGaps.js',
     'data/slots.js', 'format.js',
   ]
   for (const path of pure) {
@@ -112,16 +117,47 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
   const app = readFileSync(join(ROOT, '..', 'App.jsx'), 'utf8')
   for (const [screen, module] of [
     ['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'],
-    ['Budget', 'BudgetScreen'], ['Recurring', 'RecurringScreen'],
+    ['Budget', 'BudgetScreen'], ['Recurring', 'RecurringScreen'], ['Insights', 'InsightsScreen'],
   ]) {
     assert.match(app, new RegExp(`import ${module} from '\\./v6/${module}'`), `${screen} must mount its V6 screen`)
     assert.match(app, new RegExp(`${screen}: ${module},`), `${screen} must resolve to its V6 screen`)
   }
-  for (const legacy of ['Home', 'Transactions', 'Budget', 'Recurring']) {
+  for (const legacy of ['Home', 'Transactions', 'Budget', 'Recurring', 'Reports']) {
     assert.ok(
       !new RegExp(`from '\\./screens/${legacy}'`).test(app),
       `the legacy ${legacy} screen must no longer be imported by the app`,
     )
+  }
+})
+
+test('the Insights tree has no raw-row analytical input or legacy writer', () => {
+  const insights = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:InsightsScreen\.jsx|insights\/|data\/(?:insightsModel|insightsGaps|insightsPeriods|composeInsights|useInsightsData)\.js)/.test(file.path)
+  ))
+  assert.ok(insights.length >= 12, `expected the Insights tree to be guarded, found ${insights.length} files`)
+  const forbidden = /\b(?:listLedgerRows|listCanonicalLedgerRows|listIncomeRows|listCanonicalIncomeRows|listTransactions|loadCanonicalReportPeriod|upsertTransaction|updateTransaction|deleteTransaction|upsertBudget|upsertRecurring)\b/
+  for (const file of insights) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    assert.ok(!forbidden.test(code), `${file.path} must not read raw analytical input or call a financial writer`)
+  }
+})
+
+test('the Insights tree contains no merchant normalization or analytical arithmetic engine', () => {
+  const insights = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:InsightsScreen\.jsx|insights\/|data\/(?:insightsModel|composeInsights|useInsightsData)\.js)/.test(file.path)
+  ))
+  const forbidden = [
+    /levenshtein|similarity|fuzzy|normalizeMerchant|merchantAlias|stripPrefix|stripSuffix/i,
+    /rollingAverage|movingAverage|averageInterval|detectTrend|inferTrend|projectValue/i,
+    /percent(?:age)?Change|monthOverMonth|anomalyScore|unusualSpend|rankingScore/i,
+  ]
+  for (const file of insights) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    for (const pattern of forbidden) {
+      assert.ok(!pattern.test(code), `${file.path} must not contain an Insights heuristic (${pattern})`)
+    }
   }
 })
 
