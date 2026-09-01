@@ -54,9 +54,19 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
 * `src/screens/Transactions.jsx` — the legacy Activity composition. It stays in
   the repository (nothing is deleted in SHR-164) but no longer renders at
   `/money/activity`, and `src/App.jsx` no longer imports it.
+* `src/screens/Budget.jsx` — the legacy Budget composition. It stays in the
+  repository (nothing is deleted in SHR-199) but no longer renders at
+  `/money/budget`, and `src/App.jsx` no longer imports it. Its derived
+  `Remaining` column, its browser-side `toAED` conversion and its raw
+  `listTransactions` reads are exactly the frontend financial truth SHR-167
+  exists to remove, so none of it is carried forward.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the
-  other non-canonical readers — their values are not canonical contracts.
+  other non-canonical readers — their values are not canonical contracts. For
+  Budget specifically, `budgets.js` also carries the only *writer* the prototype
+  would reach for; wiring it in would create plan rows outside the versioned
+  plan contract (SHR-166), so every plan write is rendered as a named
+  unsupported capability instead. See `docs/v6/BUDGET_CONTRACT_GAPS.md`.
 * `src/lib/PrefsContext`'s display-currency conversion — canonical values are
   AED and are rendered in AED rather than re-converted in the browser.

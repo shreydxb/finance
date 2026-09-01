@@ -1217,3 +1217,168 @@
   .v6-calendar-cell { min-height: 64px; padding: 6px 7px; }
   .v6-calendar-count { font-size: 11px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Budget (SHR-199)
+
+   Same scope rule as the rest of this file: every selector is a `.v6-` class,
+   so no legacy global can decide how the Budget tables read. The plan columns
+   are laid out at the width the prototype gives them even though they carry an
+   unavailable state — the composition is the product, and collapsing them
+   would hide the idea of a plan rather than report it as missing.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.v6-budget-positions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 26px;
+  flex-wrap: wrap;
+  flex: 1 1 300px;
+  padding-bottom: 6px;
+}
+
+.v6-budget-position {
+  min-width: 0;
+  max-width: 13rem;
+  text-align: right;
+}
+
+.v6-budget-position-label {
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.v6-budget-position-value {
+  margin-top: 7px;
+  font-family: var(--v6-fig);
+  font-size: 20px;
+}
+
+.v6-budget-position-note {
+  margin-top: 5px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.v6-budget-plan-gap { margin-top: 12px; }
+
+.v6-budget-evidence { margin-top: 14px; }
+
+/* ── Month view: the category table ─────────────────────────────────────── */
+
+/* `position: relative` is load-bearing, not decoration: the visually-hidden
+   spans inside the cells are absolutely positioned, so without a containing
+   block here they escape this container's clip and push the whole page wide at
+   phone widths — the year grid is 980px, and the page would scroll sideways
+   even though the table scrolls inside its own region. */
+.v6-budget-scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.v6-budget-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  margin-top: 18px;
+  text-align: left;
+}
+
+.v6-budget-table thead th,
+.v6-budget-year-table thead th {
+  border-bottom: 1px solid var(--v6-rule-strong);
+  padding: 14px 8px 10px;
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.v6-budget-table th:first-child,
+.v6-budget-table td:first-child,
+.v6-budget-year-table th:first-child,
+.v6-budget-year-table td:first-child { padding-left: 0; }
+
+.v6-budget-table th:last-child,
+.v6-budget-table td:last-child,
+.v6-budget-year-table th:last-child,
+.v6-budget-year-table td:last-child { padding-right: 0; }
+
+.v6-budget-table tbody td,
+.v6-budget-table tbody th {
+  border-bottom: 1px solid var(--v6-rule);
+  padding: 13px 8px;
+  font-size: 12.5px;
+  vertical-align: top;
+}
+
+.v6-budget-table tbody tr:hover { background: var(--v6-raise); }
+
+.v6-col-plan { width: 128px; text-align: right; }
+.v6-col-pace { width: 118px; text-align: right; }
+
+.v6-budget-table .v6-col-amount { width: 132px; }
+.v6-budget-table .v6-col-amount .v6-fig-text { font-size: 15px; }
+
+.v6-budget-category { display: block; }
+
+.v6-budget-category-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.v6-budget-magnitude { margin-left: auto; max-width: 108px; }
+
+/* ── Year view: the twelve-month grid ───────────────────────────────────── */
+
+.v6-budget-year-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  margin-top: 18px;
+  text-align: left;
+}
+
+.v6-budget-year-table tbody td,
+.v6-budget-year-table tbody th {
+  border-bottom: 1px solid var(--v6-rule);
+  padding: 11px 8px;
+  font-size: 12px;
+  vertical-align: baseline;
+}
+
+.v6-budget-year-table tbody tr:hover { background: var(--v6-raise); }
+
+.v6-col-month { width: 62px; text-align: right; white-space: nowrap; }
+
+.v6-budget-year-table th.v6-col-month[data-current='true'] { color: var(--v6-ink); }
+
+.v6-budget-year-table abbr { text-decoration: none; }
+
+.v6-budget-year-total > th,
+.v6-budget-year-total > td {
+  border-top: 1px solid var(--v6-rule-strong);
+  color: var(--v6-ink);
+}
+
+@media (max-width: 900px) {
+  .v6-budget-positions {
+    justify-content: flex-start;
+    gap: 20px;
+  }
+
+  .v6-budget-position { text-align: left; }
+
+  .v6-budget-table { min-width: 560px; }
+  .v6-budget-table .v6-col-pace { display: none; }
+  .v6-budget-magnitude { max-width: 84px; }
+}
