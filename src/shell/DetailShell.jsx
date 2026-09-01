@@ -45,7 +45,16 @@ export default function DetailShell({
             </DialogPrimitive.Title>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-7">
+          {/* The body scrolls, so it must be reachable by keyboard alone and
+              carry a name — axe's scrollable-region-focusable rule, proven by
+              the SHR-164 Activity drawer, which is the first detail surface
+              long enough to scroll. */}
+          <div
+            role="region"
+            aria-label={typeof title === 'string' ? title : 'Detail'}
+            tabIndex={0}
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-7"
+          >
             {loading ? <LoadingState label="Loading…" /> : null}
             {!loading && error ? <ErrorState title={error} /> : null}
             {!loading && !error && unavailable ? (

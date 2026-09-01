@@ -14,9 +14,9 @@ import AppShell from './shell/AppShell'
 import AppLink from './shell/AppLink'
 import Login from './screens/Login'
 import OverviewScreen from './v6/OverviewScreen'
+import ActivityScreen from './v6/ActivityScreen'
 import Accounts from './screens/Accounts'
 import Investments from './screens/Investments'
-import Transactions from './screens/Transactions'
 import Reports from './screens/Reports'
 import Budget from './screens/Budget'
 import Recurring from './screens/Recurring'
@@ -24,14 +24,15 @@ import Goals from './screens/Goals'
 import Debts from './screens/Debts'
 import Settings from './screens/Settings'
 
-// `/overview` renders the fresh V6 Overview (SHR-155). The legacy
-// `src/screens/Home.jsx` composition is retained in the repository but is no
-// longer mounted; V6 screens replace legacy presentation progressively.
+// V6 screens replace legacy presentation progressively. `/overview` renders
+// the fresh V6 Overview (SHR-155) and `/money/activity` the fresh V6 Activity
+// (SHR-164). The legacy `src/screens/Home.jsx` and `src/screens/Transactions.jsx`
+// compositions are retained in the repository but are no longer mounted.
 const BUILT_SCREENS = {
   Overview: OverviewScreen,
+  Activity: ActivityScreen,
   Accounts,
   Investments,
-  Transactions,
   Reports,
   Budget,
   Recurring,
@@ -84,7 +85,7 @@ function Dashboard({ router }) {
     return true
   }
 
-  const screensOwningHeader = new Set(['Overview'])
+  const screensOwningHeader = new Set(['Overview', 'Activity'])
 
   const screenProps = {
     navigate,

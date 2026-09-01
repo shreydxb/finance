@@ -29,7 +29,7 @@ test('root resolves by replacement to Overview', () => {
 test('every canonical destination direct-opens an existing production screen', () => {
   const expected = {
     '/overview': 'Overview',
-    '/money/activity': 'Transactions',
+    '/money/activity': 'Activity',
     '/money/budget': 'Budget',
     '/money/recurring': 'Recurring',
     '/money/insights': 'Reports',
@@ -146,7 +146,7 @@ test('unknown routes remain authenticated Not Found routes', () => {
 
 test('immutable-ID details direct-open without background state', () => {
   const cases = {
-    [`/money/activity/${ID}`]: ['transaction', 'Transactions', '/money/activity'],
+    [`/money/activity/${ID}`]: ['transaction', 'Activity', '/money/activity'],
     [`/money/recurring/${ID}`]: ['recurring', 'Recurring', '/money/recurring'],
     [`/wealth/accounts/${ID}`]: ['account', 'Accounts', '/wealth/accounts'],
     [`/wealth/investments/${ID}`]: ['investment', 'Investments', '/wealth/investments'],

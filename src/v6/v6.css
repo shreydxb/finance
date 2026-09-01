@@ -107,6 +107,8 @@
   flex-wrap: wrap;
 }
 
+.v6-page-header > * { min-width: 0; }
+
 .v6-page-title {
   margin: 8px 0 0;
   color: var(--v6-ink);
@@ -878,4 +880,340 @@
   .v6-quality-dot {
     forced-color-adjust: none;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Activity (SHR-164)
+
+   Same scope rule as the rest of this file: every selector is a `.v6-` class,
+   so no legacy global can decide how the Activity table or calendar reads.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.v6-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 26px;
+}
+
+.v6-controls-trailing {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.v6-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.v6-field > label {
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.v6-input,
+.v6-select {
+  min-height: 44px;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--v6-ink);
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.v6-input { min-width: 220px; }
+
+.v6-input::placeholder { color: var(--v6-ink3); }
+
+.v6-select {
+  background: var(--v6-canvas);
+  color: var(--v6-ink);
+}
+
+.v6-toggle {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--v6-ink2);
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.v6-toggle[aria-pressed='true'] {
+  border-color: var(--v6-rule-strong);
+  background: var(--v6-raise);
+  color: var(--v6-ink);
+  font-weight: 500;
+}
+
+.v6-toggle[aria-pressed='true']::before {
+  content: '✓';
+  font-size: 11px;
+}
+
+/* A control whose contract does not exist yet. It stays visible and named,
+   because hiding it would misrepresent the product as not having the idea. */
+.v6-unsupported-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px dashed var(--v6-rule-strong);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--v6-ink3);
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 12px;
+  cursor: not-allowed;
+}
+
+.v6-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+  color: var(--v6-ink3);
+  font-size: 11.5px;
+}
+
+.v6-period-nav {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.v6-period-nav button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--v6-ink2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.v6-period-nav button:hover { color: var(--v6-ink); }
+.v6-period-nav button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.v6-period-label {
+  /* No rem-scaled reservation: at 200% text zoom a fixed 8.5rem label plus two
+     44px controls overflowed a 390px viewport. The label shrinks instead. */
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 6px;
+  color: var(--v6-ink);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* ── Activity table ─────────────────────────────────────────────────────── */
+
+.v6-activity-scroll { overflow-x: auto; }
+
+.v6-activity-table {
+  width: 100%;
+  min-width: 660px;
+  border-collapse: collapse;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.v6-activity-table thead th {
+  border-bottom: 1px solid var(--v6-rule-strong);
+  padding: 14px 8px 10px;
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.v6-activity-table th:first-child,
+.v6-activity-table td:first-child { padding-left: 0; }
+
+.v6-activity-table th:last-child,
+.v6-activity-table td:last-child { padding-right: 0; }
+
+.v6-activity-table tbody td {
+  border-bottom: 1px solid var(--v6-rule);
+  padding: 12px 8px;
+  font-size: 12.5px;
+  vertical-align: baseline;
+}
+
+.v6-activity-table tbody tr:hover { background: var(--v6-raise); }
+
+.v6-col-date { width: 74px; color: var(--v6-ink3); font-size: 11.5px; white-space: nowrap; }
+.v6-col-owner { width: 90px; color: var(--v6-ink2); font-size: 11.5px; }
+.v6-col-account { color: var(--v6-ink2); font-size: 11.5px; }
+.v6-col-amount { width: 120px; text-align: right; white-space: nowrap; }
+.v6-col-amount .v6-fig-text { font-size: 15px; }
+
+.v6-row-open {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.v6-row-open:hover { color: var(--v6-accent); text-decoration: underline; }
+
+.v6-row-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.v6-flag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  padding: 1px 6px;
+  color: var(--v6-ink2);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.v6-flag[data-tone='review'] { border-color: var(--v6-warn); color: var(--v6-warn); }
+.v6-flag[data-tone='transfer'] { color: var(--v6-ink3); }
+
+.v6-list-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  color: var(--v6-ink3);
+  font-size: 11.5px;
+}
+
+/* ── Calendar ───────────────────────────────────────────────────────────── */
+
+.v6-calendar { margin-top: 22px; }
+
+.v6-calendar-head {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  border-bottom: 1px solid var(--v6-rule-strong);
+  padding-bottom: 10px;
+  color: var(--v6-ink3);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.v6-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.v6-calendar-cell {
+  min-height: 84px;
+  border-right: 1px solid var(--v6-rule);
+  border-bottom: 1px solid var(--v6-rule);
+  padding: 8px 9px;
+}
+
+.v6-calendar-cell:nth-child(7n) { border-right: 0; }
+.v6-calendar-cell[data-outside='true'] { background: var(--v6-raise); }
+
+.v6-calendar-day {
+  display: block;
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+}
+
+.v6-calendar-count {
+  display: block;
+  margin-top: 6px;
+  color: var(--v6-ink);
+  font-size: 11.5px;
+}
+
+.v6-calendar-review {
+  display: block;
+  margin-top: 3px;
+  color: var(--v6-warn);
+  font-size: 10.5px;
+}
+
+/* ── Drawer content ─────────────────────────────────────────────────────── */
+
+.v6-drawer-amount {
+  margin-top: 8px;
+  font-family: var(--v6-fig);
+  font-size: 36px;
+  line-height: 1;
+}
+
+.v6-drawer-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.v6-drawer-field > dt {
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.v6-drawer-field > dd {
+  margin: 0;
+  border-bottom: 1px solid var(--v6-rule-strong);
+  padding: 9px 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.v6-drawer-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+@media (max-width: 900px) {
+  .v6-controls-trailing { margin-left: 0; }
+  .v6-input { min-width: 0; width: 100%; }
+  .v6-field { flex: 1 1 100%; }
+  .v6-activity-table { min-width: 480px; }
+  .v6-col-owner, .v6-col-account { display: none; }
+  .v6-calendar-cell { min-height: 64px; padding: 6px 7px; }
+  .v6-calendar-count { font-size: 11px; }
 }
