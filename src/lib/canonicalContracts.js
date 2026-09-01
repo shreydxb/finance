@@ -566,6 +566,10 @@ export function normalizeCanonicalAccountRows(data) {
     const row = assertObject(value, `canonical account row ${index}`)
     return Object.freeze({
       id: normalizeText(row.id, `account ${index}.id`),
+      // Additive for SHR-155: the Overview names an account rather than
+      // showing a bare identifier. The column already exists on the view, and
+      // it stays optional so a caller that does not select it still validates.
+      name: normalizeText(row.name ?? null, `account ${index}.name`, { nullable: true, empty: true }),
       owner: normalizeText(row.owner, `account ${index}.owner`, { nullable: true, empty: true }),
       type: normalizeText(row.type, `account ${index}.type`),
       is_liability: normalizeBoolean(row.is_liability, `account ${index}.is_liability`),

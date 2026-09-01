@@ -7,7 +7,13 @@ import PageHeader from './PageHeader'
 import SecondaryNav from './SecondaryNav'
 import UtilityPanel from './UtilityPanel'
 
-export default function AppShell({ children, identity, navigate, onSignOut, presentation, route, takePendingFocusTarget }) {
+/**
+ * `screenOwnsHeader` lets a V6 screen compose its own page header — the
+ * Overview's date/context kicker, sentence title and period control cannot be
+ * expressed by the shared PageHeader. Such a screen must still render the
+ * `page-title` h1 the shell focuses and labels `main` with.
+ */
+export default function AppShell({ children, identity, navigate, onSignOut, presentation, route, screenOwnsHeader = false, takePendingFocusTarget }) {
   const [utilityOpen, setUtilityOpen] = useState(false)
   const utilityTriggerRef = useRef(null)
 
@@ -46,7 +52,9 @@ export default function AppShell({ children, identity, navigate, onSignOut, pres
 
           <main id="main-content" aria-labelledby="page-title" className="shell-main">
             <ContentFrame width={presentation.width}>
-              <PageHeader kicker={presentation.primary === 'overview' ? 'Command center' : presentation.primary} title={presentation.title} />
+              {screenOwnsHeader
+                ? null
+                : <PageHeader kicker={presentation.primary === 'overview' ? 'Command center' : presentation.primary} title={presentation.title} />}
               {children}
             </ContentFrame>
           </main>

@@ -22,7 +22,7 @@ const INCOME_COLUMNS = [
 ].join(',')
 
 const ACCOUNT_COLUMNS = [
-  'id', 'owner', 'type', 'is_liability', 'currency', 'canonical_value_aed',
+  'id', 'name', 'owner', 'type', 'is_liability', 'currency', 'canonical_value_aed',
   'quality_status', 'valuation_method', 'valuation_as_of', 'fx_rate_to_aed', 'fx_updated_at',
 ].join(',')
 

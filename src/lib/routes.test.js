@@ -28,7 +28,7 @@ test('root resolves by replacement to Overview', () => {
 
 test('every canonical destination direct-opens an existing production screen', () => {
   const expected = {
-    '/overview': 'Home',
+    '/overview': 'Overview',
     '/money/activity': 'Transactions',
     '/money/budget': 'Budget',
     '/money/recurring': 'Recurring',

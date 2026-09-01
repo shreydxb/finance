@@ -103,6 +103,8 @@ const SETTINGS_PATHS = new Set([
 ])
 
 const SCREEN_ROUTES = Object.freeze({
+  Overview: '/overview',
+  // Legacy screens still call onNavigate('Home'); keep the alias working.
   Home: '/overview',
   Accounts: '/wealth/accounts',
   Investments: '/wealth/investments',
@@ -116,7 +118,7 @@ const SCREEN_ROUTES = Object.freeze({
 })
 
 const EXACT_ROUTES = Object.freeze({
-  '/overview': { screen: 'Home' },
+  '/overview': { screen: 'Overview' },
   '/money/activity': { screen: 'Transactions' },
   '/money/budget': { screen: 'Budget' },
   '/money/recurring': { screen: 'Recurring' },
@@ -140,6 +142,9 @@ const DETAIL_ROUTES = Object.freeze([
 ])
 
 const QUERY_RULES = Object.freeze({
+  // SHR-155: the Overview period selection is part of the URL so a shared or
+  // reloaded link reopens the same period rather than silently resetting.
+  '/overview': { period: ['mtd', 'qtd', 'ytd'] },
   '/money/activity': {
     search: 'shortText', category: 'shortText', owner: 'shortText', account: 'uuid',
     from: 'date', to: 'date', sort: ['date', 'amount'], needsReview: ['1'], unreviewed: ['1'],

@@ -13,7 +13,7 @@ import useBrowserRouter from './lib/useBrowserRouter'
 import AppShell from './shell/AppShell'
 import AppLink from './shell/AppLink'
 import Login from './screens/Login'
-import Home from './screens/Home'
+import OverviewScreen from './v6/OverviewScreen'
 import Accounts from './screens/Accounts'
 import Investments from './screens/Investments'
 import Transactions from './screens/Transactions'
@@ -24,8 +24,11 @@ import Goals from './screens/Goals'
 import Debts from './screens/Debts'
 import Settings from './screens/Settings'
 
+// `/overview` renders the fresh V6 Overview (SHR-155). The legacy
+// `src/screens/Home.jsx` composition is retained in the repository but is no
+// longer mounted; V6 screens replace legacy presentation progressively.
 const BUILT_SCREENS = {
-  Home,
+  Overview: OverviewScreen,
   Accounts,
   Investments,
   Transactions,
@@ -81,7 +84,10 @@ function Dashboard({ router }) {
     return true
   }
 
+  const screensOwningHeader = new Set(['Overview'])
+
   const screenProps = {
+    navigate,
     onNavigate: navigateToScreen,
     routeQuery,
     onRouteQueryChange: updateQuery,
@@ -99,6 +105,7 @@ function Dashboard({ router }) {
       onSignOut={handleSignOut}
       presentation={presentation}
       route={route}
+      screenOwnsHeader={route.kind === 'screen' && screensOwningHeader.has(route.screen)}
       takePendingFocusTarget={router.takePendingFocusTarget}
     >
       <div key={route.kind === 'screen' ? route.screen : route.kind}>

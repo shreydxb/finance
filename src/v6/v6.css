@@ -1,0 +1,881 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   V6 surface (SHR-155)
+
+   Every rule here is scoped under `.v6-surface`. That scope is the CSS
+   quarantine: the legacy `@theme` ramps and element defaults in
+   `src/index.css` still exist for the legacy screens, but a V6 region
+   restates the properties it depends on so a legacy global cannot leak into
+   the new composition.
+
+   Values are taken from the frozen Command Center prototype and the exact
+   token table in `docs/v6/reference/README.md`. Where the prototype conflicts
+   with an accessibility requirement from
+   `docs/v6/reference/ACCESSIBILITY.md`, the accessibility requirement wins
+   and the deviation is commented.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.v6-surface {
+  --v6-canvas: var(--ds-canvas);
+  --v6-raise: var(--ds-surface-subtle);
+  --v6-ink: var(--ds-text-primary);
+  --v6-ink2: var(--ds-text-secondary);
+  /* The reference tertiary ink (#8d8478 / #6f665a) is the prototype value.
+     tokens.css keeps it as `--ds-text-tertiary-reference` and ships a
+     contrast-corrected `--ds-text-tertiary` for real text. Meaningful text
+     uses the corrected value; purely decorative rules may use the reference. */
+  --v6-ink3: var(--ds-text-tertiary);
+  --v6-rule: var(--ds-border);
+  --v6-rule-strong: var(--ds-border-strong);
+  --v6-accent: var(--ds-accent);
+  --v6-pos: var(--ds-financial-positive);
+  --v6-neg: var(--ds-financial-negative);
+  --v6-warn: var(--ds-warning);
+  --v6-chart-neutral: var(--ds-chart-neutral);
+  --v6-fig: var(--font-serif, 'Newsreader', Georgia, serif);
+
+  color: var(--v6-ink);
+  font-family: var(--font-sans, 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Legacy `src/index.css` sets uppercase 10px on every `th` and nulls shadows
+   globally. Restate the properties V6 tables depend on so the legacy element
+   selector cannot decide V6 typography. */
+.v6-surface th,
+.v6-surface td {
+  border-color: var(--v6-rule);
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.v6-surface p,
+.v6-surface h1,
+.v6-surface h2,
+.v6-surface h3,
+.v6-surface ul,
+.v6-surface ol,
+.v6-surface figure {
+  margin: 0;
+}
+
+.v6-surface ul,
+.v6-surface ol {
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Type roles ─────────────────────────────────────────────────────────── */
+
+.v6-kicker-text {
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.v6-fig-text {
+  font-family: var(--v6-fig);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+
+.v6-tone-positive { color: var(--v6-pos); }
+.v6-tone-negative { color: var(--v6-neg); }
+.v6-tone-warning { color: var(--v6-warn); }
+.v6-tone-muted { color: var(--v6-ink2); }
+
+.v6-visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
+
+/* ── Page header ────────────────────────────────────────────────────────── */
+
+.v6-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.v6-page-title {
+  margin: 8px 0 0;
+  color: var(--v6-ink);
+  font-family: var(--v6-fig);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 1.2;
+  outline: none;
+  text-wrap: balance;
+}
+
+/* ── Segmented control ──────────────────────────────────────────────────── */
+
+.v6-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.v6-segmented button {
+  /* Prototype padding is 7px 13px (~31px tall). ACCESSIBILITY.md requires a
+     44px target, so min-height wins over the prototype's own control size. */
+  min-height: 44px;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--v6-ink2);
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color var(--ds-duration-standard), border-color var(--ds-duration-standard), background-color var(--ds-duration-standard);
+}
+
+.v6-segmented button:hover {
+  color: var(--v6-ink);
+}
+
+.v6-segmented button[aria-pressed='true'] {
+  border-color: var(--v6-rule-strong);
+  background: var(--v6-raise);
+  color: var(--v6-ink);
+  font-weight: 500;
+}
+
+/* Selection must not be colour-only: the active segment also carries a rule. */
+.v6-segmented button[aria-pressed='true']::after {
+  display: block;
+  margin-top: 3px;
+  height: 2px;
+  background: var(--v6-accent);
+  content: '';
+}
+
+/* ── Inline link/button treatment ───────────────────────────────────────── */
+
+.v6-inline-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--v6-ink3);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.v6-inline-link:hover {
+  color: var(--v6-accent);
+  text-decoration: underline;
+}
+
+.v6-outline-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  padding: 7px 12px;
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+  text-decoration: none;
+  transition: color var(--ds-duration-standard), border-color var(--ds-duration-standard), background-color var(--ds-duration-standard);
+}
+
+.v6-outline-link:hover {
+  border-color: var(--v6-accent);
+  background: color-mix(in oklab, var(--v6-accent) 18%, transparent);
+  color: var(--v6-ink);
+}
+
+/* ── Section scaffolding ────────────────────────────────────────────────── */
+
+.v6-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.v6-section-note {
+  color: var(--v6-ink3);
+  font-size: 11px;
+}
+
+/* ── Unavailable / incomplete state ─────────────────────────────────────── */
+
+.v6-unavailable {
+  border: 1px solid var(--v6-rule);
+  border-radius: 4px;
+  background: var(--v6-raise);
+  padding: 14px 16px;
+}
+
+.v6-unavailable-inline {
+  border: 0;
+  border-top: 1px solid var(--v6-rule);
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 0 0;
+}
+
+.v6-unavailable-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--v6-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.v6-unavailable-label::before {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--v6-warn);
+  content: '';
+}
+
+.v6-unavailable-detail {
+  margin-top: 6px;
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.v6-unavailable-gap {
+  margin-top: 6px;
+  /* Secondary rather than tertiary ink: on the raised tint the tertiary value
+     lands at 4.43–4.49:1, just under the AA threshold for this size. */
+  color: var(--v6-ink2);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* An unavailable figure standing in for a value slot. */
+.v6-missing-figure {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--v6-ink3);
+  font-size: 12.5px;
+}
+
+.v6-missing-figure::before {
+  font-family: var(--v6-fig);
+  content: '—';
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+
+.v6-hero-section {
+  margin-top: 34px;
+  border-bottom: 1px solid var(--v6-rule);
+  padding-bottom: 30px;
+}
+
+.v6-hero-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 48px;
+  flex-wrap: wrap;
+}
+
+.v6-hero-main {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.v6-hero-value {
+  margin-top: 10px;
+  font-family: var(--v6-fig);
+  font-size: 52px;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  /* The prototype sets `white-space:nowrap`. MOBILE_PARITY.md requires the
+     hero not to clip at 320px or 200% zoom, so wrapping is allowed instead. */
+  overflow-wrap: anywhere;
+}
+
+.v6-hero-currency {
+  color: var(--v6-ink2);
+  font-size: 23px;
+}
+
+.v6-hero-annotations {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 12.5px;
+}
+
+.v6-hero-annotations .v6-divider {
+  color: var(--v6-rule-strong);
+}
+
+.v6-hero-side {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 28px;
+  flex-wrap: wrap;
+  flex: 1 1 260px;
+  padding-bottom: 6px;
+}
+
+.v6-hero-metric {
+  min-width: 0;
+  max-width: 15rem;
+  text-align: right;
+}
+
+.v6-hero-metric > p {
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+}
+
+.v6-hero-metric > .v6-hero-metric-value {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--v6-fig);
+  font-size: 26px;
+}
+
+.v6-strip-notes {
+  margin-top: 10px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.v6-strip-notes > li + li { margin-top: 3px; }
+
+.v6-strip {
+  display: flex;
+  gap: 36px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  color: var(--v6-ink2);
+  font-size: 12px;
+}
+
+.v6-strip > li {
+  min-width: 0;
+}
+
+.v6-strip strong {
+  color: var(--v6-ink);
+  font-weight: 400;
+}
+
+/* ── KPI row ────────────────────────────────────────────────────────────── */
+
+.v6-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.v6-kpi-cell {
+  min-width: 0;
+  border-right: 1px solid var(--v6-rule);
+  padding: 0 24px;
+}
+
+.v6-kpi-cell:first-child { padding-left: 0; }
+.v6-kpi-cell:last-child { border-right: 0; padding-right: 0; }
+
+.v6-kpi-label {
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+}
+
+.v6-kpi-value {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--v6-fig);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.v6-kpi-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--v6-ink3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* ── Two-column detail region ───────────────────────────────────────────── */
+
+.v6-g2 {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 44px;
+  margin-top: 36px;
+}
+
+.v6-g3 {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 40px;
+  margin-top: 40px;
+}
+
+/* ── Cash-flow chart ────────────────────────────────────────────────────── */
+
+.v6-chart {
+  display: flex;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.v6-chart-axis {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 212px;
+  color: var(--v6-ink3);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.v6-chart-axis > span { position: absolute; right: 0; }
+.v6-chart-axis > span:nth-child(1) { top: -4px; }
+.v6-chart-axis > span:nth-child(2) { top: 50%; margin-top: -6px; }
+.v6-chart-axis > span:nth-child(3) { bottom: -6px; }
+
+.v6-chart-body { min-width: 0; flex: 1; }
+
+.v6-chart-plot {
+  position: relative;
+  height: 212px;
+}
+
+.v6-chart-grid {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--v6-rule);
+}
+
+.v6-chart-grid[data-line='top'] { top: 0; }
+.v6-chart-grid[data-line='mid'] { top: 50%; }
+.v6-chart-grid[data-line='base'] { bottom: 0; border-top-color: var(--v6-rule-strong); }
+
+.v6-chart-columns {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.v6-chart-column {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  height: 100%;
+}
+
+.v6-chart-bar {
+  width: 100%;
+  max-width: 22px;
+  transform-origin: bottom;
+  animation: v6-grow 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.v6-chart-bar[data-series='income'] { background: var(--v6-accent); }
+.v6-chart-bar[data-series='spend'] { background: var(--v6-chart-neutral); }
+
+.v6-chart-line {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.v6-chart-line polyline {
+  fill: none;
+  stroke: var(--v6-pos);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+.v6-chart-labels {
+  display: flex;
+  gap: 16px;
+  margin-top: 9px;
+}
+
+.v6-chart-labels > li {
+  min-width: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.v6-chart-label {
+  display: block;
+  color: var(--v6-ink2);
+  font-size: 10.5px;
+}
+
+.v6-chart-sublabel {
+  display: block;
+  margin-top: 3px;
+  color: var(--v6-ink3);
+  font-size: 10px;
+}
+
+.v6-chart-legend {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  color: var(--v6-ink2);
+  font-size: 11px;
+}
+
+.v6-chart-legend > li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.v6-legend-swatch {
+  display: block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+}
+
+.v6-legend-swatch[data-series='income'] { background: var(--v6-accent); }
+.v6-legend-swatch[data-series='spend'] { background: var(--v6-chart-neutral); }
+.v6-legend-swatch[data-series='rate'] { width: 12px; height: 1px; background: var(--v6-pos); }
+
+.v6-data-toggle {
+  margin-top: 14px;
+  border: 1px solid var(--v6-rule);
+  border-radius: 3px;
+}
+
+.v6-data-toggle > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.v6-data-scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--v6-rule);
+}
+
+.v6-data-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.v6-data-table th,
+.v6-data-table td {
+  border-bottom: 1px solid var(--v6-rule);
+  padding: 8px 12px;
+  font-size: 11.5px;
+}
+
+.v6-data-table thead th {
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.v6-data-table td.v6-numeric,
+.v6-data-table th.v6-numeric {
+  font-family: var(--v6-fig);
+  text-align: right;
+}
+
+/* ── Attention list ─────────────────────────────────────────────────────── */
+
+.v6-attention-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-top: 1px solid var(--v6-rule);
+  padding: 13px 0;
+}
+
+.v6-attention-kind {
+  display: block;
+  flex: none;
+  width: 62px;
+  padding-top: 4px;
+  color: var(--v6-ink3);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.v6-attention-body { display: block; min-width: 0; flex: 1; }
+
+.v6-attention-title {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.v6-attention-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--v6-ink3);
+  font-size: 11px;
+  line-height: 1.45;
+  /* Signal sources are long unbroken identifiers such as
+     `canonical_period_metrics.needs_review_count`. Without this they push the
+     page sideways at 320px. */
+  overflow-wrap: anywhere;
+}
+
+.v6-attention-action { flex: none; }
+
+/* ── Rule-separated lists (recent activity, accounts, top spend) ────────── */
+
+.v6-list > li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--v6-rule);
+  padding: 11px 0;
+}
+
+.v6-list > li:last-child { border-bottom: 1px solid var(--v6-rule); }
+
+.v6-list-primary {
+  display: block;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.v6-list-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.v6-list-value {
+  flex: none;
+  font-family: var(--v6-fig);
+  font-size: 15px;
+}
+
+.v6-bar-rows { display: flex; flex-direction: column; gap: 14px; }
+
+.v6-bar-rows > li { display: block; }
+
+.v6-bar-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.v6-bar-row-head .v6-list-value { font-size: 15px; }
+
+.v6-bar-track {
+  display: block;
+  margin-top: 6px;
+  height: 3px;
+  background: var(--v6-rule);
+}
+
+.v6-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--v6-accent);
+  transform-origin: left;
+  animation: v6-widen 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.v6-bar-note {
+  display: block;
+  margin-top: 5px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+/* ── Freshness / quality footer ─────────────────────────────────────────── */
+
+.v6-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.v6-quality-card {
+  border: 1px solid var(--v6-rule);
+  border-radius: 4px;
+  padding: 14px;
+}
+
+.v6-quality-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  color: var(--v6-ink);
+  font-size: 12.5px;
+}
+
+.v6-quality-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--v6-ink3);
+}
+
+.v6-quality-dot[data-status='complete'] { background: var(--v6-pos); }
+.v6-quality-dot[data-status='provisional'] { background: var(--v6-warn); }
+.v6-quality-dot[data-status='incomplete'] { background: var(--v6-neg); }
+
+.v6-quality-detail {
+  margin-top: 6px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* ── Section rhythm ─────────────────────────────────────────────────────── */
+
+.v6-section { margin-top: 28px; }
+.v6-section-lg { margin-top: 38px; }
+
+.v6-enter {
+  animation: v6-rise 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes v6-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes v6-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes v6-widen {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* ── Mobile (the prototype's single encoded breakpoint) ─────────────────── */
+
+@media (max-width: 900px) {
+  .v6-g2,
+  .v6-g3 {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+
+  .v6-kpi-row {
+    grid-template-columns: 1fr;
+  }
+
+  .v6-kpi-cell {
+    border-top: 1px solid var(--v6-rule);
+    border-right: 0;
+    padding: 12px 0;
+  }
+
+  .v6-kpi-cell:first-child { padding-top: 12px; }
+
+  .v6-hero-value { font-size: 38px; }
+
+  .v6-hero-side {
+    justify-content: flex-start;
+    gap: 22px;
+  }
+
+  .v6-hero-metric { text-align: left; }
+
+  .v6-strip {
+    gap: 0;
+  }
+
+  .v6-strip > li {
+    flex: 1 1 132px;
+    border-top: 1px solid var(--v6-rule);
+    padding: 12px 0;
+  }
+
+  .v6-chart-axis { width: 38px; }
+
+  .v6-page-header { align-items: flex-start; }
+}
+
+@media (max-width: 560px) {
+  .v6-chart { gap: 8px; }
+  .v6-chart-columns { gap: 8px; }
+  .v6-chart-labels { gap: 8px; }
+  .v6-attention-item { flex-wrap: wrap; }
+  .v6-attention-kind { width: auto; padding-top: 0; }
+  .v6-attention-body { flex: 1 1 100%; }
+  .v6-attention-action { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v6-enter,
+  .v6-chart-bar,
+  .v6-bar-fill {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .v6-segmented button[aria-pressed='true'] {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+
+  .v6-chart-bar,
+  .v6-legend-swatch,
+  .v6-quality-dot {
+    forced-color-adjust: none;
+  }
+}
