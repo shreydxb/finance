@@ -42,6 +42,11 @@ test('the dump covers every table exactly once', () => {
     'access_party_reconciliation_runs',
     'account_ownership_history',
     'account_ownership_reconciliation_runs',
+    'category_reconciliation_runs',
+    'category_reconciliation_system_entries',
+    'category_reconciliation_manifest_entries',
+    'category_reconciliation_row_evidence',
+    'category_reconciliation_replay_evidence',
   ]) {
     assert.ok(names.includes(required), `${required} must be backed up`)
   }
@@ -157,6 +162,38 @@ test('accounts restore after the economic parties a reconciled account reference
   assert.ok(
     names.indexOf('accounts') < names.indexOf('transactions'),
     'the tables that reference accounts still restore after it'
+  )
+})
+
+test('SHR-197 stable references and reconciliation evidence restore in dependency order', () => {
+  const names = BACKUP_TABLES.map((table) => table.name)
+  const transactions = BACKUP_TABLES.find((table) => table.name === 'transactions')
+  const rules = BACKUP_TABLES.find((table) => table.name === 'category_rules')
+  assert.deepEqual((transactions as { dependsOn?: readonly string[] }).dependsOn, [
+    'accounts',
+    'categories',
+  ])
+  assert.deepEqual((rules as { dependsOn?: readonly string[] }).dependsOn, ['categories'])
+
+  for (const tableName of [
+    'category_reconciliation_runs',
+    'category_reconciliation_system_entries',
+    'category_reconciliation_manifest_entries',
+    'category_reconciliation_row_evidence',
+    'category_reconciliation_replay_evidence',
+  ]) {
+    const table = BACKUP_TABLES.find((entry) => entry.name === tableName)
+    assert.ok(table)
+    assert.equal(table.financial, true, `${tableName} is durable financial/classification evidence`)
+  }
+
+  assert.ok(names.indexOf('categories') < names.indexOf('transactions'))
+  assert.ok(names.indexOf('categories') < names.indexOf('category_rules'))
+  assert.ok(names.indexOf('transactions') < names.indexOf('category_reconciliation_runs'))
+  assert.ok(names.indexOf('category_rules') < names.indexOf('category_reconciliation_runs'))
+  assert.ok(
+    names.indexOf('category_reconciliation_runs') <
+      names.indexOf('category_reconciliation_row_evidence')
   )
 })
 

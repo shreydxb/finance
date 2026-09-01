@@ -1,6 +1,6 @@
 # Our Money v5 data model
 
-Status: semantic map of the schema represented by `supabase/schema/001` through `046`. Production is verified through migration `044`; `045` and `046` are repository-only pending independent Tier-3 review and production apply remains unauthorized.
+Status: semantic map of the schema represented by `supabase/schema/001` through `050`. Production is verified through migration `044`; `045`–`050` are repository-only and production apply remains unauthorized.
 
 ## Reading this document
 
@@ -149,7 +149,15 @@ Migration `046` adds identity and lifecycle substrate to `categories` and two du
 - Both new tables enable RLS with a single member `SELECT` policy rooted in `private.is_household_member()`. No API role holds INSERT/UPDATE/DELETE; `service_role` holds raw `SELECT` for the encrypted export only. Every new function lives in `private`, pins an empty `search_path`, and is executable by no API role. No taxonomy administrator role is invented, and category identity stays independent of economic-party identity.
 - As with `045`, trigger-based protection binds ordinary and accidentally over-granted application paths. The database owner can deliberately alter or disable it and remains the documented administrative trust root.
 
-`transactions.category` and `category_rules.category` remain text and gain no UUID reference here; that is SHR-197's manifest-reviewed work.
+## Stable category references — current in repository, not production
+
+Migration `050` adds nullable `transactions.category_id` and `category_rules.category_id` references to `categories.id` with restrictive delete behavior. They describe the current classification identity only; they do not prove historic provenance, pairing, correction, or semantic reconstruction. Existing category text remains byte-for-byte intact and remains the only V1 consumer contract. No reader, writer, Telegram classifier, equation, or rule behavior cuts over in SHR-197.
+
+The migration itself writes no category reference and seeds no system code. An owner-only private reconciliation function accepts a separately reviewed, immutable manifest that explicitly names the two category UUIDs for `transfer` and `savings_investment` and exhaustively classifies every non-NULL legacy transaction and rule label. A deterministic preflight binds exact categories, lifecycle state, system codes, active and soft-deleted transaction counts, rule counts, NULLs, unknown labels, ambiguity, and classification text. Changed evidence aborts before the first mutation; an unknown or ambiguous label cannot be silently joined to a live category name.
+
+`NULL` remains uncategorized and `Other` remains an ordinary distinct classification. Active and soft-deleted rows participate. Explicitly unresolved unknown labels retain NULL references; ambiguous labels fail closed. Five append-only tables retain the run, approved system entries, label manifest, per-row result, and accepted replay evidence. Exact same-reference/same-content replays change no classification but append a replay receipt after checking the original row outcomes; conflicting content fails. The domain evidence is the typed audit boundary for this one-time reconciliation, so `audit_events` is not widened.
+
+Raw browser access to the evidence is denied, service-role SELECT exists only for backup, and every reconciliation/preflight function is private and unavailable to API roles. Existing RLS policies on categories, transactions, and rules are unchanged and continue to authorize only through household membership. Stable references cannot be changed through ordinary API DML, and an already-resolved row's legacy category text cannot be changed without the future atomic compatibility writer owned by SHR-198. Because migration `050` itself leaves every reference NULL, that containment changes no current V1 mutation path unless a separately approved manifest is later applied. Backup order restores categories before referencing rows and then the evidence ledger.
 
 ## Intake, automation, and operations
 

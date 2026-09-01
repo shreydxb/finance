@@ -139,16 +139,24 @@ test('updated_at is seeded deterministically from created_at, not a migration wa
   })
 })
 
-test('no transaction or category-rule stable category reference is introduced', async () => {
+test('the later SHR-197 stable references remain inert after the full migration chain', async () => {
   await withTx(async (client) => {
     const { rows } = await client.query(`
-      select table_name, column_name
+      select table_name, column_name, is_nullable
       from information_schema.columns
       where table_schema = 'public'
         and table_name in ('transactions', 'category_rules')
         and column_name = 'category_id'
+      order by table_name
     `)
-    assert.deepEqual(rows, [], 'stable references are SHR-197 work, not SHR-196 work')
+    assert.deepEqual(rows, [
+      { table_name: 'category_rules', column_name: 'category_id', is_nullable: 'YES' },
+      { table_name: 'transactions', column_name: 'category_id', is_nullable: 'YES' },
+    ], 'SHR-197 adds only nullable references after SHR-196')
+    const inert = await client.query(`select
+      (select count(*)::integer from public.transactions where category_id is not null) tx,
+      (select count(*)::integer from public.category_rules where category_id is not null) rules`)
+    assert.deepEqual(inert.rows[0], { tx: 0, rules: 0 })
   })
 })
 
