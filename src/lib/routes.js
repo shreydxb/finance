@@ -154,6 +154,10 @@ const QUERY_RULES = Object.freeze({
     // the URL, so a shared or reloaded Activity link reopens the same view.
     view: ['list', 'calendar'], year: 'year', month: 'month',
   },
+  // SHR-199: the Budget month/year under review and the Month/Year switch are
+  // part of the URL, so a shared or reloaded Budget link reopens the same
+  // period rather than silently resetting to today's.
+  '/money/budget': { view: ['month', 'year'], year: 'year', month: 'month' },
   '/money/recurring': {
     type: ['bills', 'income'], view: ['list', 'calendar'], year: 'year', month: 'month',
     owner: 'shortText', kind: 'slug',

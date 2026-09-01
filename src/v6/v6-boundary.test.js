@@ -75,11 +75,48 @@ test('the Overview model and its composition never import the Supabase client', 
   const pure = [
     'data/overviewModel.js', 'data/composeOverview.js', 'data/periods.js', 'data/gaps.js',
     'data/activityModel.js', 'data/composeActivity.js', 'data/activityPeriods.js', 'data/activityGaps.js',
+    'data/budgetModel.js', 'data/composeBudget.js', 'data/budgetPeriods.js', 'data/budgetGaps.js',
     'data/slots.js', 'format.js',
   ]
   for (const path of pure) {
     const file = sources.find((entry) => entry.path === path)
     assert.ok(file, `${path} must exist`)
     assert.ok(!/supabaseClient|canonicalMetrics/.test(file.text), `${path} must stay loadable without a Supabase client`)
+  }
+})
+
+test('no V6 module computes a plan-versus-actual figure in the browser', () => {
+  // Budget is where this is easiest to write by accident: every missing figure
+  // on that screen has an obvious formula against the actual beside it. The
+  // guard looks for arithmetic between a plan-shaped operand and an
+  // actual-shaped one, over the code with comments removed — the prose that
+  // explains why these formulas are forbidden is not itself a violation.
+  const PLAN = String.raw`\w*(?:plan|planned|limit|budget)\w*`
+  const ACTUAL = String.raw`\w*(?:actual|actuals|spent|spend)\w*`
+  const forbidden = [
+    new RegExp(String.raw`\b${PLAN}\s*[-/]\s*${ACTUAL}\b`, 'i'),
+    new RegExp(String.raw`\b${ACTUAL}\s*[-/]\s*${PLAN}\b`, 'i'),
+  ]
+  const offenders = sources
+    .filter((file) => !file.path.endsWith('v6-boundary.test.js'))
+    .filter((file) => {
+      const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+      return forbidden.some((pattern) => pattern.test(code))
+    })
+    .map((file) => file.path)
+  assert.deepEqual(offenders, [], 'a plan-versus-actual figure must come from an approved contract, never from React')
+})
+
+test('the app mounts the fresh V6 screens and no longer imports the legacy ones they replace', () => {
+  const app = readFileSync(join(ROOT, '..', 'App.jsx'), 'utf8')
+  for (const [screen, module] of [['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'], ['Budget', 'BudgetScreen']]) {
+    assert.match(app, new RegExp(`import ${module} from '\\./v6/${module}'`), `${screen} must mount its V6 screen`)
+    assert.match(app, new RegExp(`${screen}: ${module},`), `${screen} must resolve to its V6 screen`)
+  }
+  for (const legacy of ['Home', 'Transactions', 'Budget']) {
+    assert.ok(
+      !new RegExp(`from '\\./screens/${legacy}'`).test(app),
+      `the legacy ${legacy} screen must no longer be imported by the app`,
+    )
   }
 })
