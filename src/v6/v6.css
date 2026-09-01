@@ -1382,3 +1382,108 @@
   .v6-budget-table .v6-col-pace { display: none; }
   .v6-budget-magnitude { max-width: 84px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Recurring (SHR-200)
+
+   Same scope rule as the rest of this file: every selector is a `.v6-` class,
+   so no legacy global can decide how the Recurring surface reads.
+
+   The layout carries an unusual amount of stated-gap text, because that text
+   *is* the screen's answer for now. It is styled as real content — measured,
+   readable, laid out in the prototype's own rhythm — rather than as an error,
+   and it stacks in one column on a phone so nothing clips or scrolls
+   sideways.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.v6-recurring-positions {
+  margin-top: 22px;
+  border-top: 1px solid var(--v6-rule);
+  padding-top: 18px;
+}
+
+.v6-recurring-positions-title {
+  margin: 0 0 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--v6-ink3);
+}
+
+.v6-recurring-position-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 18px 26px;
+  margin: 0;
+}
+
+.v6-recurring-position {
+  min-width: 0;
+  border-top: 1px solid var(--v6-rule);
+  padding-top: 10px;
+}
+
+.v6-recurring-position > dt {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--v6-ink3);
+}
+
+.v6-recurring-position > dd {
+  margin: 6px 0 0;
+  min-width: 0;
+}
+
+.v6-recurring-position .v6-kpi-hint {
+  display: block;
+  margin-top: 6px;
+}
+
+.v6-recurring-gap-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.v6-recurring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.v6-recurring-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px 34px;
+  margin-top: 4px;
+}
+
+.v6-recurring-split-figure {
+  min-width: 0;
+  border-top: 1px solid var(--v6-rule);
+  padding-top: 12px;
+}
+
+.v6-recurring-split-figure .v6-kpi-value {
+  margin-top: 6px;
+}
+
+.v6-recurring-split-figure .v6-kpi-hint {
+  display: block;
+  margin-top: 8px;
+}
+
+.v6-calendar-cell[data-today='true'] {
+  box-shadow: inset 0 2px 0 0 var(--v6-accent);
+}
+
+@media (max-width: 900px) {
+  .v6-recurring-position-list { grid-template-columns: 1fr; }
+  .v6-recurring-split { grid-template-columns: 1fr; }
+  .v6-recurring-actions > .v6-unsupported-action { flex: 1 1 100%; }
+}
