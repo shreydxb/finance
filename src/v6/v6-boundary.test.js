@@ -47,7 +47,7 @@ test('V6 surface styles are scoped so legacy globals cannot leak in', () => {
   assert.ok(css, 'src/v6/v6.css must exist')
   const selectors = css.text
     .split('\n')
-    .filter((line) => /^[.:@a-zA-Z\[]/.test(line) && line.trimEnd().endsWith('{'))
+    .filter((line) => /^[.:@a-zA-Z[]/.test(line) && line.trimEnd().endsWith('{'))
     .map((line) => line.replace(/\s*\{$/, '').trim())
   const unscoped = selectors.filter((selector) => (
     !selector.startsWith('.v6-')

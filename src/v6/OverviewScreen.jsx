@@ -72,7 +72,7 @@ export default function OverviewScreen({
           <PeriodKpis kpis={model.kpis} period={period} rangeLabel={rangeLabel} />
           <div className="v6-g2 v6-enter">
             <CashFlowSection cashFlow={model.cashFlow} monthsLabel="Last 6 completed months" />
-            <AttentionSection attention={model.attention} navigate={navigate} />
+            <AttentionSection attention={model.attention} />
           </div>
           <UpcomingSection upcoming={model.upcoming} navigate={navigate} />
           <div className="v6-g3 v6-enter">

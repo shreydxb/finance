@@ -1,13 +1,40 @@
 # SHR-155 implementation handoff
 
 Status: fresh V6 frontend boundary and Overview Command Center implemented on a
-bounded branch. Ready for independent UI review — desktop/mobile parity,
-accessibility, deep-link and truthful-state review. Not merged, not approved,
-not deployed.
+bounded branch, with the independent review's one blocking finding remediated.
+Ready for re-review at the remediation head. Not merged, not approved, not
+deployed.
+
+## Review round 1 — blocking finding, remediated
+
+Independent UI review of head `bf17905b` returned BLOCKED on one semantic
+boundary: the **Needs attention** surface must not be populated from raw
+canonical quality counters before SHR-192 exists, because placing those
+counters in that surface is itself the product interpretation SHR-192's
+producer/condition/lifecycle contract is meant to own. "Unranked and verbatim"
+was correctly judged insufficient.
+
+Remediated exactly as required, with no new backend work and no change to
+fail-closed behaviour:
+
+- `attention` in the view model now carries **only** `registry`, its gap slot.
+  `AttentionSection.jsx` renders that gap and nothing else.
+- `buildQualitySignals` is renamed `buildCanonicalQualityEvidence` and its
+  output moved to `quality.evidence`, rendered under **Data quality and
+  freshness** and labelled as evidence about data completeness, explicitly not
+  an attention feed.
+- Every per-row action link was removed. Offering "Open in Activity" on a
+  counter asserts an actionability the counter cannot support.
+- The separation is enforced by tests on both sides: one asserts
+  `Object.keys(model.attention)` is exactly `['registry']` even when counters
+  exist, and one asserts the Needs attention section contains no counter, no
+  `canonical_*` source string, and no link or button, while the quality
+  section does contain the counters with no resolve affordance.
 
 ## Git and release boundary
 
 - Issue: `SHR-155 — Fresh V6 app foundation and faithful Overview (desktop/mobile)`.
+- Review-1 head: `bf17905b9575715ea1eca212d0f03722da077c30` (BLOCKED). Remediation head recorded in PR #31 after CI completes.
 - Branch: `claude/shr-155-v6-foundation-6qazi7`.
 - Base: `ab297555` — `origin/main` fetched and verified at implementation start.
 - Migrations: **none**. No file under `supabase/` was created, edited or deleted.
@@ -105,7 +132,7 @@ Planning logic, and no integration-health claim from deployment or config.
 | Command | Result |
 |---|---|
 | `npm run lint` | exit 0, warnings only (1 new, of the same class as existing data-fetch effects) |
-| `npm test` | **659 passing** — 554 node (`# fail 0`, base 534, +20) and 105 vitest (base 91, +14) |
+| `npm test` | **661 passing** — 555 node (`# fail 0`, base 534, +21) and 106 vitest (base 91, +15) |
 | `npm run test:visual` | 8 new V6 Overview tests pass; see the environment note below |
 | `npm run build` | exit 0 |
 | `npm audit --audit-level=high` | 0 vulnerabilities |
@@ -151,7 +178,9 @@ both themes. A reviewer in the canonical environment can add baselines with
 - The Overview has not been rendered against live canonical data. Contract
   drift would surface as an honest unavailable state rather than a wrong
   number, but the happy path is unverified live.
-- The attention region lists canonical quality counts verbatim while SHR-192 is
-  open. If review considers even that too close to an attention feed, the list
-  is one component (`AttentionSection.jsx`) and one pure function
-  (`buildQualitySignals`) to remove.
+- Review round 1 found the canonical counters too close to an attention feed
+  and they have been moved out of that surface entirely; see the remediation
+  section above. If the data-health list under quality is also judged to be a
+  substitute registry, it is one component (`EvidenceList` in
+  `QualitySection.jsx`) and one pure function (`buildCanonicalQualityEvidence`)
+  to remove.

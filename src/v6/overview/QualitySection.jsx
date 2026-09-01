@@ -25,6 +25,42 @@ function QualityCard({ title, status, extra, fallbackLabel = 'Not read', fallbac
   )
 }
 
+function EvidenceList({ evidence, read }) {
+  return (
+    <div style={{ marginTop: '22px' }}>
+      <p className="v6-kicker-text">Reported by the canonical read contracts</p>
+      <p className="v6-unavailable-detail">
+        Counters the read contracts returned, listed verbatim beside the field each came from. This is evidence about
+        data completeness, not an attention feed: nothing here is ranked, prioritised, or asserted to need action.
+      </p>
+      {!read ? (
+        <p className="v6-unavailable-detail">No canonical contract responded, so no evidence can be listed.</p>
+      ) : evidence.length === 0 ? (
+        <p className="v6-unavailable-detail">
+          Every canonical read for this period reports complete inputs: no review flags, no missing FX rates, no
+          unresolved placeholders.
+        </p>
+      ) : (
+        <ul>
+          {evidence.map((item) => (
+            <li key={item.id} className="v6-attention-item">
+              <span className="v6-attention-kind">{item.kind}</span>
+              <span className="v6-attention-body">
+                <span className="v6-attention-title">{item.title}</span>
+                <span className="v6-attention-meta">
+                  {item.meta}
+                  <br />
+                  <span className="v6-tone-muted">Source: {item.source}</span>
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 /**
  * Quality and freshness.
  *
@@ -62,7 +98,8 @@ export default function QualitySection({ quality }) {
             : 'No account valuation timestamps were read.'}
         />
       </div>
-      <div style={{ marginTop: '16px' }}>
+      <EvidenceList evidence={quality.evidence} read={quality.evidenceRead} />
+      <div style={{ marginTop: '22px' }}>
         <UnavailableRegion slot={quality.integrationStatus} inline />
       </div>
     </Section>

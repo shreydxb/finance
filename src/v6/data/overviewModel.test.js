@@ -11,7 +11,7 @@ import {
 } from '../../lib/canonicalContracts.js'
 import { FIXTURE_TODAY, fixtureReads } from '../fixtures/canonicalFixture.js'
 import { composeOverview } from './composeOverview.js'
-import { buildCashFlowGeometry, buildOverviewModel, buildQualitySignals } from './overviewModel.js'
+import { buildCanonicalQualityEvidence, buildCashFlowGeometry, buildOverviewModel } from './overviewModel.js'
 import { OVERVIEW_GAPS } from './gaps.js'
 import { periodToDateRange, trailingCompletedMonths } from './periods.js'
 
@@ -53,7 +53,7 @@ test('an Overview with no canonical read renders honest states, never a number',
   assert.equal(model.topSpend.status, 'unavailable')
   assert.equal(model.recentActivity.status, 'unavailable')
   assert.equal(model.accounts.status, 'unavailable')
-  assert.equal(model.attention.signals.length, 0)
+  assert.equal(model.quality.evidence.length, 0)
 })
 
 test('slots with no approved contract name the contract that would supply them', () => {
@@ -164,10 +164,34 @@ test('a category breakdown that does not reconcile is withheld rather than shown
   assert.match(model.topSpend.reason, /do not reconcile/)
 })
 
-/* ── Attention signals ──────────────────────────────────────────────────── */
+/* ── Needs attention stays empty until SHR-192 ──────────────────────────── */
 
-test('attention lists canonical counts verbatim and never ranks or invents one', () => {
-  const signals = buildQualitySignals({
+test('the Needs attention surface carries nothing but its gap', () => {
+  // Populating this surface from canonical quality counters would be a
+  // frontend-authored attention model standing in for SHR-192's producer,
+  // condition and lifecycle contract. The counters belong to data health.
+  const model = buildOverviewModel({
+    today: FIXTURE_TODAY,
+    period: PERIOD,
+    periodMetrics: {
+      needs_review_count: 5, zero_placeholder_count: 0, missing_fx_count: 0, quality_status: 'provisional',
+      quality_metadata: {
+        missing_fx_currencies: [], income_incomplete_count: 0,
+        consumption_incomplete_count: 0, savings_movement_incomplete_count: 0,
+      },
+    },
+  })
+  assert.deepEqual(Object.keys(model.attention), ['registry'])
+  assert.equal(model.attention.registry.gap, OVERVIEW_GAPS.attentionRegistry)
+  // The counter still exists — as data-health evidence, not as attention.
+  assert.equal(model.quality.evidence.length, 1)
+  assert.equal(model.quality.evidence[0].id, 'needs-review')
+})
+
+/* ── Canonical data-health evidence ─────────────────────────────────────── */
+
+test('data-health evidence lists canonical counts verbatim and never ranks or invents one', () => {
+  const rows = buildCanonicalQualityEvidence({
     periodMetrics: {
       needs_review_count: 3,
       zero_placeholder_count: 1,
@@ -182,15 +206,17 @@ test('attention lists canonical counts verbatim and never ranks or invents one',
     balanceSheet: { incomplete_account_count: 0, provisional_account_count: 1 },
     investments: { stale_value_count: 2, incomplete_value_count: 0 },
   })
-  assert.deepEqual(signals.map((item) => item.id), [
+  assert.deepEqual(rows.map((item) => item.id), [
     'needs-review', 'zero-placeholder', 'missing-fx', 'input-consumption_incomplete_count',
     'accounts-provisional', 'holdings-stale',
   ])
-  for (const item of signals) {
+  for (const item of rows) {
     assert.match(item.source, /^canonical_/, item.id)
-    assert.ok(!('severity' in item) && !('score' in item), 'signals must not be ranked')
+    // No ranking, no score, and no resolve affordance: an action link on one of
+    // these rows would assert actionability the row cannot support.
+    assert.deepEqual(Object.keys(item).sort(), ['id', 'kind', 'meta', 'source', 'title'], item.id)
   }
-  assert.equal(buildQualitySignals({ periodMetrics: null, balanceSheet: null, investments: null }).length, 0)
+  assert.equal(buildCanonicalQualityEvidence({ periodMetrics: null, balanceSheet: null, investments: null }).length, 0)
 })
 
 /* ── Fixtures match the real contracts ──────────────────────────────────── */

@@ -53,7 +53,7 @@ export const OVERVIEW_GAPS = Object.freeze({
     id: 'attention-registry',
     contract: 'SHR-192 — attention condition, event and producer registry',
     reason: 'The ranked attention feed is not available yet.',
-    detail: 'No registry defines which conditions raise attention, who produces them, or how they are resolved. The canonical data-quality counts reported by the read contracts are listed below instead, unranked and unsummarised.',
+    detail: 'No registry defines which conditions raise attention, who produces them, how they rank, or how they resolve. Canonical data-quality counters are reported separately under Data quality and freshness; they are evidence about data completeness, not a stand-in for this feed.',
   }),
   integrationStatus: Object.freeze({
     id: 'integration-status',

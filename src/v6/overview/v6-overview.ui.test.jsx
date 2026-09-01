@@ -108,12 +108,37 @@ describe('V6 Overview — honest unavailable states', () => {
     expect(within(cell).getByText(/versioned monthly budget plan/)).toBeInTheDocument()
   })
 
-  it('states the attention registry gap and lists canonical quality signals with their source field', async () => {
+  it('keeps Needs attention empty but for its gap until SHR-192 exists', async () => {
+    const { container } = await renderLoaded()
+    const heading = screen.getByRole('heading', { name: 'Needs attention' })
+    const section = heading.closest('section')
+
+    expect(within(section).getByText(/ranked attention feed is not available yet/)).toBeInTheDocument()
+    expect(within(section).getByText(/SHR-192/)).toBeInTheDocument()
+    // No canonical counter, and no resolve affordance, inside this surface:
+    // placing one here would be a frontend-authored attention interpretation.
+    expect(within(section).queryByText(/flagged for review/)).not.toBeInTheDocument()
+    expect(within(section).queryByText(/stale price/)).not.toBeInTheDocument()
+    expect(within(section).queryByText(/canonical_/)).not.toBeInTheDocument()
+    expect(within(section).queryAllByRole('link')).toHaveLength(0)
+    expect(within(section).queryAllByRole('button')).toHaveLength(0)
+    expect(container.textContent).not.toMatch(/canonical quality signal/)
+  })
+
+  it('lists canonical counters as data-health evidence under quality and freshness', async () => {
     await renderLoaded()
-    expect(screen.getByText(/ranked attention feed is not available yet/)).toBeInTheDocument()
-    expect(screen.getByText(/3 transactions flagged for review/)).toBeInTheDocument()
-    expect(screen.getByText(/canonical_period_metrics\.needs_review_count/)).toBeInTheDocument()
-    expect(screen.getByText(/2 holdings with a stale price/)).toBeInTheDocument()
+    const section = screen.getByRole('heading', { name: 'Data quality and freshness' }).closest('section')
+
+    expect(within(section).getByText(/not an attention feed/)).toBeInTheDocument()
+    expect(within(section).getByText(/3 transactions flagged for review/)).toBeInTheDocument()
+    expect(within(section).getByText(/canonical_period_metrics\.needs_review_count/)).toBeInTheDocument()
+    expect(within(section).getByText(/2 holdings with a stale price/)).toBeInTheDocument()
+    // Evidence rows report; they do not offer to resolve anything.
+    const rows = section.querySelectorAll('.v6-attention-item')
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      expect(row.querySelector('a, button')).toBeNull()
+    }
   })
 
   it('makes no integration or sync health claim', async () => {

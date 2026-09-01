@@ -243,47 +243,50 @@ function buildCashFlow({ monthlySeries }) {
   return { status: 'available', reason: null, columns, geometry: buildCashFlowGeometry(columns) }
 }
 
-/* ── Attention ──────────────────────────────────────────────────────────── */
+/* ── Canonical data-health evidence ─────────────────────────────────────── */
 
-function signal(id, kind, title, meta, source, action = null) {
-  return { id, kind, title, meta, source, action }
+function evidence(id, kind, title, meta, source) {
+  return { id, kind, title, meta, source }
 }
 
 /**
- * Canonical quality counts, listed verbatim.
+ * Canonical data-health counters, listed verbatim.
  *
- * These are not an attention feed and are not ranked, scored or interpreted:
- * each row is one integer a canonical read contract already returned, next to
- * the field it came from. The ranked feed is SHR-192 and is reported as a gap.
+ * Each row is one integer a canonical read contract already returned, beside
+ * the field it came from. This is evidence about data completeness — it is
+ * **not** attention, and it must never be rendered inside the Needs attention
+ * surface. Deciding which conditions raise attention, who produces them, how
+ * they rank and how they resolve is SHR-192's contract; interpreting these
+ * counters as attention in the browser would be a parallel frontend-authored
+ * attention model. Nothing here is ranked, scored, prioritised, or asserted to
+ * be actionable, and no row carries a resolve affordance.
  */
-export function buildQualitySignals({ periodMetrics, balanceSheet, investments }) {
-  const signals = []
+export function buildCanonicalQualityEvidence({ periodMetrics, balanceSheet, investments }) {
+  const rows = []
 
   if (periodMetrics) {
     const metadata = periodMetrics.quality_metadata
     if (periodMetrics.needs_review_count > 0) {
-      signals.push(signal(
+      rows.push(evidence(
         'needs-review',
         'Review',
         `${periodMetrics.needs_review_count} transaction${periodMetrics.needs_review_count === 1 ? '' : 's'} flagged for review`,
         'Flagged in this period’s canonical ledger.',
         sourced('canonical_period_metrics', 'needs_review_count'),
-        { label: 'Open in Activity', href: '/money/activity?needsReview=1' },
       ))
     }
     if (periodMetrics.zero_placeholder_count > 0) {
-      signals.push(signal(
+      rows.push(evidence(
         'zero-placeholder',
         'Amount',
         `${periodMetrics.zero_placeholder_count} unresolved zero placeholder${periodMetrics.zero_placeholder_count === 1 ? '' : 's'}`,
         'Entries captured without a resolved amount.',
         sourced('canonical_period_metrics', 'zero_placeholder_count'),
-        { label: 'Open in Activity', href: '/money/activity?needsReview=1' },
       ))
     }
     if (periodMetrics.missing_fx_count > 0) {
       const currencies = metadata.missing_fx_currencies
-      signals.push(signal(
+      rows.push(evidence(
         'missing-fx',
         'FX',
         `${periodMetrics.missing_fx_count} entr${periodMetrics.missing_fx_count === 1 ? 'y' : 'ies'} missing a required FX rate`,
@@ -298,7 +301,7 @@ export function buildQualitySignals({ periodMetrics, balanceSheet, investments }
     ]
     for (const [field, label] of inputGaps) {
       if (metadata[field] > 0) {
-        signals.push(signal(
+        rows.push(evidence(
           `input-${field}`,
           'Inputs',
           `${metadata[field]} incomplete ${label} input${metadata[field] === 1 ? '' : 's'}`,
@@ -311,51 +314,47 @@ export function buildQualitySignals({ periodMetrics, balanceSheet, investments }
 
   if (balanceSheet) {
     if (balanceSheet.incomplete_account_count > 0) {
-      signals.push(signal(
+      rows.push(evidence(
         'accounts-incomplete',
         'Accounts',
         `${balanceSheet.incomplete_account_count} account${balanceSheet.incomplete_account_count === 1 ? '' : 's'} with incomplete valuation inputs`,
         'Balance-sheet totals are withheld while an account input is incomplete.',
         sourced('canonical_balance_sheet', 'incomplete_account_count'),
-        { label: 'Open in Wealth', href: '/wealth/accounts' },
       ))
     }
     if (balanceSheet.provisional_account_count > 0) {
-      signals.push(signal(
+      rows.push(evidence(
         'accounts-provisional',
         'Accounts',
         `${balanceSheet.provisional_account_count} account${balanceSheet.provisional_account_count === 1 ? '' : 's'} valued provisionally`,
         'A manual value stands in for a quoted price.',
         sourced('canonical_balance_sheet', 'provisional_account_count'),
-        { label: 'Open in Wealth', href: '/wealth/accounts' },
       ))
     }
   }
 
   if (investments) {
     if (investments.stale_value_count > 0) {
-      signals.push(signal(
+      rows.push(evidence(
         'holdings-stale',
         'Holdings',
         `${investments.stale_value_count} holding${investments.stale_value_count === 1 ? '' : 's'} with a stale price`,
         'Reported by the canonical investment contract, not inferred from a refresh schedule.',
         sourced('canonical_investment_metrics', 'stale_value_count'),
-        { label: 'Open in Wealth', href: '/wealth/investments' },
       ))
     }
     if (investments.incomplete_value_count > 0) {
-      signals.push(signal(
+      rows.push(evidence(
         'holdings-incomplete',
         'Holdings',
         `${investments.incomplete_value_count} holding${investments.incomplete_value_count === 1 ? '' : 's'} with incomplete valuation inputs`,
         'The canonical investment value is withheld while a holding input is incomplete.',
         sourced('canonical_investment_metrics', 'incomplete_value_count'),
-        { label: 'Open in Wealth', href: '/wealth/investments' },
       ))
     }
   }
 
-  return signals
+  return rows
 }
 
 /* ── Top spend ──────────────────────────────────────────────────────────── */
@@ -500,6 +499,10 @@ function buildQuality({ periodMetrics, balanceSheet, investments, accounts }) {
     ? accounts.map((row) => row.valuation_as_of).filter(Boolean).sort()
     : []
   return {
+    // Canonical data-health counters live here, in the quality and freshness
+    // area — never in the Needs attention surface, which SHR-192 owns.
+    evidence: buildCanonicalQualityEvidence({ periodMetrics, balanceSheet, investments }),
+    evidenceRead: Boolean(periodMetrics || balanceSheet || investments),
     period: periodMetrics?.quality_status ?? null,
     balance: balanceSheet?.quality_status ?? null,
     investments: investments?.quality_status ?? null,
@@ -527,8 +530,6 @@ export function buildOverviewModel(input) {
     errors = {},
   } = input
 
-  const attentionSignals = buildQualitySignals({ periodMetrics, balanceSheet, investments })
-
   return Object.freeze({
     today,
     period,
@@ -540,11 +541,11 @@ export function buildOverviewModel(input) {
     }),
     kpis: buildKpis({ periodMetrics, periodError: errors.periodMetrics ?? null }),
     cashFlow: buildCashFlow({ monthlySeries }),
-    attention: Object.freeze({
-      registry: gapSlot('attentionRegistry'),
-      signals: attentionSignals,
-      signalsRead: Boolean(periodMetrics || balanceSheet || investments),
-    }),
+    // Needs attention carries nothing but its gap. Populating it from
+    // canonical quality counters would be a frontend-authored attention model
+    // standing in for the SHR-192 producer/condition/lifecycle contract; the
+    // counters are data-health evidence and live under `quality` instead.
+    attention: Object.freeze({ registry: gapSlot('attentionRegistry') }),
     upcoming: gapSlot('upcoming'),
     topSpend: buildTopSpend({ budgetActuals, periodMetrics, budgetError: errors.budgetActuals ?? null }),
     recentActivity: buildRecentActivity({ ledgerRows, ledgerError: errors.ledgerRows ?? null }),

@@ -19,7 +19,7 @@ and is what the screen actually renders.
 | Recent activity | `v_canonical_ledger_aed` |
 | Account summary | `v_canonical_accounts_aed` (with the additive `name` column) |
 | Data quality and freshness | each contract's own `quality_status`, `quality_metadata.fx_updated_at`, and account `valuation_as_of` |
-| Attention quality signals | `needs_review_count`, `zero_placeholder_count`, `missing_fx_count`, the three `*_incomplete_count` fields, `provisional_account_count`, `incomplete_account_count`, `stale_value_count`, `incomplete_value_count`, listed verbatim with the field each came from |
+| Data-health evidence (inside Data quality and freshness, **not** inside Needs attention) | `needs_review_count`, `zero_placeholder_count`, `missing_fx_count`, the three `*_incomplete_count` fields, `provisional_account_count`, `incomplete_account_count`, `stale_value_count`, `incomplete_value_count`, listed verbatim with the field each came from |
 
 ## Deliberately withheld, with the contract that would supply it
 
@@ -31,7 +31,7 @@ and is what the screen actually renders.
 | Daily investment change | Requires trustworthy position and cash-flow history. Prototype investment history is quarantined exception 2. | SHR-176 |
 | Budget left | Canonical actuals exist, but no versioned plan contract supplies the period's planned amounts. | SHR-166 |
 | Next 30 days (upcoming obligations) | The legacy recurring schedule is not a canonical contract; projecting bills and expected income from it would present a non-canonical calculation as household truth. | SHR-171 |
-| Ranked attention feed | No registry defines which conditions raise attention, who produces them, or how they resolve. | SHR-192 |
+| Needs attention (the whole surface) | No registry defines which conditions raise attention, who produces them, how they rank, or how they resolve. The section renders its gap and nothing else. | SHR-192 |
 | Integration / sync status | Deployment or configuration alone is not evidence that an integration is healthy. Quarantined exception 6. | SHR-190 |
 
 ## Deliberate deviations from the prototype
@@ -54,6 +54,23 @@ and is what the screen actually renders.
 * **Title.** The prototype's "Three days left in the month." is a generated
   narrative. The implementation states what the screen knows: the scope and the
   period.
+
+## Needs attention vs. data health
+
+These are deliberately separate surfaces, and the separation is enforced by
+tests in both `overviewModel.test.js` and `v6-overview.ui.test.jsx`.
+
+Canonical read contracts return data-quality counters, and it is tempting to
+list them under **Needs attention**. That would be a parallel,
+frontend-authored attention interpretation: placing a counter inside that
+surface *is* the claim that it warrants attention, which is precisely the
+judgement SHR-192's producer/condition/lifecycle contract exists to make.
+
+So **Needs attention** renders its gap and nothing else until SHR-192 lands.
+The counters appear under **Data quality and freshness** as data-health
+evidence, labelled as evidence about data completeness, unranked,
+unprioritised, and carrying no resolve affordance — no row has an action link,
+because offering one would assert an actionability the row cannot support.
 
 ## Prototype demo values
 
