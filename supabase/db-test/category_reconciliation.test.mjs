@@ -129,6 +129,20 @@ async function reconcile(client, f, { manifestRef = `SHR197-${crypto.randomUUID(
   return rows[0].result
 }
 
+function expectedFromPreflight(pre) {
+  return {
+    digest: pre.source_state_digest,
+    categoryCount: pre.category_count,
+    transactionCount: pre.transaction_count,
+    ruleCount: pre.category_rule_count,
+    nullCount: pre.null_transaction_category_count,
+    softDeletedCount: pre.soft_deleted_transaction_count,
+    labelCount: pre.distinct_legacy_label_count,
+    unknownCount: pre.unknown_label_count,
+    runCount: pre.reconciliation_run_count,
+  }
+}
+
 async function evidenceCounts(client) {
   const { rows } = await client.query(`select
     (select count(*)::integer from public.category_reconciliation_runs) as runs,
@@ -168,13 +182,117 @@ test('preflight is exact, deterministic, read-only, and covers soft-delete/NULL/
     assert.match(one.source_state_digest, /^sha256:[0-9a-f]{64}$/)
     assert.equal(one.source_state_digest, two.source_state_digest)
     assert.equal(one.classification_text_digest, two.classification_text_digest)
+    assert.equal(one.category_alias_state_digest, two.category_alias_state_digest)
+    assert.match(one.category_alias_state_digest, /^sha256:[0-9a-f]{64}$/)
     assert.ok(one.soft_deleted_transaction_count >= 1)
     assert.ok(one.null_transaction_category_count >= 1)
     assert.ok(one.unknown_label_count >= 1)
     assert.equal(one.ambiguous_label_count, 0)
     assert.deepEqual(await evidenceCounts(client), before)
     assert.ok(Array.isArray(one.roster.categories))
+    assert.ok(Array.isArray(one.roster.category_aliases))
     assert.ok(Array.isArray(one.roster.legacy_labels))
+  })
+})
+
+test('the evidence-input inventory binds every decision relation and excludes non-input history/financial fields', async () => {
+  await withTx(async (client) => {
+    const f = await fixture(client)
+    const base = await preflight(client)
+
+    await client.query('savepoint transaction_input')
+    await client.query(`update public.transactions set deleted_at=now() where id=$1`, [f.rows.active.id])
+    assert.notEqual((await preflight(client)).source_state_digest, base.source_state_digest)
+    await client.query('rollback to savepoint transaction_input')
+
+    await client.query('savepoint rule_input')
+    await client.query(`update public.category_rules set category=$1 where id=$2`, [f.transfer.name, f.rows.rule.id])
+    assert.notEqual((await preflight(client)).source_state_digest, base.source_state_digest)
+    await client.query('rollback to savepoint rule_input')
+
+    await client.query('savepoint category_input')
+    await makeCategory(client, `SHR197 Inventory ${crypto.randomUUID()}`)
+    assert.notEqual((await preflight(client)).source_state_digest, base.source_state_digest)
+    await client.query('rollback to savepoint category_input')
+
+    await client.query('savepoint alias_input')
+    await client.query(
+      `insert into public.category_aliases(category_id,alias_name,state,retired_at)
+       values($1,$2,'history_only',now())`,
+      [f.ordinary.id, `SHR197 history ${crypto.randomUUID()}`]
+    )
+    const aliasChanged = await preflight(client)
+    assert.notEqual(aliasChanged.category_alias_state_digest, base.category_alias_state_digest)
+    assert.notEqual(aliasChanged.source_state_digest, base.source_state_digest)
+    assert.deepEqual(aliasChanged.roster.legacy_labels, base.roster.legacy_labels,
+      'history-only aliases are evidence-bound but never resolver candidates')
+    await client.query('rollback to savepoint alias_input')
+
+    await client.query('savepoint history_non_input')
+    await client.query(
+      `insert into public.category_name_history(category_id,previous_name,new_name)
+       values($1,$2,$3)`,
+      [f.ordinary.id, 'SHR197 prior evidence only', f.ordinary.name]
+    )
+    assert.equal((await preflight(client)).source_state_digest, base.source_state_digest,
+      'rename history is evidence only and is not candidate authority')
+    await client.query('rollback to savepoint history_non_input')
+
+    await client.query('savepoint financial_non_input')
+    await client.query(`update public.transactions set amount=amount+1 where id=$1`, [f.rows.active.id])
+    assert.equal((await preflight(client)).source_state_digest, base.source_state_digest,
+      'amount cannot affect category reconciliation acceptance')
+    await client.query('rollback to savepoint financial_non_input')
+  })
+})
+
+test('alias candidate creation invalidates an approved preflight before first mutation', async () => {
+  await withTx(async (client) => {
+    const f = await fixture(client)
+    const approved = await preflight(client)
+    await client.query(`select * from private.register_category_alias_v1($1,$2,null)`, [f.ordinary.id, f.unknown])
+    const changed = await preflight(client)
+    assert.notEqual(changed.category_alias_state_digest, approved.category_alias_state_digest)
+    assert.notEqual(changed.source_state_digest, approved.source_state_digest)
+    assert.equal(changed.unknown_label_count, approved.unknown_label_count - 1)
+    await expectReject(
+      client,
+      () => reconcile(client, f, { expected: expectedFromPreflight(approved) }),
+      /SHR197_PREFLIGHT_DIGEST_STALE/
+    )
+    assert.equal((await evidenceCounts(client)).runs, 0)
+  })
+})
+
+test('same-count active-alias retirement and replacement invalidates reviewed candidate identity', async () => {
+  await withTx(async (client) => {
+    const f = await fixture(client)
+    const { rows: aliases } = await client.query(
+      `select * from private.register_category_alias_v1($1,$2,null)`,
+      [f.ordinary.id, f.unknown]
+    )
+    const approved = await preflight(client)
+    const before = approved.roster.legacy_labels.find((row) => row.legacy_label === f.unknown)
+    await client.query(`select * from private.retire_category_alias_v1($1)`, [aliases[0].alias_id])
+    await client.query(`select * from private.register_category_alias_v1($1,$2,null)`, [f.transfer.id, f.unknown])
+    const changed = await preflight(client)
+    const after = changed.roster.legacy_labels.find((row) => row.legacy_label === f.unknown)
+    assert.equal(before.candidate_category_count, 1)
+    assert.equal(after.candidate_category_count, 1)
+    assert.notDeepEqual(after.candidate_category_ids, before.candidate_category_ids)
+    for (const field of [
+      'category_count', 'transaction_count', 'category_rule_count',
+      'null_transaction_category_count', 'soft_deleted_transaction_count',
+      'distinct_legacy_label_count', 'unknown_label_count',
+    ]) assert.equal(changed[field], approved[field], `${field} stays constant during the candidate swap`)
+    assert.notEqual(changed.category_alias_state_digest, approved.category_alias_state_digest)
+    assert.notEqual(changed.source_state_digest, approved.source_state_digest)
+    await expectReject(
+      client,
+      () => reconcile(client, f, { expected: expectedFromPreflight(approved) }),
+      /SHR197_PREFLIGHT_DIGEST_STALE/
+    )
+    assert.equal((await evidenceCounts(client)).runs, 0)
   })
 })
 
@@ -310,6 +428,7 @@ test('manifest coverage is exhaustive and duplicate labels fail as ambiguity', a
 test('an ambiguous live name/alias source state fails closed before any mutation', async () => {
   await withTx(async (client) => {
     const f = await fixture(client, { includeUnknown: false })
+    const approved = await preflight(client)
     await client.query(`alter table public.category_aliases disable trigger category_aliases_lifecycle_guard`)
     await client.query(
       `insert into public.category_aliases(category_id,alias_name,state)
@@ -318,7 +437,14 @@ test('an ambiguous live name/alias source state fails closed before any mutation
     )
     await client.query(`alter table public.category_aliases enable trigger category_aliases_lifecycle_guard`)
     const pre = await preflight(client)
+    assert.notEqual(pre.category_alias_state_digest, approved.category_alias_state_digest)
+    assert.notEqual(pre.source_state_digest, approved.source_state_digest)
     assert.equal(pre.ambiguous_label_count, 1)
+    await expectReject(
+      client,
+      () => reconcile(client, f, { expected: expectedFromPreflight(approved) }),
+      /SHR197_PREFLIGHT_DIGEST_STALE/
+    )
     await expectReject(
       client,
       () => reconcile(client, f),
@@ -432,6 +558,22 @@ test('same reference plus same exact content replays; changed content conflicts'
       } }),
       /SHR197_MANIFEST_CONFLICT/
     )
+  })
+})
+
+test('replay rejects alias-derived candidate drift and writes no replay receipt', async () => {
+  await withTx(async (client) => {
+    const f = await fixture(client)
+    const manifestRef = `SHR197-replay-alias-${crypto.randomUUID()}`
+    const approved = await preflight(client)
+    await reconcile(client, f, { manifestRef })
+    await client.query(`select * from private.register_category_alias_v1($1,$2,null)`, [f.ordinary.id, f.unknown])
+    await expectReject(
+      client,
+      () => reconcile(client, f, { manifestRef, expected: expectedFromPreflight(approved) }),
+      /SHR197_REPLAY_SOURCE_EVIDENCE_MISMATCH/
+    )
+    assert.equal((await evidenceCounts(client)).replays, 0)
   })
 })
 

@@ -2,6 +2,11 @@
 
 Status: capability and evidence implementation complete; independent Tier-3 category/data reconciliation review required before merge or any production authorization.
 
+Independent review of blocked head `16a8810b009d7b370e677dd7296a1cc74e7e9ddb`
+found replay verification before source locking and omitted alias state. Migration
+050 was unshipped, so it was amended in place. No follow-on migration was
+created and production remains through 044.
+
 ## Git and release boundary
 
 - Issue: `SHR-197 — Category stable-reference reconciliation and evidence manifest`.
@@ -24,13 +29,21 @@ Status: capability and evidence implementation complete; independent Tier-3 cate
 
 ## Evidence-gated reconciliation
 
-- `private.category_reconciliation_preflight_v1()` produces exact deterministic evidence: category UUID/name/system-code/archive state and transaction/rule counts by legacy label, including NULL, unknown, ambiguous, active, and soft-deleted coverage.
+- `private.category_reconciliation_preflight_v1()` produces exact deterministic evidence: category UUID/name/system-code/archive state, the complete active/history-only alias lifecycle roster and digest, and transaction/rule counts by legacy label, including NULL, unknown, ambiguous, active, and soft-deleted coverage.
 - `private.category_reconciliation_state_digest_v1()` and `private.category_classification_text_digest_v1()` bind the complete reviewed source state and byte-preserved V1 classification text with SHA-256 digests.
 - `private.reconcile_category_references_v1(...)` accepts only an explicit, exhaustive manifest and the exact expected preflight digest/counts. It never derives a target UUID from a live category-name join.
 - The only permitted initial system codes are `transfer` and `savings_investment`; both require explicit reviewed UUIDs. Any missing, extra, duplicate, stale, ambiguous, mismatched, or invalid declaration aborts before mutation.
 - Every distinct non-NULL transaction or rule label must have exactly one manifest decision: `mapped` with an explicit category UUID or `unresolved_unknown` without one. Unknown values remain unresolved.
-- Table/advisory locks, complete prechecks, and one database transaction provide fail-closed, no-partial-write behavior.
-- Exact same manifest reference plus exact same content is an idempotent replay. Reusing a reference with different content fails closed.
+- Locking sequence is now: validate non-database argument shape → acquire the SHR-197 transaction advisory lock → acquire ordered `SHARE` locks on categories, aliases, transactions, rules, the run relation, and immutable system/row evidence → determine replay/first-run → validate the stabilized state → create the durable receipt/mutations. Locks survive through transaction end.
+- First-run and replay therefore use the same stabilized source boundary. Replay additionally compares the complete alias roster and alias-derived candidate roster with the original snapshot before recording success.
+- Exact same manifest reference plus same content is idempotent only while per-row, system, alias, and candidate evidence still matches. Reusing a reference with different content or replaying after alias/candidate drift fails closed.
+
+## Complete evidence-input inventory
+
+- **A — deterministically bound and stabilized:** complete category rows; complete category-alias rows (only active aliases become candidates); transaction ID/text/stable-ref/soft-delete state; rule ID/target/stable-ref state; reconciliation run count/determination; immutable system/row replay evidence; canonical manifest arguments.
+- **B — provably not decision inputs:** category rename history (evidence only and never resolver authority); transaction amount/date/account/description and account/economic-party relations; rule pattern and precedence/lifecycle fields owned by SHR-160.
+- Categories/aliases/transactions/rules are in the source digest and ordered lock set. Run count is digested and the run table is locked. Row/system evidence is append-only and locked while replay reads it. The manifest is hashed from immutable statement arguments.
+- Tests mutate each A relation and prove digest/candidate invalidation. They also prove history-only aliases are bound but non-resolving, while category-name history and amount-only changes cannot affect reconciliation acceptance.
 
 ## Durable evidence and audit boundary
 
@@ -89,6 +102,8 @@ Status: capability and evidence implementation complete; independent Tier-3 cate
 4. Verify exact replay versus conflicting-reference semantics and append-only evidence protection.
 5. Verify stable-reference guards, RESTRICT FKs, existing category lifecycle protections, and household RLS/ACL non-regression.
 6. Verify backup ordering and the migration-045/reviewed-backup release coupling before any production authorization.
+7. Verify the remediated first-run/replay lock sequence and the deterministic two-connection transaction/alias races.
+8. Verify complete alias lifecycle state is digested while only `compatibility_active` rows participate in candidates.
 
 ## Explicit stop boundary
 

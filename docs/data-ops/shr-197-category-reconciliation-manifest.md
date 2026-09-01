@@ -34,9 +34,12 @@ rollback;
 The evidence includes exact category UUID/name/system-code/archive state,
 active and soft-deleted transaction counts, rule-target counts, NULL category
 counts, every distinct legacy label, candidate UUIDs, unknown/ambiguous status,
-the V1 classification-text digest, and the source-state digest. Candidate UUIDs
-are review evidence only. They are never a mapping decision and the release
-function never joins a legacy label to `categories.name` to choose a UUID.
+the complete category-alias lifecycle roster and alias-state digest, the V1
+classification-text digest, and the source-state digest. Both active and
+history-only alias rows are evidence-bound, but only `compatibility_active`
+aliases participate in candidates. Candidate UUIDs are review evidence only.
+They are never a mapping decision and the release function never joins a
+legacy label to `categories.name` to choose a UUID.
 
 If `ambiguous_label_count` is non-zero, stop. Strict reconciliation is not
 permitted. If the roster or digest changes after review, stop and obtain a new
@@ -83,13 +86,42 @@ approval must come from independent review of the exact production evidence.
 
 Call `private.reconcile_category_references_v1(...)` once in a deliberate
 release transaction with the approved values. The function serializes releases,
-locks the three source tables, checks replay/conflict, proves the complete
-preflight and exhaustive manifest, and validates every UUID before its first
-row write. Any mismatch or later error aborts the whole statement/transaction.
+then acquires one ordered `SHARE` lock set over categories, aliases,
+transactions, category rules, the run relation, and the immutable row/system
+evidence read by replay. Only after every lock is held does it determine
+first-run versus replay, prove the complete preflight/manifest or replay state,
+and create the durable result. These transaction-level locks block all relevant
+ordinary DML through the run/replay receipt and commit. Any mismatch or later
+error aborts the whole statement/transaction.
 
 The same manifest reference plus the same exact content returns `replayed=true`
-with no DML. Reusing the reference for different content fails with
-`SHR197_MANIFEST_CONFLICT`.
+with no classification DML only after current per-row/system state, the exact
+alias roster, and alias-derived candidate evidence match the original reviewed
+snapshot. Reusing the reference for different content fails with
+`SHR197_MANIFEST_CONFLICT`; alias/candidate drift fails replay closed.
+
+## Evidence-input inventory
+
+Every reconciliation acceptance input is classified below. An A input is
+deterministically bound and stabilized. A B input cannot affect any category
+decision and is deliberately excluded.
+
+| Relation/input | Decision effect | Boundary |
+| --- | --- | --- |
+| `categories` (`id`, `name`, `system_code`, `archived_at`; the digest conservatively includes the complete row) | direct candidates, explicit UUID existence, system-code/archived validation | A: source digest + category roster + `SHARE` lock; replay rechecks candidate roster and exact system anchors |
+| `category_aliases` (complete row, including lifecycle state) | active alias candidates and ambiguity; retirement/replacement changes reviewer evidence | A: exact alias roster + alias digest + source digest + `SHARE` lock; replay compares the original alias and candidate rosters |
+| `transactions` (`id`, `category`, `category_id`, `deleted_at`) | label coverage/counts, NULL, active/soft-deleted classification, row outcome | A: source/classification digests + row evidence + `SHARE` lock + replay mismatch report |
+| `category_rules` (`id`, `category`, `category_id`) | label coverage/counts and rule-target outcome | A: source/classification digests + row evidence + `SHARE` lock + replay mismatch report |
+| `category_reconciliation_runs` | run count and first-run/replay determination | A: digest/count + advisory serialization + `SHARE` lock |
+| reconciliation system/row evidence | replay acceptance and mismatch count | A: append-only guards/ACL + `SHARE` lock while replay reads it |
+| manifest function arguments | exact code/label/UUID decisions and expected state | A: canonical manifest digest; immutable function values for the statement |
+| `category_name_history` | evidence only; SHR-196 explicitly makes it non-resolving | B: candidate/preflight functions never read it; tests prove history-only changes do not change reconciliation state |
+| transaction amount/date/account/description and account/economic-party relations | financial facts and authorization, not category reconciliation identity | B: never read by preflight/candidate/reconciliation decisions; tests prove an amount-only change leaves the digest unchanged |
+| `category_rules` pattern and any future precedence/lifecycle fields | rule matching behavior owned by SHR-160, not current target reconciliation | B: only rule ID/current target text/stable ref are read; no rule resolver behavior changes |
+
+The table-level transaction/rule locks conservatively block even B-column DML
+during the short release transaction because PostgreSQL cannot table-lock only
+selected columns. This does not make those columns evidence inputs.
 
 ## 4. Verify without changing V1
 

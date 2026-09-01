@@ -108,7 +108,7 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   and ambiguity refusals; the exact ACL/RLS/function matrix; and the backup
   manifest plus a representative history restore that preserves the whole
   lifecycle in order and stays append-only.
-- **`category-reconciliation-upgrade-path.mjs` + `category_reconciliation.test.mjs`**
+- **`category-reconciliation-upgrade-path.mjs` + `category-reconciliation-concurrency.mjs` + `category_reconciliation.test.mjs`**
   — SHR-197 fresh, through-049 → 050 upgrade and restart/rerun paths; inert
   nullable references and byte-identical V1 text, policy and canonical output;
   deterministic category/label/count preflight with active, soft-deleted,
@@ -118,7 +118,10 @@ then runs every `supabase/db-test/**/*.test.ts` file with `node --test`.
   outcomes; FK/restrict and lifecycle-guard interaction; same-content replay
   and conflicting-reference/content refusal; immutable run, manifest and
   per-row evidence; private function ACLs and unchanged household RLS; exact
-  classification/canonical parity; and backup ordering/export coverage.
+  classification/canonical parity; backup ordering/export coverage; complete
+  evidence-input inventory; alias-state/candidate digest binding; and
+  deterministic two-connection first-run/replay races proving transaction and
+  alias writers stay blocked through the durable receipt.
 - **`rpc.test.ts`** — every RPC added in 026/027/030/032 against the real
   schema: `replace_category_split`, `create_goal_contribution`,
   `create_transfer`, `create_bulk_transactions`, `apply_pending_income`,

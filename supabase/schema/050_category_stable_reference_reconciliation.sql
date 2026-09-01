@@ -337,6 +337,33 @@ returns text language sql stable security invoker set search_path = '' as $$
     )::text, 'UTF8'), 'sha256'), 'hex')
 $$;
 
+-- Exact alias lifecycle state is evidence even though only
+-- compatibility_active rows participate in candidate generation. Binding the
+-- full immutable/terminal row shape makes retirement and replacement visible
+-- while preserving SHR-196's rule that history_only is never resolvable.
+create or replace function private.category_alias_reconciliation_roster_v1()
+returns jsonb language sql stable security invoker set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'alias_id', a.alias_id,
+    'category_id', a.category_id,
+    'alias_name', a.alias_name,
+    'state', a.state,
+    'source_name_history_id', a.source_name_history_id,
+    'registered_at', a.registered_at,
+    'retired_at', a.retired_at,
+    'schema_version', a.schema_version,
+    'candidate_active', a.state = 'compatibility_active'
+  ) order by a.alias_id), '[]'::jsonb)
+  from public.category_aliases a
+$$;
+
+create or replace function private.category_alias_state_digest_v1()
+returns text language sql stable security invoker set search_path = '' as $$
+  select 'sha256:' || pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
+    private.category_alias_reconciliation_roster_v1()::text, 'UTF8'),
+    'sha256'), 'hex')
+$$;
+
 create or replace function private.category_reconciliation_state_digest_v1()
 returns text language sql stable security invoker set search_path = '' as $$
   select 'sha256:' || pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
@@ -350,6 +377,7 @@ returns text language sql stable security invoker set search_path = '' as $$
       'category_rules', coalesce((select jsonb_agg(jsonb_build_array(
           r.id, r.category, r.category_id
         ) order by r.id) from public.category_rules r), '[]'::jsonb),
+      'category_aliases', private.category_alias_reconciliation_roster_v1(),
       'run_count', (select count(*) from public.category_reconciliation_runs)
     )::text, 'UTF8'), 'sha256'), 'hex')
 $$;
@@ -358,6 +386,8 @@ create or replace function private.category_reconciliation_roster_v1()
 returns jsonb language sql stable security invoker set search_path = '' as $$
   select jsonb_build_object(
     'schema_version', 1,
+    'category_alias_state_digest', private.category_alias_state_digest_v1(),
+    'category_aliases', private.category_alias_reconciliation_roster_v1(),
     'categories', coalesce((select jsonb_agg(jsonb_build_object(
       'category_id', c.id,
       'legacy_name', c.name,
@@ -390,6 +420,7 @@ returns table (
   observed_at timestamptz,
   source_state_digest text,
   classification_text_digest text,
+  category_alias_state_digest text,
   category_count integer,
   active_category_count integer,
   archived_category_count integer,
@@ -411,6 +442,7 @@ language sql stable security invoker set search_path = '' as $$
   select pg_catalog.now(),
     private.category_reconciliation_state_digest_v1(),
     private.category_classification_text_digest_v1(),
+    private.category_alias_state_digest_v1(),
     (select count(*)::integer from public.categories),
     (select count(*)::integer from public.categories where archived_at is null),
     (select count(*)::integer from public.categories where archived_at is not null),
@@ -472,6 +504,7 @@ declare
   v_after_digest text;
   v_mismatch_count integer;
   v_replay_id uuid;
+  v_current_roster jsonb;
 begin
   if not private.category_operator_authority() then
     raise exception 'SHR197_RECONCILE_FORBIDDEN' using errcode = '42501';
@@ -513,6 +546,23 @@ begin
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended('shr197.category_reconciliation.v1', 197));
 
+  -- Stabilize the complete reconciliation decision boundary before deciding
+  -- whether this is a first application or replay. SHARE blocks every
+  -- INSERT/UPDATE/DELETE (ROW EXCLUSIVE) while allowing read-only review. The
+  -- order mirrors lifecycle writers: categories before aliases, followed by
+  -- classification sources and the immutable evidence read during replay.
+  -- Locks are transaction-level and therefore survive through the durable run
+  -- or replay receipt and caller commit/rollback.
+  lock table
+    public.categories,
+    public.category_aliases,
+    public.transactions,
+    public.category_rules,
+    public.category_reconciliation_runs,
+    public.category_reconciliation_system_entries,
+    public.category_reconciliation_row_evidence
+    in share mode;
+
   select r.* into v_existing from public.category_reconciliation_runs r
     where r.manifest_ref = btrim(p_manifest_ref);
   if found then
@@ -523,6 +573,13 @@ begin
        <> v_existing.classification_digest_after then
       raise exception 'SHR197_REPLAY_STATE_MISMATCH' using errcode = '55000';
     end if;
+    v_current_roster := private.category_reconciliation_roster_v1();
+    if v_current_roster -> 'category_aliases'
+         is distinct from v_existing.preflight_snapshot -> 'category_aliases'
+       or v_current_roster -> 'legacy_labels'
+         is distinct from v_existing.preflight_snapshot -> 'legacy_labels' then
+      raise exception 'SHR197_REPLAY_SOURCE_EVIDENCE_MISMATCH' using errcode = '55000';
+    end if;
     select count(*)::integer into v_mismatch_count
       from private.category_reconciliation_mismatch_report_v1(v_existing.run_id);
     v_mismatch_count := v_mismatch_count + (
@@ -530,7 +587,10 @@ begin
       from public.category_reconciliation_system_entries e
       left join public.categories c on c.id = e.category_id
       where e.run_id = v_existing.run_id
-        and (c.id is null or c.system_code is distinct from e.system_code)
+        and (c.id is null
+          or c.system_code is distinct from e.system_code
+          or c.name is distinct from e.category_name
+          or c.archived_at is distinct from e.category_archived_at)
     );
     if v_mismatch_count <> 0 then
       raise exception 'SHR197_REPLAY_STATE_MISMATCH' using errcode = '55000';
@@ -552,13 +612,6 @@ begin
       'resolved_category_rule_count', v_existing.resolved_category_rule_count,
       'unresolved_category_rule_count', v_existing.unresolved_category_rule_count);
   end if;
-
-  -- Freeze every source table for the rest of this transaction. The exact
-  -- digest check and every exhaustive validation below precede the first row
-  -- mutation; concurrent V1 writes cannot make approved evidence stale between
-  -- the check and application.
-  lock table public.categories, public.transactions, public.category_rules
-    in share row exclusive mode;
 
   select * into v_pre from private.category_reconciliation_preflight_v1();
   if v_pre.source_state_digest <> p_expected_source_state_digest then
@@ -868,6 +921,8 @@ revoke all on function
   private.guard_category_stable_reference(),
   private.category_legacy_label_candidates_v1(),
   private.category_classification_text_digest_v1(),
+  private.category_alias_reconciliation_roster_v1(),
+  private.category_alias_state_digest_v1(),
   private.category_reconciliation_state_digest_v1(),
   private.category_reconciliation_roster_v1(),
   private.category_reconciliation_preflight_v1(),
