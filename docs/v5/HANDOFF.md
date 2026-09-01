@@ -1,6 +1,6 @@
 # SHR-197 implementation handoff
 
-Status: capability and evidence implementation complete; independent Tier-3 category/data reconciliation review required before merge or any production authorization.
+Status: blocked-head remediation complete; independent Tier-3 category/data reconciliation re-review required before merge or any production authorization.
 
 Independent review of blocked head `16a8810b009d7b370e677dd7296a1cc74e7e9ddb`
 found replay verification before source locking and omitted alias state. Migration
@@ -88,7 +88,8 @@ created and production remains through 044.
 - `npm run lint`: PASS with 0 errors and 7 pre-existing warnings.
 - `npm run test:node`: PASS, 534/534.
 - `npm run test:ui`: PASS, 91/91 across 9 files.
-- `npm run test:db`: PostgreSQL-backed CI coverage includes fresh setup, six dedicated upgrade/restart/replay runners, and 348 database tests. Exact-head result is recorded externally in PR #30 and Linear.
+- `npm run test:db`: PostgreSQL-backed CI coverage includes fresh setup, all six existing upgrade/restart/replay runners, 352 database tests, and the dedicated seven-scenario SHR-197 concurrency runner.
+- `npm run test:db:category-reconciliation-concurrency`: PASS, 7/7 — first-run and replay each serialize transaction and alias writers through the durable receipt; alias creation/same-count swap invalidate stale evidence; alias ambiguity fails closed; no invalid receipt or partial mutation remains.
 - `npm run build`: PASS, 216 modules transformed.
 - `npm audit --omit=dev --audit-level=high`: PASS, 0 vulnerabilities.
 - `git diff --check`: PASS.
