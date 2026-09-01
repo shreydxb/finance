@@ -1,208 +1,151 @@
-# SHR-164 implementation handoff
+# SHR-201 implementation handoff
 
-Status: fresh V6 Money → Activity screen implemented on a bounded branch off
-the V6 integration branch, with the independent review's two blocking findings
-remediated. Ready for re-review at the remediation head. Not merged, not
-approved, not deployed.
+Status: fresh V6 Money → Insights implemented on
+`codex/shr-201-fresh-v6-money-insights`, cut from current `origin/v6` at
+`d83fdad0653d1c6d14f65fd008d7c1edb781bd60`. That base is the required
+SHR-200 Recurring integration commit. The final immutable feature SHA is
+recorded in PR and Linear metadata after this handoff commit is created.
 
-## Review round 1 — two blocking findings, both remediated
+## Bounded result
 
-Independent UI and transaction-safety review of head `ac25fc5` returned BLOCKED
-on two bounded frontend semantics issues. CI itself was green, and everything
-else reviewed positively.
+`/money/insights` now mounts `src/v6/InsightsScreen.jsx`. The legacy
+`src/screens/Reports.jsx` remains in the repository for history but is neither
+imported nor mounted for this route. Overview, Activity, Budget and Recurring
+routing is unchanged.
 
-**1. Recorded owner text presented as authoritative ownership.** The gap was
-acknowledged in `activityGaps.js`, but the surface still said `Owner` /
-`All owners`, making compatibility text look like reliable household ownership.
+The screen is a fresh read-only V6 composition following the frozen Command
+Center prototype:
 
-Remediated without starting SHR-195: the column, the filter, its default option
-and the search placeholder now name the datum — **Recorded owner label** /
-**All recorded labels** — and the SHR-195 gap is stated beside the filter and
-beneath the list, not only in the drawer. The empty case reads **Not recorded**
-rather than "Unassigned", which would have stated an attribution decision the
-ledger never made. Exact-text filtering remains; nothing maps a label to an
-economic party, infers identity, normalises shared ownership or invents an
-allocation.
+- page and selected-period header;
+- month, quarter and year controls;
+- Breakdown, History and Compare URL-backed views;
+- selected-period spend and posted-income summary positions;
+- current category position;
+- completed-month chart/table position;
+- description/payee/merchant, comparison and explanatory positions;
+- dedicated quality/completeness evidence;
+- explicit loading, empty, incomplete and failed states; and
+- desktop, tablet, 390px and 320px responsive layouts.
 
-**2. `/money/activity/:uuid` was not a stable detail deep link.** `findActivityRow`
-searched only the loaded month, so a real transaction outside it appeared as a
-generic missing record.
+## Routes and modules
 
-Remediated without starting SHR-163 and without a non-canonical direct reader:
+- Route: `/money/insights`
+- Query state: `period`, `view`, `year`, `month`, `quarter`
+- Screen: `src/v6/InsightsScreen.jsx`
+- Presentation: `src/v6/insights/*`
+- Pure data: `src/v6/data/{insightsPeriods,insightsGaps,insightsModel,composeInsights}.js`
+- Bound hook: `src/v6/data/useInsightsData.js`
+- Deterministic preview only: `src/v6/fixtures/insightsFixture.js`,
+  `src/v6-insights-preview.jsx`, `v6-insights-preview.html`
+- Contract record: `docs/v6/INSIGHTS_CONTRACT_GAPS.md`
 
-- The screen pins the month it resolved into the route query on arrival, by
-  replacement, so every detail link it generates carries the period containing
-  the entry and reopens it correctly.
-- `resolveDetail()` replaces `findActivityRow()` at the screen boundary and has
-  three outcomes — `found`, `outside-period`, `none`. The middle one renders an
-  explicit SHR-163 state saying direct lookup across the ledger is not
-  available, that only the selected month is loaded, and that failing to
-  resolve **does not mean the transaction does not exist**. It never uses
-  `DetailShell`'s generic "record unavailable".
+Reused V6 primitives: `Section`, `FigureSlot`, `SlotNote`,
+`UnavailableRegion`, slot-state helpers, AED/date formatting, the V6 shell,
+canonical read adapter, realtime refresh infrastructure and scoped V6 tokens.
+No legacy presentation component was reused or composed.
 
-**A third defect surfaced while verifying the remediation** and was fixed:
-`.detail-shell-content` set `display: flex` with no direction, so the drawer's
-sticky header and scrolling body rendered side by side instead of stacked.
-Pre-existing in shared shell CSS; Activity is the first drawer with enough
-content to make it visible. One line, plus a Playwright assertion that the
-drawer stacks and its body spans the full width.
+## Canonical truth displayed
 
-## Git and release boundary
+The production composition calls only:
 
-- Issue: `SHR-164 — Fresh Activity screen: list, calendar and transaction drawer`.
-- Branch: `claude/shr-164-v6-activity`, cut from `origin/v6`.
-- Review-1 head: `ac25fc59aa7440d54c0c69d60510f658b3113456` (BLOCKED). Remediation head recorded in PR #32 after CI completes.
-- Base: `d8f9cbad06b92f9981e24492cbc56bc6b857cfd4` — `origin/v6`, fetched and
-  verified at implementation start; it carries SHR-155 as expected.
-- **PR targets `v6`, not `main`.** `main` was neither read from as a base nor
-  written to; it remains at `ab29755971ee92f644a8e820bb944c8a4f599a18`.
-- Migrations: **none**. No file under `supabase/` was created, edited or
-  deleted, so `npm run test:db` was not run.
-- Supabase production: **untouched**. No migration applied, no RPC deployed, no
-  production row read or written from this session. Production remains through
-  migration 044.
-- Netlify: no production deploy and no project setting changed. The
-  repository's own PR integration produces a non-production Deploy Preview.
+1. `canonicalReads.getPeriodMetrics`, backed by
+   `canonical_period_metrics`; and
+2. `canonicalReads.listBudgetActuals`, backed by
+   `canonical_budget_actuals`.
 
-## What was built
+Exact facts displayed:
 
-`/money/activity` now renders `src/v6/ActivityScreen.jsx`, composed fresh from
-the frozen prototype inside the SHR-155 V6 boundary. `src/screens/Transactions.jsx`
-is retained in the repository but is no longer imported or mounted anywhere in
-`src/App.jsx`.
+- selected-period whole-household
+  `canonical_period_metrics.consumption_spend_aed`;
+- selected-period `canonical_period_metrics.posted_income_aed`, labelled
+  exactly as posted income;
+- selected-period `canonical_budget_actuals.actual_aed` with each contract-
+  reported category label shown verbatim;
+- six individual completed-month spend and posted-income period facts; and
+- directly published period/category quality and completeness evidence.
 
-### Routes
+Category labels are reported labels, not stable identity. Similar labels are
+not merged. `Uncategorised` remains distinct from a household category named
+`Other`. Category-row quality is shown row by row; no combined category-set
+quality is inferred.
 
-| Path | Component |
-|---|---|
-| `/money/activity` (screen key `Transactions` → `Activity`) | `src/v6/ActivityScreen.jsx` |
-| `/money/activity/:uuid` | same screen, drawer open on that entry |
-| `?view`, `?search`, `?category`, `?owner`, `?sort`, `?needsReview`, `?year`, `?month` | deep-linked Activity state, sanitised by the route contract |
+No description/payee analytical row is displayed. Raw descriptions are not
+read, normalized or called merchants. The screen is whole-household only and
+never reads recorded owner text as economic-party attribution.
 
-`view`, `year` and `month` are new entries in the `/money/activity` query
-rules. Everything already there is unchanged.
+## Positions deliberately withheld
 
-### Components and modules
+- SHR-169: category comparison, category analytical identity, trend/delta/
+  percentage/ranking meaning, description/payee analytics, merchant identity
+  and aliases, anomaly/behaviour claims, explanations and recommendations.
+- SHR-167: income breakdown, source semantics, comparison and any
+  expected-versus-posted reinterpretation beyond the direct posted total.
+- SHR-157 / SHR-198: stable category identity and lifecycle semantics.
+- SHR-195 / SHR-156: per-person, shared-versus-personal and allocation truth.
 
-- Screen: `src/v6/ActivityScreen.jsx`
-- Presentation: `src/v6/activity/{ActivityHeader,ActivityControls,ActivityList,ActivityCalendar,TransactionDrawer}.jsx`
-- Data (pure): `src/v6/data/{activityModel,composeActivity,activityPeriods,activityGaps}.js`
-- Data (Supabase-bound): `src/v6/data/useActivityData.js` over the existing `canonicalReads.js`
-- Shared: `src/v6/data/slots.js` — the value-slot vocabulary, extracted from
-  `overviewModel.js` so both screens use one definition
-- Fixtures and preview: `src/v6/fixtures/activityFixture.js`,
-  `v6-activity-preview.html`, `src/v6-activity-preview.jsx`
-- Docs: `docs/v6/ACTIVITY_CONTRACT_GAPS.md`
+The exact minimum later SHR-169 read model is documented in
+`docs/v6/INSIGHTS_CONTRACT_GAPS.md`: stable category keys and label semantics;
+explicit comparison/trend fields; description/payee rows with an identity kind;
+optional merchant aliases only after a product identity decision; and
+contract-published conclusions with quality evidence. SHR-169 was not started
+or implemented here.
 
-### V6 primitives reused and created
+## Drawing-only geometry
 
-Reused unchanged from SHR-155: `Slot`/`slotState` (`FigureSlot`, `SlotNote`,
-`UnavailableRegion`), `Section`, the `.v6-` token-scoped stylesheet, `format.js`,
-and the slot vocabulary. Reused from SHR-152: the responsive shell, and
-`DetailShell`'s drawer focus trap, background inertness, Escape handling and
-focus return.
+Category bars use only reconciled canonical actuals and scale each published
+value against the largest published value. History bars similarly scale a
+complete six-month source set. These ratios are CSS drawing geometry only,
+`aria-hidden`, and never exposed as percentages, shares, averages, deltas,
+trends or semantic metrics. Geometry disappears when its canonical source set
+is incomplete or cannot reconcile.
 
-Created: the Activity table, calendar grid, filter/segmented controls, the
-`v6-unsupported-action` treatment for a control whose contract does not exist,
-and the drawer's field-list composition — all as `.v6-` scoped CSS plus local
-components, none of it importing legacy presentation.
+## Structural truth and safety
 
-### One shared-code fix
+Boundary tests enforce that the Insights tree:
 
-`src/shell/DetailShell.jsx`'s scrolling body was not keyboard reachable and had
-no accessible name. Activity is the first detail surface with enough content to
-scroll, so axe's `scrollable-region-focusable` rule caught it. Fixed with
-`role="region"`, an `aria-label` from the drawer title, and `tabIndex={0}`.
-This is a proven defect in shared infrastructure, fixed rather than worked
-around; every detail drawer benefits.
+- imports no legacy Reports/Insights presentation;
+- reads no transaction, raw ledger or income rows;
+- calls no legacy or financial writer;
+- contains no fuzzy matching or merchant normalization;
+- contains no percentage-change, average, rolling-average, trend, anomaly,
+  forecast or ranking engine; and
+- cannot use the preview fixture as an application fallback.
 
-## Data truth
+Insights has no forms or enabled mutations and is explicitly read-only.
+Quality counters remain evidence only; they never become anomalies, attention
+items or behavioural conclusions. No unsupported financial arithmetic or
+client-side insights engine was introduced.
 
-Connected canonical sources and every deliberately withheld capability are
-tabulated in `docs/v6/ACTIVITY_CONTRACT_GAPS.md`. In short: rows, amounts,
-labels, classification, review state and quality come from
-`v_canonical_ledger_aed`; account names from `v_canonical_accounts_aed`; period
-spend and income from `canonical_period_metrics`.
+## Validation evidence
 
-No financial semantics are created in the browser. Filtering and sorting narrow
-the canonical rows already read; nothing is summed, averaged, paired, linked or
-re-derived. Calendar cells report how many canonical entries fall on a day — a
-cardinality, not money.
+- `npm run lint`: exit 0; warnings only, including pre-existing warnings and
+  the same preview-entry Fast Refresh warning used by prior V6 previews.
+- `npm run test:node`: 658 passed, 0 failed.
+- `npm run test:ui`: 232 passed, 0 failed.
+- Focused Insights/UI/boundary routing rerun: 46 node passed and 30 UI passed.
+- `npm run build`: passed; 286 modules transformed.
+- Focused Insights Playwright: 12 passed, covering 320, 390, tablet, desktop,
+  wide desktop, 200% zoom, keyboard, 44px targets, light/dark, reduced motion,
+  URL reload, honest states and axe.
+- Full visual regression: 62 of 63 passed under the repository's default
+  30-second timeout, including all Insights, Overview, Budget, Recurring,
+  shell and foundation checks. The one existing Activity axe matrix timed out
+  after 30 seconds without reporting a violation.
+- Clean-base verification: the identical Activity test also timed out on clean
+  `origin/v6` / `d83fdad` (32.9 seconds against the unchanged 30-second cap).
+  The feature-head test passed unchanged with a validation-only 60-second
+  runner timeout: 1 passed in 33.4 seconds. No test was weakened or edited.
+- `npm audit`: 0 vulnerabilities.
+- `git diff --check`: passed.
+- DB tests: not run because no SQL, migration, backend or Supabase file changed.
 
-Nothing is inferred: not economic-party attribution, not shared allocation, not
-category identity from text, not transfer pairing, not refund linkage, not
-transaction correctness, and not attention priority. Quality facts are shown as
-facts on their row and are never ranked or aggregated into a queue — the
-SHR-155 separation holds.
+## Production boundary
 
-## Read-only, by decision
-
-Add, edit, delete, split and mark-reviewed are rendered as visible, disabled
-controls that name their missing contract. None is wired to
-`src/lib/transactions.js` or any other legacy writer. `buildCapabilities()`
-reports every capability `unavailable`, and `isWriteEnabled()` is `false`.
-
-## Validation actually run
-
-| Command | Result |
-|---|---|
-| `npm run lint` | exit 0 |
-| `npm test` | **714 passing** — 580 node (base 555, **+25**) and 134 vitest (base 106, **+28**) |
-| `npm run test:visual` | 22 passing, including all 12 new Activity tests |
-| `npm run build` | exit 0 |
-| `npm audit --audit-level=high` | 0 vulnerabilities |
-| `git diff --check` | clean |
-| `npm run test:db` | **not run** — no SQL or backend file changed |
-
-Base counts were measured in a clean worktree of `d8f9cba`, so the deltas are exact.
-
-### Visual-test environment note
-
-Unchanged from SHR-155: this container ships Chromium build 1194 while
-`@playwright/test@1.62.1` expects 1234, so Playwright was pointed at
-`/opt/pw-browsers/chromium` through a session-local config that is **not**
-committed. Three tests — `foundation.spec.js` (both) and the `shell.spec.js`
-screenshot — already fail here at the base commit `d8f9cba`, verified in a
-clean worktree. That is pre-existing and environmental, not introduced by this
-branch: the base run is 10 passed / 3 failed, this branch is 20 passed / 3
-failed. Pixel baselines for Activity are therefore deliberately not committed;
-`tests/visual/v6-activity.spec.js` asserts browser-build independent facts.
-
-### Desktop, mobile and accessibility evidence
-
-`tests/visual/v6-activity.spec.js`:
-
-- Renders at 1440×1200, 900px and 390px in light and dark; body paints its own ground.
-- Desktop keeps all six columns; the calendar keeps seven.
-- Mobile hides Owner and Account exactly as the prototype encodes, and the test
-  proves both remain reachable in the row's drawer; calendar cells drop to 64px.
-- No page-level horizontal overflow in list or calendar at 1440/900/768/390/**320**px,
-  nor at **200% text zoom**; the dense table contains its own overflow.
-- Every control in `main` is ≥44px tall at phone width.
-- The drawer traps focus across 12 tabs, focuses its title on open, closes on
-  Escape and returns focus to the invoking row.
-- A deep-linked drawer is full width (390px) on a phone and closes back to the list.
-- No write control is operable, on the screen or in the drawer.
-- Reduced motion leaves nothing mid-animation, and axe is clean in that mode.
-- **axe: zero violations** across desktop and phone × light and dark × list,
-  calendar and drawer — 12 combinations.
-
-## Reviewer checks
-
-1. Desktop 1440×1200 and mobile 390/320 against `DESKTOP_PARITY.md` and
-   `MOBILE_PARITY.md`. `/v6-activity-preview.html` renders the real screen
-   against non-contractual fixtures with no Supabase session, and honours the
-   address bar (`?view=calendar`, `?detail=<uuid>`, filters).
-2. Every unavailable state: is the reason true, and is the named contract right?
-3. Transaction safety: confirm no path can write, and that the disabled
-   affordances are the right ones to expose.
-4. Signed-in behaviour against real data — this session had no Supabase
-   session, so Activity has never been rendered against the live ledger.
-
-## Risks
-
-- Activity has not been rendered against live canonical data. Contract drift
-  would surface as an honest unavailable state rather than a wrong number, but
-  the happy path is unverified live.
-- Search and filters cover only the loaded month. That is stated on the screen,
-  but it is the behaviour most likely to be misread, and SHR-163 should close it.
+- PR target: `v6`, never `main`.
+- Main: untouched.
+- Supabase production schema, rows and settings: untouched.
+- Netlify production and settings: untouched.
+- No production deploy was triggered and no Netlify production deploy was
+  consumed.
+- The PR remains open for independent review; it is not merged or approved by
+  the implementation agent.
