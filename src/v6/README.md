@@ -60,6 +60,13 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   `Remaining` column, its browser-side `toAED` conversion and its raw
   `listTransactions` reads are exactly the frontend financial truth SHR-167
   exists to remove, so none of it is carried forward.
+* `src/screens/Recurring.jsx` — the legacy Recurring composition. It stays in
+  the repository (nothing is deleted in SHR-200) but no longer renders at
+  `/money/recurring`, and `src/App.jsx` no longer imports it. Recurring is a
+  *plan* surface and no approved contract publishes plans, so the fresh screen
+  renders the prototype's composition with every plan position failing closed
+  under SHR-171 rather than carrying the legacy screen's non-canonical
+  schedule forward. See `docs/v6/RECURRING_CONTRACT_GAPS.md`.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the
@@ -68,5 +75,10 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   would reach for; wiring it in would create plan rows outside the versioned
   plan contract (SHR-166), so every plan write is rendered as a named
   unsupported capability instead. See `docs/v6/BUDGET_CONTRACT_GAPS.md`.
+  `recurring.js` is the same situation for Recurring, with one extra hazard:
+  the Recurring screen could also *fabricate* a plan by reading posted rows and
+  clustering them. It therefore makes no ledger, income or transaction read at
+  all — the inference has nowhere to live — and `v6-boundary.test.js` fails the
+  build if one appears. See `docs/v6/RECURRING_CONTRACT_GAPS.md`.
 * `src/lib/PrefsContext`'s display-currency conversion — canonical values are
   AED and are rendered in AED rather than re-converted in the browser.

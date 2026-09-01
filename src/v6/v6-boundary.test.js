@@ -76,6 +76,7 @@ test('the Overview model and its composition never import the Supabase client', 
     'data/overviewModel.js', 'data/composeOverview.js', 'data/periods.js', 'data/gaps.js',
     'data/activityModel.js', 'data/composeActivity.js', 'data/activityPeriods.js', 'data/activityGaps.js',
     'data/budgetModel.js', 'data/composeBudget.js', 'data/budgetPeriods.js', 'data/budgetGaps.js',
+    'data/recurringModel.js', 'data/composeRecurring.js', 'data/recurringPeriods.js', 'data/recurringGaps.js',
     'data/slots.js', 'format.js',
   ]
   for (const path of pure) {
@@ -109,14 +110,71 @@ test('no V6 module computes a plan-versus-actual figure in the browser', () => {
 
 test('the app mounts the fresh V6 screens and no longer imports the legacy ones they replace', () => {
   const app = readFileSync(join(ROOT, '..', 'App.jsx'), 'utf8')
-  for (const [screen, module] of [['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'], ['Budget', 'BudgetScreen']]) {
+  for (const [screen, module] of [
+    ['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'],
+    ['Budget', 'BudgetScreen'], ['Recurring', 'RecurringScreen'],
+  ]) {
     assert.match(app, new RegExp(`import ${module} from '\\./v6/${module}'`), `${screen} must mount its V6 screen`)
     assert.match(app, new RegExp(`${screen}: ${module},`), `${screen} must resolve to its V6 screen`)
   }
-  for (const legacy of ['Home', 'Transactions', 'Budget']) {
+  for (const legacy of ['Home', 'Transactions', 'Budget', 'Recurring']) {
     assert.ok(
       !new RegExp(`from '\\./screens/${legacy}'`).test(app),
       `the legacy ${legacy} screen must no longer be imported by the app`,
     )
+  }
+})
+
+test('no V6 module infers a recurring plan from posted facts', () => {
+  // SHR-200's central rule. A recurring plan reconstructed from transactions
+  // is the cheapest thing to write on that screen and the most damaging: it
+  // would publish a schedule, a due date and a paid/unpaid status the
+  // household never declared, with no versioning and no way to correct it.
+  //
+  // The guard is structural rather than semantic. The Recurring tree makes no
+  // ledger or income read at all, so there is no posted row in scope to
+  // cluster — the inference has nowhere to live. Comments are stripped first,
+  // because the prose explaining why these reads are absent is not itself one.
+  // Test files are excluded on purpose. `v6-recurring.ui.test.jsx` hands the
+  // screen a `listLedgerRows` spy and asserts it is never called, so it must
+  // be allowed to write the name the production tree may not.
+  const recurring = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:RecurringScreen\.jsx|recurring\/|data\/(?:recurringModel|recurringGaps|recurringPeriods|composeRecurring|useRecurringData)\.js|fixtures\/recurringFixture\.js)/.test(file.path)
+  ))
+  assert.ok(recurring.length >= 10, `expected the Recurring tree to be guarded, found ${recurring.length} files`)
+
+  const forbiddenReads = /\b(?:listLedgerRows|listCanonicalLedgerRows|listIncomeRows|listCanonicalIncomeRows|listTransactions|listRecurring|upsertRecurring|deleteRecurring)\b/
+  for (const file of recurring) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    assert.ok(
+      !forbiddenReads.test(code),
+      `${file.path} must not read posted rows or legacy recurring rows on a plan surface`,
+    )
+  }
+})
+
+test('the Recurring tree contains no matching, cadence or paid-status heuristic', () => {
+  // Fuzzy merchant matching, an amount-and-date similarity score and a
+  // "recurs monthly" cadence detector are all a few lines each, and all of
+  // them would present a guess as household truth. None may exist here.
+  // Test files are excluded for the same reason as above: the UI test names
+  // these very patterns in order to assert the screen never states them.
+  const recurring = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:RecurringScreen\.jsx|recurring\/|data\/(?:recurringModel|composeRecurring|useRecurringData)\.js)/.test(file.path)
+  ))
+  assert.ok(recurring.length >= 8, `expected the Recurring tree to be guarded, found ${recurring.length} files`)
+  const heuristics = [
+    /levenshtein|similarity|fuzzy|\bscore\(/i,
+    /\.startsWith\([^)]*merchant|merchant[A-Za-z]*\.(?:includes|match)\(/i,
+    /daysBetween|intervalDays|averageInterval|detectCadence|inferCadence|guessCadence/i,
+    /isPaid|markPaid\s*=\s*(?:true|\()|\bpaid\s*=\s*true/i,
+  ]
+  for (const file of recurring) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    for (const pattern of heuristics) {
+      assert.ok(!pattern.test(code), `${file.path} must not carry a plan-from-fact heuristic (${pattern})`)
+    }
   }
 })

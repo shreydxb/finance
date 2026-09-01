@@ -48,7 +48,11 @@ const ROUTE_PRESENTATION = Object.freeze({
   '/overview': { primary: 'overview', title: 'Overview', width: 'content' },
   '/money/activity': { primary: 'money', secondary: 'activity', title: 'Activity', width: 'content' },
   '/money/budget': { primary: 'money', secondary: 'budget', title: 'Budget', width: 'content' },
-  '/money/recurring': { primary: 'money', secondary: 'recurring', title: 'Recurring', width: 'detail' },
+  // SHR-200: the fresh V6 Recurring screen carries a month calendar grid and
+  // a multi-column position layout, so it takes the same content width as the
+  // other Money screens rather than the narrower detail width the legacy
+  // single-column list used.
+  '/money/recurring': { primary: 'money', secondary: 'recurring', title: 'Recurring', width: 'content' },
   '/money/insights': { primary: 'money', secondary: 'insights', title: 'Insights', width: 'content' },
   '/wealth/net-worth': { primary: 'wealth', secondary: 'net-worth', title: 'Net worth', width: 'content' },
   '/wealth/accounts': { primary: 'wealth', secondary: 'accounts', title: 'Accounts', width: 'content' },
