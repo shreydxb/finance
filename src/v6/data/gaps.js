@@ -1,3 +1,5 @@
+import { gapSlotFactory } from './slots.js'
+
 /**
  * Named contract gaps for the V6 Overview.
  *
@@ -63,8 +65,4 @@ export const OVERVIEW_GAPS = Object.freeze({
   }),
 })
 
-export function gapSlot(gapId) {
-  const gap = OVERVIEW_GAPS[gapId]
-  if (!gap) throw new Error(`Unknown Overview gap: ${String(gapId)}`)
-  return Object.freeze({ status: 'unavailable', gap })
-}
+export const gapSlot = gapSlotFactory(OVERVIEW_GAPS, 'Overview')

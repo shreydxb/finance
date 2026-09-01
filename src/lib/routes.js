@@ -104,7 +104,9 @@ const SETTINGS_PATHS = new Set([
 
 const SCREEN_ROUTES = Object.freeze({
   Overview: '/overview',
-  // Legacy screens still call onNavigate('Home'); keep the alias working.
+  Activity: '/money/activity',
+  // Legacy screens still call onNavigate('Home') / onNavigate('Transactions');
+  // keep those aliases resolving to the same canonical destinations.
   Home: '/overview',
   Accounts: '/wealth/accounts',
   Investments: '/wealth/investments',
@@ -119,7 +121,7 @@ const SCREEN_ROUTES = Object.freeze({
 
 const EXACT_ROUTES = Object.freeze({
   '/overview': { screen: 'Overview' },
-  '/money/activity': { screen: 'Transactions' },
+  '/money/activity': { screen: 'Activity' },
   '/money/budget': { screen: 'Budget' },
   '/money/recurring': { screen: 'Recurring' },
   '/money/insights': { screen: 'Reports' },
@@ -133,7 +135,7 @@ const EXACT_ROUTES = Object.freeze({
 })
 
 const DETAIL_ROUTES = Object.freeze([
-  { pattern: /^\/money\/activity\/([^/]+)$/, screen: 'Transactions', kind: 'transaction', parentPath: '/money/activity' },
+  { pattern: /^\/money\/activity\/([^/]+)$/, screen: 'Activity', kind: 'transaction', parentPath: '/money/activity' },
   { pattern: /^\/money\/recurring\/([^/]+)$/, screen: 'Recurring', kind: 'recurring', parentPath: '/money/recurring' },
   { pattern: /^\/wealth\/accounts\/([^/]+)$/, screen: 'Accounts', kind: 'account', parentPath: '/wealth/accounts' },
   { pattern: /^\/wealth\/investments\/([^/]+)$/, screen: 'Investments', kind: 'investment', parentPath: '/wealth/investments' },
@@ -148,6 +150,9 @@ const QUERY_RULES = Object.freeze({
   '/money/activity': {
     search: 'shortText', category: 'shortText', owner: 'shortText', account: 'uuid',
     from: 'date', to: 'date', sort: ['date', 'amount'], needsReview: ['1'], unreviewed: ['1'],
+    // SHR-164: the month under review and the list/calendar switch are part of
+    // the URL, so a shared or reloaded Activity link reopens the same view.
+    view: ['list', 'calendar'], year: 'year', month: 'month',
   },
   '/money/recurring': {
     type: ['bills', 'income'], view: ['list', 'calendar'], year: 'year', month: 'month',

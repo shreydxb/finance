@@ -34,7 +34,9 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
 * `src/lib/routes.js`, `src/lib/useBrowserRouter.js` — routing, deep links,
   query sanitisation, detail/back semantics.
 * `src/shell/**` — the SHR-152 responsive shell: landmarks, skip link, the
-  five-destination IA, focus restoration, dirty-state safety, utility panel.
+  five-destination IA, focus restoration, dirty-state safety, utility panel,
+  and `DetailShell`'s drawer focus trap, background inertness and Escape
+  handling.
 * `src/lib/AuthContext.jsx`, `src/lib/NavigationSafety.jsx` — session and
   back/dirty-state safety.
 * `src/lib/canonicalMetrics.js`, `src/lib/canonicalContracts.js`,
@@ -49,6 +51,9 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
 * `src/screens/Home.jsx` — the legacy dashboard composition. It stays in the
   repository (nothing is deleted in SHR-155) but no longer renders at
   `/overview`.
+* `src/screens/Transactions.jsx` — the legacy Activity composition. It stays in
+  the repository (nothing is deleted in SHR-164) but no longer renders at
+  `/money/activity`, and `src/App.jsx` no longer imports it.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the

@@ -19,7 +19,7 @@ const files = walk(ROOT)
 const sources = files.map((path) => ({ path: path.slice(ROOT.length), text: readFileSync(path, 'utf8') }))
 
 test('the V6 surface has files to guard', () => {
-  assert.ok(sources.length >= 15, `expected the V6 surface to contain modules, found ${sources.length}`)
+  assert.ok(sources.length >= 25, `expected the V6 surface to contain modules, found ${sources.length}`)
 })
 
 test('no V6 module imports legacy screen or component presentation', () => {
@@ -72,7 +72,11 @@ test('the Overview model and its composition never import the Supabase client', 
   // The repository has learned three times that pure logic living beside a
   // Supabase import silently becomes untestable. `canonicalReads.js` is the
   // one V6 module allowed to reach the client.
-  const pure = ['data/overviewModel.js', 'data/composeOverview.js', 'data/periods.js', 'data/gaps.js', 'format.js']
+  const pure = [
+    'data/overviewModel.js', 'data/composeOverview.js', 'data/periods.js', 'data/gaps.js',
+    'data/activityModel.js', 'data/composeActivity.js', 'data/activityPeriods.js', 'data/activityGaps.js',
+    'data/slots.js', 'format.js',
+  ]
   for (const path of pure) {
     const file = sources.find((entry) => entry.path === path)
     assert.ok(file, `${path} must exist`)

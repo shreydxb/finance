@@ -19,6 +19,7 @@ export default defineConfig({
         designSystem: resolve(import.meta.dirname, 'design-system.html'),
         shellPreview: resolve(import.meta.dirname, 'shell-preview.html'),
         v6OverviewPreview: resolve(import.meta.dirname, 'v6-overview-preview.html'),
+        v6ActivityPreview: resolve(import.meta.dirname, 'v6-activity-preview.html'),
       },
     },
   },

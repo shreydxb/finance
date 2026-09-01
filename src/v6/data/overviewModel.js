@@ -23,6 +23,9 @@
 
 import { reconcilesAtCents } from '../../lib/canonicalPresentation.js'
 import { gapSlot, OVERVIEW_GAPS } from './gaps.js'
+import { availableSlot, errorSlot, incompleteSlot } from './slots.js'
+
+export { availableSlot, errorSlot, incompleteSlot }
 
 const RECENT_ACTIVITY_LIMIT = 7
 const ACCOUNT_LIMIT = 8
@@ -37,17 +40,6 @@ const INCOMPLETE_REASONS = Object.freeze({
   amount_aed: 'No FX rate is recorded for this entry’s currency, so it has no canonical AED amount.',
 })
 
-export function availableSlot(value, extra = {}) {
-  return Object.freeze({ status: 'available', value, ...extra })
-}
-
-export function incompleteSlot(reason) {
-  return Object.freeze({ status: 'incomplete', reason })
-}
-
-export function errorSlot(reason) {
-  return Object.freeze({ status: 'unavailable', gap: null, reason })
-}
 
 function canonicalFigure(value, incompleteReasonKey, extra = {}) {
   if (value === null || value === undefined) return incompleteSlot(INCOMPLETE_REASONS[incompleteReasonKey])
