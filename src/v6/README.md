@@ -75,6 +75,13 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   fails closed under SHR-169 instead of carrying forward legacy transaction
   grouping or browser-side arithmetic. See
   `docs/v6/INSIGHTS_CONTRACT_GAPS.md`.
+* `src/screens/Accounts.jsx` — the legacy Accounts/Net Worth composition. It
+  stays available for the separate `/wealth/accounts` route, but no longer
+  renders at `/wealth/net-worth`. The fresh Net Worth screen does not import
+  its chart, its browser-created change calculations, its owner grouping, or
+  its screen-open snapshot writer. Current truth comes from canonical
+  balance-sheet reads, while history comes separately from published SHR-113
+  snapshot facts. See `docs/v6/NET_WORTH_CONTRACT_GAPS.md`.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the
@@ -91,5 +98,8 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   Insights has the same structural guard: only `getPeriodMetrics` and
   `listBudgetActuals` may reach its composition, while raw rows, analytical
   heuristics and every legacy financial writer are rejected.
+  Net Worth likewise permits only `getBalanceSheet`, `listAccounts` and
+  `listNetWorthHistory`; its composition has no transaction input and no
+  financial writer.
 * `src/lib/PrefsContext`'s display-currency conversion — canonical values are
   AED and are rendered in AED rather than re-converted in the browser.

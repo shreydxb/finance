@@ -13,6 +13,7 @@ import {
   listCanonicalBudgetActuals,
   listCanonicalLedgerRows,
 } from '../../lib/canonicalMetrics.js'
+import { listAuthoritativeNetWorthHistory } from '../../lib/snapshots.js'
 
 export const canonicalReads = Object.freeze({
   getBalanceSheet: getCanonicalBalanceSheet,
@@ -21,4 +22,5 @@ export const canonicalReads = Object.freeze({
   listBudgetActuals: listCanonicalBudgetActuals,
   listLedgerRows: listCanonicalLedgerRows,
   listAccounts: listCanonicalAccounts,
+  listNetWorthHistory: listAuthoritativeNetWorthHistory,
 })
