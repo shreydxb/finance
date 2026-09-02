@@ -33,7 +33,7 @@ test('every canonical destination direct-opens an existing production screen', (
     '/money/budget': 'Budget',
     '/money/recurring': 'Recurring',
     '/money/insights': 'Insights',
-    '/wealth/net-worth': 'Accounts',
+    '/wealth/net-worth': 'NetWorth',
     '/wealth/accounts': 'Accounts',
     '/wealth/investments': 'Investments',
     '/planning': 'Goals',
@@ -121,6 +121,16 @@ test('canonical query state is sanitized and remains stable on refresh', () => {
     hrefWithQuery(first, { search: 'utilities', unreviewed: '1', returnTo: '//evil.example' }),
     '/money/activity?search=utilities&unreviewed=1',
   )
+})
+
+test('Net Worth range state is URL-backed and unsupported wealth grouping is removed', () => {
+  const route = resolveAppHref('/wealth/net-worth?range=5y&group=owner')
+  assert.equal(route.kind, 'redirect')
+  assert.equal(route.to, '/wealth/net-worth?range=5y')
+  const stable = resolveAppHref(route.to)
+  assert.equal(stable.screen, 'NetWorth')
+  assert.equal(stable.searchParams.get('range'), '5y')
+  assert.equal(routeForScreen('NetWorth'), '/wealth/net-worth')
 })
 
 test('authenticated returnTo accepts canonical or aliased internal routes only', () => {

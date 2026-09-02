@@ -23,6 +23,7 @@ export default defineConfig({
         v6BudgetPreview: resolve(import.meta.dirname, 'v6-budget-preview.html'),
         v6RecurringPreview: resolve(import.meta.dirname, 'v6-recurring-preview.html'),
         v6InsightsPreview: resolve(import.meta.dirname, 'v6-insights-preview.html'),
+        v6NetWorthPreview: resolve(import.meta.dirname, 'v6-net-worth-preview.html'),
       },
     },
   },

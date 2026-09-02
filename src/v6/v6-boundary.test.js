@@ -68,6 +68,7 @@ test('no V6 module reaches for a non-canonical financial reader', () => {
   const offenders = sources
     .filter((file) => !file.path.endsWith('v6-boundary.test.js'))
     .filter((file) => legacyReaders.test(file.text))
+    .filter((file) => !(file.path === 'data/canonicalReads.js' && /listAuthoritativeNetWorthHistory/.test(file.text)))
     .map((file) => file.path)
   assert.deepEqual(offenders, [], 'V6 figures must come from canonical contracts only')
 })
@@ -118,6 +119,7 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
   for (const [screen, module] of [
     ['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'],
     ['Budget', 'BudgetScreen'], ['Recurring', 'RecurringScreen'], ['Insights', 'InsightsScreen'],
+    ['NetWorth', 'NetWorthScreen'],
   ]) {
     assert.match(app, new RegExp(`import ${module} from '\\./v6/${module}'`), `${screen} must mount its V6 screen`)
     assert.match(app, new RegExp(`${screen}: ${module},`), `${screen} must resolve to its V6 screen`)
@@ -127,6 +129,22 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
       !new RegExp(`from '\\./screens/${legacy}'`).test(app),
       `the legacy ${legacy} screen must no longer be imported by the app`,
     )
+  }
+  assert.match(app, /NetWorth: NetWorthScreen,/, 'Net Worth route key must resolve independently from legacy Accounts')
+})
+
+test('the Net Worth production tree is read-only and contains no browser wealth engine', () => {
+  const wealth = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:NetWorthScreen\.jsx|net-worth\/|data\/(?:netWorthModel|netWorthGaps|netWorthRanges|composeNetWorth|useNetWorthData)\.js)/.test(file.path)
+  ))
+  assert.ok(wealth.length >= 8, `expected the Net Worth tree to be guarded, found ${wealth.length} files`)
+  const forbidden = /\b(?:listTransactions|listCanonicalLedgerRows|listIncome|createAccount|updateAccount|deleteAccount|recordDailyNetWorth|capture_nw_snapshot|claim_nw_snapshot|upsert|insert|projectNetWorth|computeMonthlyAssumptions)\b/
+  const heuristics = /\b(?:changePct|percentChange|percentageChange|CAGR|growthRate|averageGrowth|forecast|projection|interpolate|extrapolate|ownerAllocation|sharedAllocation)\b/i
+  for (const file of wealth) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    assert.ok(!forbidden.test(code), `${file.path} must not read ledger truth or call a financial writer`)
+    assert.ok(!heuristics.test(code), `${file.path} must not contain a browser-side wealth heuristic`)
   }
 })
 

@@ -18,6 +18,7 @@ import ActivityScreen from './v6/ActivityScreen'
 import BudgetScreen from './v6/BudgetScreen'
 import RecurringScreen from './v6/RecurringScreen'
 import InsightsScreen from './v6/InsightsScreen'
+import NetWorthScreen from './v6/NetWorthScreen'
 import Accounts from './screens/Accounts'
 import Investments from './screens/Investments'
 import Goals from './screens/Goals'
@@ -28,10 +29,12 @@ import Settings from './screens/Settings'
 // the fresh V6 Overview (SHR-155), `/money/activity` the fresh V6 Activity
 // (SHR-164), `/money/budget` the fresh V6 Budget (SHR-199) and
 // `/money/recurring` the fresh V6 Recurring (SHR-200), and
-// `/money/insights` the fresh V6 Insights (SHR-201). The legacy
+// `/money/insights` the fresh V6 Insights (SHR-201), and
+// `/wealth/net-worth` the fresh V6 Net Worth (SHR-177). The legacy
 // `src/screens/Home.jsx`, `src/screens/Transactions.jsx`,
-// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx` and
-// `src/screens/Reports.jsx` compositions are
+// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx`,
+// `src/screens/Reports.jsx` and the Net Worth presentation inside
+// `src/screens/Accounts.jsx` are
 // retained in the repository but are no longer mounted, and are no longer
 // imported here.
 const BUILT_SCREENS = {
@@ -40,6 +43,7 @@ const BUILT_SCREENS = {
   Budget: BudgetScreen,
   Recurring: RecurringScreen,
   Insights: InsightsScreen,
+  NetWorth: NetWorthScreen,
   Accounts,
   Investments,
   Goals,
@@ -91,7 +95,7 @@ function Dashboard({ router }) {
     return true
   }
 
-  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights'])
+  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights', 'NetWorth'])
 
   const screenProps = {
     navigate,
