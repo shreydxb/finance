@@ -75,13 +75,23 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   fails closed under SHR-169 instead of carrying forward legacy transaction
   grouping or browser-side arithmetic. See
   `docs/v6/INSIGHTS_CONTRACT_GAPS.md`.
-* `src/screens/Accounts.jsx` — the legacy Accounts/Net Worth composition. It
-  stays available for the separate `/wealth/accounts` route, but no longer
-  renders at `/wealth/net-worth`. The fresh Net Worth screen does not import
-  its chart, its browser-created change calculations, its owner grouping, or
-  its screen-open snapshot writer. Current truth comes from canonical
-  balance-sheet reads, while history comes separately from published SHR-113
-  snapshot facts. See `docs/v6/NET_WORTH_CONTRACT_GAPS.md`.
+* `src/screens/Accounts.jsx` — the legacy Accounts/Net Worth composition. It no
+  longer renders at `/wealth/net-worth` (SHR-177) and no longer renders at
+  `/wealth/accounts` (SHR-180). It stays in the repository, bound only to
+  Planning's `/planning/forecasts` placeholder, which has always rendered it
+  because that module hosts the forecast card; keeping that one binding is what
+  stops SHR-180 from silently removing a Planning surface it was not asked to
+  touch. Neither fresh screen imports its chart, its browser-created change
+  calculations, its owner grouping, its `toAED` conversion, or its screen-open
+  snapshot writer. Net Worth's current truth comes from canonical balance-sheet
+  reads, while history comes separately from published SHR-113 snapshot facts.
+  Accounts makes exactly two reads — `getBalanceSheet` and `listAccounts` — and
+  no ledger read at all, so a transaction-reconstructed balance has nowhere to
+  live; it discards the legacy `owner` label at the data boundary so it can
+  never be rendered as economic ownership, and it holds no FX arithmetic, so an
+  AED figure can only be one the canonical contract published. See
+  `docs/v6/NET_WORTH_CONTRACT_GAPS.md` and
+  `docs/v6/ACCOUNTS_CONTRACT_GAPS.md`.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the
@@ -100,6 +110,9 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   heuristics and every legacy financial writer are rejected.
   Net Worth likewise permits only `getBalanceSheet`, `listAccounts` and
   `listNetWorthHistory`; its composition has no transaction input and no
-  financial writer.
+  financial writer. Accounts permits only `getBalanceSheet` and `listAccounts`,
+  and `v6-boundary.test.js` additionally fails any browser FX arithmetic,
+  ownership read or allocation, client-side freshness threshold, Investments
+  analytics or account-name classification heuristic in its tree.
 * `src/lib/PrefsContext`'s display-currency conversion — canonical values are
   AED and are rendered in AED rather than re-converted in the browser.

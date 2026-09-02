@@ -1960,3 +1960,214 @@
     animation: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Wealth — Accounts (SHR-180)
+
+   The prototype's Accounts table is a six-column grid of divs
+   (`1.5fr 1fr 90px 1fr 130px 110px`, 16px gaps, 13px rows). This renders the
+   same hierarchy as real tables, one per canonical type group, so the
+   column/row relationship survives for assistive technology and each group
+   heading names its own section. Column widths, rules and type sizes follow
+   the prototype; where the prototype relies on a minus sign or colour alone
+   to say "liability", text carries it instead.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.v6-accounts-controls { margin-top: 26px; }
+
+.v6-accounts-meta { margin-left: auto; }
+
+.v6-accounts-segmented { margin-top: 14px; }
+
+.v6-accounts-segmented button[data-unsupported='true'] {
+  border-style: dashed;
+  color: var(--v6-ink3);
+  cursor: not-allowed;
+}
+
+.v6-accounts-segment-state {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.v6-accounts-grouping-gap { margin-top: 14px; }
+
+.v6-accounts-grouping-fallback { margin-top: 10px; }
+
+.v6-accounts-positions { margin-top: 30px; }
+
+/* The group heading row inside its own `tbody`. It spans the table so the
+   prototype's single header stays single, while `scope="rowgroup"` keeps the
+   grouping legible to assistive technology instead of being a visual break. */
+.v6-accounts-group-row > th {
+  border-bottom: 1px solid var(--v6-rule-strong);
+  padding: 26px 0 8px;
+  color: var(--v6-ink2);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.v6-accounts-table tbody:first-of-type .v6-accounts-group-row > th { padding-top: 14px; }
+
+.v6-accounts-group-side {
+  margin-left: 6px;
+  color: var(--v6-ink3);
+  font-weight: 400;
+}
+
+.v6-accounts-group-count {
+  float: right;
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+}
+
+.v6-accounts-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.v6-accounts-scroll:focus-visible {
+  outline: 2px solid var(--v6-accent);
+  outline-offset: 2px;
+}
+
+.v6-accounts-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.v6-accounts-table th,
+.v6-accounts-table td {
+  border-bottom: 1px solid var(--v6-rule);
+  padding: 13px 8px;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.v6-accounts-table th:first-child,
+.v6-accounts-table td:first-child { padding-left: 0; }
+
+.v6-accounts-table th:last-child,
+.v6-accounts-table td:last-child { padding-right: 0; }
+
+.v6-accounts-table thead th {
+  border-bottom: 1px solid var(--v6-rule-strong);
+  color: var(--v6-ink3);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.v6-accounts-table .v6-col-type,
+.v6-accounts-table .v6-col-owner { color: var(--v6-ink2); font-size: 11.5px; }
+
+/* The Owner cell is a fixed statement, not data, so it keeps the prototype's
+   narrow column instead of wrapping and stretching every row. */
+.v6-accounts-table .v6-col-owner { white-space: nowrap; }
+
+.v6-accounts-table .v6-col-native,
+.v6-accounts-table .v6-col-amount,
+.v6-accounts-table th.v6-col-native,
+.v6-accounts-table th.v6-col-amount,
+.v6-accounts-table .v6-col-valued,
+.v6-accounts-table th.v6-col-valued { text-align: right; }
+
+.v6-accounts-table .v6-col-native { color: var(--v6-ink2); font-size: 11.5px; white-space: nowrap; }
+
+.v6-accounts-table .v6-col-amount { white-space: nowrap; }
+
+.v6-accounts-table .v6-col-amount .v6-fig-text {
+  font-family: var(--v6-fig);
+  font-size: 15px;
+}
+
+.v6-accounts-native-code {
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+
+/* Text, never a minus sign or a colour, is what says "liability". */
+.v6-accounts-side {
+  display: block;
+  color: var(--v6-ink3);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.v6-accounts-valued {
+  display: block;
+  color: var(--v6-ink2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.v6-accounts-method {
+  display: block;
+  margin-top: 3px;
+  color: var(--v6-ink3);
+  font-size: 10.5px;
+}
+
+.v6-accounts-row-notes {
+  margin-top: 12px;
+  border-left: 2px solid var(--v6-rule-strong);
+  padding-left: 12px;
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+  list-style: none;
+}
+
+.v6-accounts-row-notes > li + li { margin-top: 6px; }
+
+.v6-accounts-scope-gap { margin-top: 16px; }
+
+.v6-accounts-ownership-gap {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.v6-accounts-totals-section { margin-top: 30px; }
+
+.v6-accounts-totals { margin-top: 12px; }
+
+.v6-accounts-totals .v6-accounts-net-figure { font-size: 21px; }
+
+.v6-accounts-drawer-note { margin-top: 16px; }
+
+.v6-accounts-drawer-gaps {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  /* Owner is the one column with no canonical value in it, so it is the one
+     that gives way first. Its missing-contract statement stays in the section
+     note below the table and in every row's detail drawer, so nothing the
+     column carried is lost — only repeated text is dropped. */
+  .v6-accounts-table .v6-col-owner { display: none; }
+  .v6-accounts-table { min-width: 560px; }
+  .v6-accounts-meta { margin-left: 0; }
+}
+
+@media (max-width: 560px) {
+  /* The AED column is the headline figure, so the table is tightened until it
+     is the last column reachable without scrolling; Valued is what scrolls. */
+  .v6-accounts-table { min-width: 430px; }
+  .v6-accounts-table th,
+  .v6-accounts-table td { padding: 11px 5px; }
+  .v6-accounts-table .v6-col-amount .v6-fig-text { font-size: 14px; }
+  .v6-accounts-group-count { font-size: 9.5px; }
+}

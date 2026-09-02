@@ -119,7 +119,7 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
   for (const [screen, module] of [
     ['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'],
     ['Budget', 'BudgetScreen'], ['Recurring', 'RecurringScreen'], ['Insights', 'InsightsScreen'],
-    ['NetWorth', 'NetWorthScreen'],
+    ['NetWorth', 'NetWorthScreen'], ['Accounts', 'AccountsScreen'],
   ]) {
     assert.match(app, new RegExp(`import ${module} from '\\./v6/${module}'`), `${screen} must mount its V6 screen`)
     assert.match(app, new RegExp(`${screen}: ${module},`), `${screen} must resolve to its V6 screen`)
@@ -131,6 +131,75 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
     )
   }
   assert.match(app, /NetWorth: NetWorthScreen,/, 'Net Worth route key must resolve independently from legacy Accounts')
+  // SHR-180. `src/screens/Accounts.jsx` is still imported, but only for
+  // Planning's `/planning/forecasts` placeholder, which has always rendered it
+  // because that module hosts the forecast card. It must never be the value of
+  // the Accounts route key again.
+  assert.doesNotMatch(app, /\bAccounts: Accounts\b/, 'the Accounts route must not resolve to legacy presentation')
+  assert.match(app, /Forecasts: LegacyForecastsPlaceholder,/, 'the legacy module keeps only its Planning binding')
+})
+
+test('the Accounts tree is read-only and contains no browser valuation, FX or ownership engine', () => {
+  // SHR-180's central rules, enforced structurally rather than by convention.
+  //
+  // The tree makes no ledger read at all, so a balance reconstructed from
+  // posted rows has nowhere to live. It holds no FX arithmetic, so an AED
+  // figure can only be one the canonical contract published. It never reads
+  // `owner`, so a legacy label cannot become an ownership claim. And it calls
+  // no writer, so opening the screen cannot change wealth truth.
+  //
+  // Comments are stripped first: the prose explaining why these are absent is
+  // not itself a violation. Test files are excluded on purpose — the UI test
+  // hands the screen forbidden reader spies and asserts they are never called,
+  // so it must be allowed to write names the production tree may not.
+  const accounts = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:AccountsScreen\.jsx|accounts\/|data\/(?:accountsModel|accountsGaps|accountsGrouping|composeAccounts|useAccountsData)\.js)/.test(file.path)
+  ))
+  assert.ok(accounts.length >= 12, `expected the Accounts tree to be guarded, found ${accounts.length} files`)
+
+  const forbiddenReads = /\b(?:listLedgerRows|listCanonicalLedgerRows|listTransactions|listIncomeRows|listCanonicalIncomeRows|listRecurring|listNetWorthHistory)\b/
+  const forbiddenWrites = /\b(?:createAccount|updateAccount|deleteAccount|archiveAccount|saveAccount|recordDailyNetWorth|capture_nw_snapshot|claim_nw_snapshot|upsert|refreshPrices|refreshFx)\b/
+  const browserFx = /\btoAED\b|convertCurrency|exchangeRate|fxRate\s*[*/]|[*/]\s*fxRate|fx_rate_to_aed\s*[*/]|[*/]\s*fx_rate_to_aed/
+  const ownershipInference = /\browner\b\s*[=:]|row\.owner|legacyOwner|ownerAllocation|sharedAllocation|splitShared|allocateTo/
+  const freshnessVerdict = /isStale|staleAfter|STALE_(?:DAYS|HOURS)|freshnessScore|daysSince|ageInDays|Date\.now\(\)/
+  const investmentAnalytics = /\b(?:cost_basis_aed|unrealized_pnl_aed|costBasis|unrealizedPnl|dayChange|percentChange|returnPct|allocationShare|portfolioValue)\b/
+
+  for (const file of accounts) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    // String literals carry the gap registry's prose, which names the very
+    // things it forbids. Only executable code is checked for the judgement and
+    // ownership patterns.
+    const executable = code.replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    assert.ok(!forbiddenReads.test(code), `${file.path} must make no ledger or history read on the Accounts surface`)
+    assert.ok(!forbiddenWrites.test(code), `${file.path} must call no account or snapshot writer`)
+    assert.ok(!browserFx.test(code), `${file.path} must not convert currency in the browser`)
+    assert.ok(!ownershipInference.test(executable), `${file.path} must not read or allocate legacy ownership`)
+    assert.ok(!freshnessVerdict.test(executable), `${file.path} must not author a freshness threshold`)
+    assert.ok(!investmentAnalytics.test(code), `${file.path} must not implement Investments analytics`)
+  }
+})
+
+test('the Accounts tree classifies accounts by contract, never by account name', () => {
+  // A name heuristic is the cheapest wrong answer available on this screen:
+  // "Mortgage · ENBD" looks like a liability, and matching on that would move
+  // an account between the sides of the balance sheet on the strength of a
+  // label the household typed.
+  const accounts = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:AccountsScreen\.jsx|accounts\/|data\/(?:accountsModel|accountsGrouping|composeAccounts)\.js)/.test(file.path)
+  ))
+  const heuristics = [
+    /name\.(?:includes|match|startsWith|endsWith|indexOf|search|toLowerCase)/i,
+    /\/[^/\n]+\/[gimsuy]*\.test\(\s*\w*[Nn]ame/,
+    /isLiability\s*=\s*(?!row\.is_liability)/,
+  ]
+  for (const file of accounts) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    for (const pattern of heuristics) {
+      assert.ok(!pattern.test(code), `${file.path} must not classify an account from its name (${pattern})`)
+    }
+  }
 })
 
 test('the Net Worth production tree is read-only and contains no browser wealth engine', () => {

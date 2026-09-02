@@ -21,9 +21,17 @@ const INCOME_COLUMNS = [
   'amount_aed', 'quality_status',
 ].join(',')
 
+// SHR-180 adds `canonical_value_native` and `freshness_status`. Both are
+// published by `v_canonical_accounts_aed` itself (041): the native figure is
+// the canonical valuation in the account's own currency, and the freshness
+// status is the view's own categorisation of where the valuation timestamp
+// comes from. Selecting them lets Accounts state the native and AED positions
+// as two separately published facts instead of converting one into the other.
 const ACCOUNT_COLUMNS = [
-  'id', 'name', 'owner', 'type', 'is_liability', 'currency', 'canonical_value_aed',
-  'quality_status', 'valuation_method', 'valuation_as_of', 'fx_rate_to_aed', 'fx_updated_at',
+  'id', 'name', 'owner', 'type', 'is_liability', 'currency',
+  'canonical_value_native', 'canonical_value_aed',
+  'quality_status', 'valuation_method', 'valuation_as_of', 'freshness_status',
+  'fx_rate_to_aed', 'fx_updated_at',
 ].join(',')
 
 function canonicalRequest({ from, to, scope = 'household', person = null }) {
