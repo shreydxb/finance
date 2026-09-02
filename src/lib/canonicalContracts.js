@@ -574,10 +574,30 @@ export function normalizeCanonicalAccountRows(data) {
       type: normalizeText(row.type, `account ${index}.type`),
       is_liability: normalizeBoolean(row.is_liability, `account ${index}.is_liability`),
       currency: normalizeText(row.currency, `account ${index}.currency`),
+      // Additive for SHR-180. `v_canonical_accounts_aed` publishes the
+      // canonical valuation twice — once in the account's own currency and
+      // once in AED — and they are distinct facts, not two renderings of one.
+      // Carrying the native figure here is what lets a screen show both
+      // without ever dividing the AED value by an FX rate to recover it, and
+      // what lets a row with a published native value but no AED value (a
+      // currency `settings.fx_rates` has no rate for) say exactly that.
+      // It stays optional so a caller that does not select it still validates.
+      canonical_value_native: normalizeCanonicalMoney(
+        row.canonical_value_native ?? null, `account ${index}.canonical_value_native`,
+      ),
       canonical_value_aed: normalizeCanonicalMoney(row.canonical_value_aed, `account ${index}.canonical_value_aed`),
       quality_status: normalizeCanonicalQuality(row.quality_status, `account ${index}.quality_status`),
       valuation_method: normalizeText(row.valuation_method, `account ${index}.valuation_method`),
       valuation_as_of: normalizeTimestamp(row.valuation_as_of, `account ${index}.valuation_as_of`),
+      // Also additive for SHR-180, and deliberately NOT a fresh/stale verdict:
+      // the view publishes where a valuation timestamp comes from
+      // (`account_balance`, `timestamped`, `manual`, `missing_timestamp`) and
+      // 041's own comment records that no universal stale threshold is
+      // invented. A consumer may report this category; it may not convert it,
+      // or `valuation_as_of`, into a quality judgement.
+      freshness_status: normalizeText(
+        row.freshness_status ?? null, `account ${index}.freshness_status`, { nullable: true },
+      ),
       fx_rate_to_aed: normalizeCanonicalMoney(row.fx_rate_to_aed, `account ${index}.fx_rate_to_aed`),
       fx_updated_at: normalizeTimestamp(row.fx_updated_at, `account ${index}.fx_updated_at`),
     })
@@ -591,6 +611,14 @@ export function normalizeCanonicalAccountRows(data) {
     }
     if (row.quality_status !== 'incomplete' && row.canonical_value_aed === null) {
       throw contractError(`qualified account ${row.id} is missing AED value`)
+    }
+    // A native value without an FX rate is the honest shape of an account in a
+    // currency the household has no published rate for, and the AED position
+    // must stay empty for it. Asserting the pairing here means a consumer can
+    // never receive both a native figure and an AED figure that were not
+    // published together by the same canonical row.
+    if (row.fx_rate_to_aed === null && row.canonical_value_aed !== null) {
+      throw contractError(`account ${row.id} exposes an AED value without published FX evidence`)
     }
   }
   return Object.freeze(rows)

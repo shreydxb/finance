@@ -118,6 +118,14 @@ const SCREEN_ROUTES = Object.freeze({
   Reports: '/money/insights',
   Insights: '/money/insights',
   NetWorth: '/wealth/net-worth',
+  // SHR-180: Planning's Forecasts placeholder keeps its own screen key. It has
+  // always resolved to whatever component the legacy Accounts module rendered,
+  // because that module hosted the forecast card. Now that `/wealth/accounts`
+  // mounts the fresh V6 Accounts screen, the two destinations need separate
+  // keys so unmounting legacy Accounts from Wealth does not silently change
+  // what Planning shows. Repointing Forecasts itself belongs to the Planning
+  // work, not here.
+  Forecasts: '/planning/forecasts',
   Budget: '/money/budget',
   Recurring: '/money/recurring',
   Goals: '/planning/goals',
@@ -137,7 +145,7 @@ const EXACT_ROUTES = Object.freeze({
   '/planning': { screen: 'Goals' },
   '/planning/goals': { screen: 'Goals' },
   '/planning/debt': { screen: 'Debts' },
-  '/planning/forecasts': { screen: 'Accounts' },
+  '/planning/forecasts': { screen: 'Forecasts' },
 })
 
 const DETAIL_ROUTES = Object.freeze([

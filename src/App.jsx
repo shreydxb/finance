@@ -19,7 +19,8 @@ import BudgetScreen from './v6/BudgetScreen'
 import RecurringScreen from './v6/RecurringScreen'
 import InsightsScreen from './v6/InsightsScreen'
 import NetWorthScreen from './v6/NetWorthScreen'
-import Accounts from './screens/Accounts'
+import AccountsScreen from './v6/AccountsScreen'
+import LegacyForecastsPlaceholder from './screens/Accounts'
 import Investments from './screens/Investments'
 import Goals from './screens/Goals'
 import Debts from './screens/Debts'
@@ -30,13 +31,18 @@ import Settings from './screens/Settings'
 // (SHR-164), `/money/budget` the fresh V6 Budget (SHR-199) and
 // `/money/recurring` the fresh V6 Recurring (SHR-200), and
 // `/money/insights` the fresh V6 Insights (SHR-201), and
-// `/wealth/net-worth` the fresh V6 Net Worth (SHR-177). The legacy
+// `/wealth/net-worth` the fresh V6 Net Worth (SHR-177), and
+// `/wealth/accounts` the fresh V6 Accounts (SHR-180). The legacy
 // `src/screens/Home.jsx`, `src/screens/Transactions.jsx`,
-// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx`,
-// `src/screens/Reports.jsx` and the Net Worth presentation inside
-// `src/screens/Accounts.jsx` are
-// retained in the repository but are no longer mounted, and are no longer
-// imported here.
+// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx` and
+// `src/screens/Reports.jsx` are retained in the repository but are no longer
+// mounted, and are no longer imported here.
+//
+// `src/screens/Accounts.jsx` is no longer the Accounts screen. It stays bound
+// only to Planning's `/planning/forecasts` placeholder, which has always
+// rendered it because that module hosts the forecast card — keeping that
+// binding is what stops SHR-180 from quietly removing a Planning surface it
+// was not asked to touch. It reaches no Wealth route.
 const BUILT_SCREENS = {
   Overview: OverviewScreen,
   Activity: ActivityScreen,
@@ -44,7 +50,8 @@ const BUILT_SCREENS = {
   Recurring: RecurringScreen,
   Insights: InsightsScreen,
   NetWorth: NetWorthScreen,
-  Accounts,
+  Accounts: AccountsScreen,
+  Forecasts: LegacyForecastsPlaceholder,
   Investments,
   Goals,
   Debts,
@@ -95,7 +102,7 @@ function Dashboard({ router }) {
     return true
   }
 
-  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights', 'NetWorth'])
+  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights', 'NetWorth', 'Accounts'])
 
   const screenProps = {
     navigate,

@@ -25,6 +25,21 @@ export function formatAed(value, { precise = false, signed = false } = {}) {
   return signed && value > 0 ? `+${magnitude}` : magnitude
 }
 
+/**
+ * A native-currency figure (SHR-180).
+ *
+ * Number formatting only. It performs no conversion, holds no rate, and knows
+ * nothing about AED: the caller renders the currency code from the same
+ * canonical row the value came from, so a native figure can never be read as
+ * an AED one. `formatAed` stays the only formatter that prints an AED prefix.
+ */
+export function formatNativeFigure(value, { precise = true } = {}) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null
+  const formatter = precise ? AED_PRECISE : AED
+  const magnitude = formatter.format(Math.abs(value))
+  return value < 0 ? `\u2212${magnitude}` : magnitude
+}
+
 export function formatPercent(value, { signed = false } = {}) {
   if (value === null || value === undefined || !Number.isFinite(value)) return null
   const rounded = Math.round(value * 10) / 10

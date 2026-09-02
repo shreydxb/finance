@@ -39,7 +39,7 @@ test('every canonical destination direct-opens an existing production screen', (
     '/planning': 'Goals',
     '/planning/goals': 'Goals',
     '/planning/debt': 'Debts',
-    '/planning/forecasts': 'Accounts',
+    '/planning/forecasts': 'Forecasts',
     '/settings': 'Settings',
   }
   assert.deepEqual(CANONICAL_DESTINATIONS, Object.keys(expected))
