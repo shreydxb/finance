@@ -623,3 +623,88 @@ export function normalizeCanonicalAccountRows(data) {
   }
   return Object.freeze(rows)
 }
+
+/**
+ * Canonical investment position rows (SHR-202 consumer adaptation).
+ *
+ * `v_canonical_accounts_aed` already publishes every fact below; this
+ * normalizer only validates and freezes them for a consumer. Nothing here
+ * computes a valuation, a cost basis, a profit or a rate. In particular
+ * `canonical_value_*`, `cost_basis_*` and `unrealized_pnl_*` are read exactly
+ * as migration 041 published them — Postgres does the arithmetic, and the
+ * browser is never handed the operands to redo it.
+ *
+ * The invariants asserted here are the anti-conflation ones:
+ *
+ *  - an AED figure may never arrive without the FX evidence that produced it,
+ *    so a native number can never be presented as an AED number;
+ *  - a position must actually be of the canonical `investment` type, so the
+ *    set can never drift from the one `canonical_investment_metrics`
+ *    aggregates over;
+ *  - identifiers are unique, so no holding is counted twice.
+ *
+ * Quality is deliberately NOT asserted into a value rule here. The contract
+ * publishes `quality_status` and `pnl_quality_status`, and the consumer model
+ * withholds the matching figures. Throwing instead would take a whole screen
+ * down over one row the contract already described honestly.
+ */
+export function normalizeCanonicalInvestmentPositionRows(data) {
+  if (!Array.isArray(data)) throw contractError('canonical investment position response must be an array')
+  const rows = data.map((value, index) => {
+    const row = assertObject(value, `investment position ${index}`)
+    const label = `investment position ${index}`
+    if (normalizeText(row.type, `${label}.type`) !== 'investment') {
+      throw contractError(`${label} is not a canonical investment position`)
+    }
+    return Object.freeze({
+      id: normalizeText(row.id, `${label}.id`),
+      name: normalizeText(row.name ?? null, `${label}.name`, { nullable: true, empty: true }),
+      // Instrument identity as recorded, never parsed. A ticker is carried as
+      // evidence of what the household entered; it is never matched against a
+      // pattern to decide an asset class, a venue or a container.
+      ticker: normalizeText(row.ticker ?? null, `${label}.ticker`, { nullable: true, empty: true }),
+      type: 'investment',
+      currency: normalizeText(row.currency, `${label}.currency`),
+      quantity: normalizeCanonicalMoney(row.quantity ?? null, `${label}.quantity`),
+      // The published price. `accounts.last_price` is denominated in the
+      // account's own currency, which is why the price currency is read from
+      // the same row rather than assumed to be AED.
+      last_price: normalizeCanonicalMoney(row.last_price ?? null, `${label}.last_price`),
+      price_updated_at: normalizeTimestamp(row.price_updated_at ?? null, `${label}.price_updated_at`),
+      // Migration 028's published provenance. Null means the price was entered
+      // by hand from a broker statement; the value is carried verbatim and is
+      // never inferred from a name, a ticker or a transaction.
+      price_source: normalizeText(row.price_source ?? null, `${label}.price_source`, { nullable: true, empty: true }),
+      canonical_value_native: normalizeCanonicalMoney(row.canonical_value_native ?? null, `${label}.canonical_value_native`),
+      canonical_value_aed: normalizeCanonicalMoney(row.canonical_value_aed, `${label}.canonical_value_aed`),
+      cost_basis_native: normalizeCanonicalMoney(row.cost_basis_native ?? null, `${label}.cost_basis_native`),
+      cost_basis_aed: normalizeCanonicalMoney(row.cost_basis_aed ?? null, `${label}.cost_basis_aed`),
+      unrealized_pnl_native: normalizeCanonicalMoney(row.unrealized_pnl_native ?? null, `${label}.unrealized_pnl_native`),
+      unrealized_pnl_aed: normalizeCanonicalMoney(row.unrealized_pnl_aed ?? null, `${label}.unrealized_pnl_aed`),
+      quality_status: normalizeCanonicalQuality(row.quality_status, `${label}.quality_status`),
+      // The contract's separate verdict on whether this row's cost basis and
+      // profit are trustworthy. Not the same fact as `quality_status`: a value
+      // can be complete while its cost basis is not.
+      pnl_quality_status: normalizeText(row.pnl_quality_status, `${label}.pnl_quality_status`),
+      valuation_method: normalizeText(row.valuation_method, `${label}.valuation_method`),
+      valuation_as_of: normalizeTimestamp(row.valuation_as_of, `${label}.valuation_as_of`),
+      // A published provenance category, never a fresh/stale verdict.
+      freshness_status: normalizeText(row.freshness_status ?? null, `${label}.freshness_status`, { nullable: true }),
+      fx_rate_to_aed: normalizeCanonicalMoney(row.fx_rate_to_aed, `${label}.fx_rate_to_aed`),
+      fx_updated_at: normalizeTimestamp(row.fx_updated_at, `${label}.fx_updated_at`),
+    })
+  })
+  if (new Set(rows.map((row) => row.id)).size !== rows.length) {
+    throw contractError('canonical investment position response contains duplicate IDs')
+  }
+  for (const row of rows) {
+    // The anti-conflation invariant. Without published FX evidence there is no
+    // AED fact, and a consumer must never receive an AED figure it could
+    // mistake for one the contract stood behind.
+    if (row.fx_rate_to_aed === null
+      && (row.canonical_value_aed !== null || row.cost_basis_aed !== null || row.unrealized_pnl_aed !== null)) {
+      throw contractError(`investment position ${row.id} exposes an AED figure without published FX evidence`)
+    }
+  }
+  return Object.freeze(rows)
+}

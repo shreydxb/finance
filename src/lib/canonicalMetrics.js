@@ -5,6 +5,7 @@ import {
   normalizeCanonicalBalanceSheet,
   normalizeCanonicalIncomeRows,
   normalizeCanonicalInvestmentMetrics,
+  normalizeCanonicalInvestmentPositionRows,
   normalizeCanonicalLedgerRows,
   normalizeCanonicalPeriodResponse,
 } from './canonicalContracts'
@@ -31,6 +32,22 @@ const ACCOUNT_COLUMNS = [
   'id', 'name', 'owner', 'type', 'is_liability', 'currency',
   'canonical_value_native', 'canonical_value_aed',
   'quality_status', 'valuation_method', 'valuation_as_of', 'freshness_status',
+  'fx_rate_to_aed', 'fx_updated_at',
+].join(',')
+
+// The per-position column set for Wealth → Investments (SHR-202). Every entry
+// is published by `v_canonical_accounts_aed` (migration 041, plus 028's price
+// provenance). Selecting them is a read, not a new contract: the AED value,
+// cost basis and unrealized profit are all computed in Postgres and arrive
+// finished, which is what keeps the browser out of portfolio accounting.
+const INVESTMENT_POSITION_COLUMNS = [
+  'id', 'name', 'ticker', 'type', 'currency',
+  'quantity', 'last_price', 'price_updated_at', 'price_source',
+  'canonical_value_native', 'canonical_value_aed',
+  'cost_basis_native', 'cost_basis_aed',
+  'unrealized_pnl_native', 'unrealized_pnl_aed',
+  'quality_status', 'pnl_quality_status',
+  'valuation_method', 'valuation_as_of', 'freshness_status',
   'fx_rate_to_aed', 'fx_updated_at',
 ].join(',')
 
@@ -136,6 +153,25 @@ export async function getCanonicalInvestmentMetrics() {
   })
   if (error) throw error
   return normalizeCanonicalInvestmentMetrics(data)
+}
+
+/**
+ * The household's canonical investment positions (SHR-202).
+ *
+ * The `type = 'investment'` predicate is the contract's own definition of the
+ * investment universe — `canonical_investment_metrics` scopes itself with
+ * exactly the same filter — so the rows returned here are the rows that
+ * portfolio total aggregates over. It is a published column, never a guess
+ * from an account name, a ticker-shaped string or a brokerage-sounding label.
+ */
+export async function listCanonicalInvestmentPositions() {
+  const { data, error } = await supabase
+    .from('v_canonical_accounts_aed')
+    .select(INVESTMENT_POSITION_COLUMNS)
+    .eq('type', 'investment')
+    .order('id', { ascending: true })
+  if (error) throw error
+  return normalizeCanonicalInvestmentPositionRows(data)
 }
 
 export async function listCanonicalAccounts() {
