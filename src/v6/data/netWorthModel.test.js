@@ -91,6 +91,16 @@ test('drawing-only geometry returns placement ratios and no invented financial f
   }
 })
 
+test('drawing-only net worth placement preserves the sign of authoritative values', () => {
+  const signed = [
+    { day: '2026-01-31', assets_aed: 150, liabilities_aed: 50, total_aed: 100, history_status: 'complete' },
+    { day: '2026-02-28', assets_aed: 50, liabilities_aed: 150, total_aed: -100, history_status: 'complete' },
+  ]
+  const geometry = buildNetWorthGeometry(signed)
+  assert.notEqual(geometry[0].netY, geometry[1].netY)
+  assert.ok(geometry[0].netY < geometry[1].netY, 'positive net worth must plot above equal-magnitude negative net worth')
+})
+
 test('range windows are calendar filters and All keeps the full authoritative read open', () => {
   assert.deepEqual(netWorthRange('6m', '2026-08-28'), { key: '6m', label: '6M', from: '2026-03-01', to: '2026-08-28' })
   assert.deepEqual(netWorthRange('ytd', '2026-08-28'), { key: 'ytd', label: 'YTD', from: '2026-01-01', to: '2026-08-28' })
