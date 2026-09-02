@@ -82,6 +82,13 @@ export function buildNetWorthGeometry(points) {
   const last = Math.max(...dates)
   const span = last - first
   const peak = Math.max(...published.flatMap((point) => [Math.abs(point.assets_aed), Math.abs(point.liabilities_aed), Math.abs(point.total_aed)]), 1)
+  // Net-worth points use their signed published values. Including zero in the
+  // drawing domain prevents equal-magnitude positive and negative observations
+  // from collapsing to the same vertical position without exposing a new
+  // financial metric or comparison.
+  const netMin = Math.min(0, ...published.map((point) => point.total_aed))
+  const netMax = Math.max(0, ...published.map((point) => point.total_aed))
+  const netSpan = netMax - netMin
   return Object.freeze(points.map((point) => Object.freeze({
     day: point.day,
     status: point.history_status,
@@ -89,7 +96,7 @@ export function buildNetWorthGeometry(points) {
     x: span === 0 ? 50 : ((Date.parse(`${point.day}T00:00:00Z`) - first) / span) * 100,
     assetHeight: point.assets_aed === null ? 0 : (Math.abs(point.assets_aed) / peak) * 100,
     liabilityHeight: point.liabilities_aed === null ? 0 : (Math.abs(point.liabilities_aed) / peak) * 100,
-    netY: point.total_aed === null ? null : 100 - (Math.abs(point.total_aed) / peak) * 100,
+    netY: point.total_aed === null ? null : (netSpan === 0 ? 50 : ((netMax - point.total_aed) / netSpan) * 100),
   })))
 }
 
