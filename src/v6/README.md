@@ -92,6 +92,20 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   AED figure can only be one the canonical contract published. See
   `docs/v6/NET_WORTH_CONTRACT_GAPS.md` and
   `docs/v6/ACCOUNTS_CONTRACT_GAPS.md`.
+* `src/screens/Investments.jsx` — the legacy Investments composition. It stays
+  in the repository (nothing is deleted in SHR-202) but no longer renders at
+  `/wealth/investments`, and `src/App.jsx` no longer imports it. The fresh
+  screen makes exactly two reads — `canonical_investment_metrics` and
+  `v_canonical_accounts_aed` filtered to the canonical investment type — and no
+  ledger read at all. It shows `quantity`, `last_price` and `fx_rate_to_aed` as
+  published evidence and multiplies none of them: the AED value, cost basis and
+  unrealized profit all arrive finished from Postgres. The portfolio total is
+  the contract's own published total, never a sum of the rows, so a withheld
+  total is never backfilled by adding up the positions that did publish one.
+  Allocation, asset class, return percentage, day change and performance
+  history are not published by any approved contract and fail closed under
+  SHR-174 and SHR-176 rather than being computed in the browser. See
+  `docs/v6/INVESTMENTS_CONTRACT_GAPS.md`.
 * `src/components/**` — legacy chart/list/hero components whose composition
   encodes the old visual hierarchy.
 * `src/lib/recurring.js`, `src/lib/budgets.js`, `src/lib/goals.js` and the
@@ -114,5 +128,11 @@ Center.dc_v4.html`). It is **not** a restyle of the legacy screens in
   and `v6-boundary.test.js` additionally fails any browser FX arithmetic,
   ownership read or allocation, client-side freshness threshold, Investments
   analytics or account-name classification heuristic in its tree.
+  Investments permits only `getInvestments` and `listInvestmentPositions`, and
+  `v6-boundary.test.js` additionally fails any quantity × price product, browser
+  FX arithmetic, cost-basis reconstruction, return or allocation-share
+  computation, invented or interpolated history, ownership read, client-side
+  freshness threshold, investment-advice heuristic, third-party market-data
+  call, or holding classification taken from a name or ticker.
 * `src/lib/PrefsContext`'s display-currency conversion — canonical values are
   AED and are rendered in AED rather than re-converted in the browser.

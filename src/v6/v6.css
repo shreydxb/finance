@@ -2171,3 +2171,214 @@
   .v6-accounts-table .v6-col-amount .v6-fig-text { font-size: 14px; }
   .v6-accounts-group-count { font-size: 9.5px; }
 }
+
+/* ── Wealth → Investments (SHR-202) ─────────────────────────────────────── */
+
+.v6-investments-hero { margin-top: 26px; }
+
+.v6-investments-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.1fr);
+  gap: 44px;
+  align-items: start;
+  margin-top: 18px;
+}
+
+.v6-investments-hero-main { min-width: 0; }
+
+.v6-investments-hero-note { margin-top: 10px; }
+
+.v6-investments-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.v6-investments-hero-metrics > div { min-width: 0; }
+
+.v6-investments-hero-gaps {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.v6-investments-performance { min-width: 0; }
+
+.v6-investments-ranges { justify-content: flex-end; flex-wrap: wrap; }
+
+.v6-investments-performance-frame {
+  margin-top: 14px;
+  border: 1px solid var(--v6-rule);
+  border-radius: 2px;
+  padding: 16px;
+  min-height: 172px;
+  display: flex;
+  align-items: center;
+}
+
+.v6-investments-controls { margin-top: 30px; }
+
+.v6-investments-meta { margin-left: auto; }
+
+.v6-investments-segmented { margin-top: 14px; flex-wrap: wrap; }
+
+.v6-investments-segmented button[data-unsupported='true'],
+.v6-investments-ranges button[data-unsupported='true'] {
+  cursor: not-allowed;
+  color: var(--v6-ink3);
+}
+
+.v6-investments-segment-state {
+  font-size: 10.5px;
+  color: var(--v6-ink3);
+}
+
+.v6-investments-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.v6-investments-gap-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.v6-investments-allocation { margin-top: 30px; }
+
+.v6-investments-allocation-gaps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.v6-investments-positions { margin-top: 30px; }
+
+.v6-investments-scroll {
+  overflow-x: auto;
+  margin-top: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.v6-investments-scroll:focus-visible {
+  outline: 2px solid var(--v6-accent);
+  outline-offset: 2px;
+}
+
+.v6-investments-table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.v6-investments-table th,
+.v6-investments-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--v6-rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.v6-investments-table th:first-child,
+.v6-investments-table td:first-child { padding-left: 0; }
+
+.v6-investments-table th:last-child,
+.v6-investments-table td:last-child { padding-right: 0; }
+
+.v6-investments-table thead th {
+  border-bottom: 1px solid var(--v6-rule-strong);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--v6-ink3);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.v6-investments-table .v6-col-owner,
+.v6-investments-table .v6-col-units,
+.v6-investments-table .v6-col-price,
+.v6-investments-table .v6-col-native,
+.v6-investments-table .v6-col-weight {
+  color: var(--v6-ink2);
+  font-size: 11.5px;
+}
+
+.v6-investments-table .v6-col-units,
+.v6-investments-table .v6-col-price,
+.v6-investments-table .v6-col-native,
+.v6-investments-table .v6-col-amount,
+.v6-investments-table .v6-col-profit,
+.v6-investments-table .v6-col-valued,
+.v6-investments-table th.v6-col-units,
+.v6-investments-table th.v6-col-price,
+.v6-investments-table th.v6-col-native,
+.v6-investments-table th.v6-col-amount,
+.v6-investments-table th.v6-col-profit,
+.v6-investments-table th.v6-col-valued { text-align: right; }
+
+.v6-investments-table .v6-col-amount,
+.v6-investments-table .v6-col-profit,
+.v6-investments-table .v6-col-units,
+.v6-investments-table .v6-col-price,
+.v6-investments-table .v6-col-native { white-space: nowrap; }
+
+.v6-investments-table .v6-col-amount .v6-fig-text {
+  font-family: var(--v6-fig);
+  font-size: 15px;
+}
+
+.v6-investments-ticker {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--v6-ink3);
+  margin-top: 3px;
+}
+
+.v6-investments-price { white-space: nowrap; }
+
+.v6-investments-profit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.v6-investments-profit-word {
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--v6-ink3);
+}
+
+.v6-investments-table-gaps {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.v6-investments-drawer-note { margin-top: 16px; }
+
+.v6-investments-drawer-gaps {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+  .v6-investments-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .v6-investments-ranges { justify-content: flex-start; }
+
+  .v6-investments-meta { margin-left: 0; }
+}

@@ -20,8 +20,8 @@ import RecurringScreen from './v6/RecurringScreen'
 import InsightsScreen from './v6/InsightsScreen'
 import NetWorthScreen from './v6/NetWorthScreen'
 import AccountsScreen from './v6/AccountsScreen'
+import InvestmentsScreen from './v6/InvestmentsScreen'
 import LegacyForecastsPlaceholder from './screens/Accounts'
-import Investments from './screens/Investments'
 import Goals from './screens/Goals'
 import Debts from './screens/Debts'
 import Settings from './screens/Settings'
@@ -32,11 +32,12 @@ import Settings from './screens/Settings'
 // `/money/recurring` the fresh V6 Recurring (SHR-200), and
 // `/money/insights` the fresh V6 Insights (SHR-201), and
 // `/wealth/net-worth` the fresh V6 Net Worth (SHR-177), and
-// `/wealth/accounts` the fresh V6 Accounts (SHR-180). The legacy
+// `/wealth/accounts` the fresh V6 Accounts (SHR-180), and
+// `/wealth/investments` the fresh V6 Investments (SHR-202). The legacy
 // `src/screens/Home.jsx`, `src/screens/Transactions.jsx`,
-// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx` and
-// `src/screens/Reports.jsx` are retained in the repository but are no longer
-// mounted, and are no longer imported here.
+// `src/screens/Budget.jsx`, `src/screens/Recurring.jsx`,
+// `src/screens/Reports.jsx` and `src/screens/Investments.jsx` are retained in
+// the repository but are no longer mounted, and are no longer imported here.
 //
 // `src/screens/Accounts.jsx` is no longer the Accounts screen. It stays bound
 // only to Planning's `/planning/forecasts` placeholder, which has always
@@ -51,8 +52,8 @@ const BUILT_SCREENS = {
   Insights: InsightsScreen,
   NetWorth: NetWorthScreen,
   Accounts: AccountsScreen,
+  Investments: InvestmentsScreen,
   Forecasts: LegacyForecastsPlaceholder,
-  Investments,
   Goals,
   Debts,
   Settings,
@@ -102,7 +103,7 @@ function Dashboard({ router }) {
     return true
   }
 
-  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights', 'NetWorth', 'Accounts'])
+  const screensOwningHeader = new Set(['Overview', 'Activity', 'Budget', 'Recurring', 'Insights', 'NetWorth', 'Accounts', 'Investments'])
 
   const screenProps = {
     navigate,

@@ -83,6 +83,7 @@ test('the Overview model and its composition never import the Supabase client', 
     'data/budgetModel.js', 'data/composeBudget.js', 'data/budgetPeriods.js', 'data/budgetGaps.js',
     'data/recurringModel.js', 'data/composeRecurring.js', 'data/recurringPeriods.js', 'data/recurringGaps.js',
     'data/insightsModel.js', 'data/composeInsights.js', 'data/insightsPeriods.js', 'data/insightsGaps.js',
+    'data/investmentsModel.js', 'data/composeInvestments.js', 'data/investmentsGaps.js',
     'data/slots.js', 'format.js',
   ]
   for (const path of pure) {
@@ -120,11 +121,12 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
     ['Overview', 'OverviewScreen'], ['Activity', 'ActivityScreen'],
     ['Budget', 'BudgetScreen'], ['Recurring', 'RecurringScreen'], ['Insights', 'InsightsScreen'],
     ['NetWorth', 'NetWorthScreen'], ['Accounts', 'AccountsScreen'],
+    ['Investments', 'InvestmentsScreen'],
   ]) {
     assert.match(app, new RegExp(`import ${module} from '\\./v6/${module}'`), `${screen} must mount its V6 screen`)
     assert.match(app, new RegExp(`${screen}: ${module},`), `${screen} must resolve to its V6 screen`)
   }
-  for (const legacy of ['Home', 'Transactions', 'Budget', 'Recurring', 'Reports']) {
+  for (const legacy of ['Home', 'Transactions', 'Budget', 'Recurring', 'Reports', 'Investments']) {
     assert.ok(
       !new RegExp(`from '\\./screens/${legacy}'`).test(app),
       `the legacy ${legacy} screen must no longer be imported by the app`,
@@ -137,6 +139,9 @@ test('the app mounts the fresh V6 screens and no longer imports the legacy ones 
   // the Accounts route key again.
   assert.doesNotMatch(app, /\bAccounts: Accounts\b/, 'the Accounts route must not resolve to legacy presentation')
   assert.match(app, /Forecasts: LegacyForecastsPlaceholder,/, 'the legacy module keeps only its Planning binding')
+  // SHR-202. The Wealth Investments route must resolve to the fresh V6 screen,
+  // and the legacy Investments presentation must not be mounted anywhere.
+  assert.doesNotMatch(app, /\bInvestments: Investments\b/, 'the Investments route must not resolve to legacy presentation')
 })
 
 test('the Accounts tree is read-only and contains no browser valuation, FX or ownership engine', () => {
@@ -300,4 +305,96 @@ test('the Recurring tree contains no matching, cadence or paid-status heuristic'
       assert.ok(!pattern.test(code), `${file.path} must not carry a plan-from-fact heuristic (${pattern})`)
     }
   }
+})
+
+test('the Investments tree is read-only and contains no browser portfolio engine', () => {
+  // SHR-202's central rules, enforced structurally rather than by convention.
+  //
+  // The tree makes no ledger read at all, so a valuation, cost basis or
+  // performance history reconstructed from posted rows has nowhere to live. It
+  // holds no FX arithmetic and no quantity × price product, so an AED figure
+  // can only be one the canonical contract published. It never reads `owner`,
+  // so a legacy label cannot become an ownership claim. And it calls no
+  // writer, so opening the screen cannot change wealth truth.
+  //
+  // Comments, string literals and JSX text are stripped first. Every gap on
+  // this screen states in prose exactly what it refuses to do — "no lot
+  // matching, FIFO, weighted-average pass", "dividing each position's AED
+  // value by the published portfolio total" — and naming a forbidden
+  // operation in the product copy is the opposite of performing it. Test
+  // files are excluded on purpose: the UI test hands the screen forbidden
+  // reader spies and asserts they are never called, so it must be allowed to
+  // write names the production tree may not.
+  const investments = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:InvestmentsScreen\.jsx|investments\/|data\/(?:investmentsModel|investmentsGaps|composeInvestments|useInvestmentsData)\.js)/.test(file.path)
+  ))
+  assert.ok(investments.length >= 12, `expected the Investments tree to be guarded, found ${investments.length} files`)
+
+  const forbiddenReads = /\b(?:listLedgerRows|listCanonicalLedgerRows|listTransactions|listIncomeRows|listCanonicalIncomeRows|listRecurring|listNetWorthHistory|listAccounts|getBalanceSheet)\b/
+  const forbiddenWrites = /\b(?:createAccount|updateAccount|deleteAccount|archiveAccount|saveAccount|recordDailyNetWorth|capture_nw_snapshot|claim_nw_snapshot|upsert|refreshFx|buyHolding|sellHolding)\b/
+  const browserFx = /\btoAED\b|convertCurrency|exchangeRate|fxRate\s*[*/]|[*/]\s*fxRate|fx_rate_to_aed\s*[*/]|[*/]\s*fx_rate_to_aed/
+  // The valuation engine itself: quantity × price, in either order.
+  const valuationEngine = /\b(?:quantity|units|qty)\b[^\n;]{0,40}\*|\*[^\n;]{0,40}\b(?:last_price|lastPrice|unitPrice)\b/i
+  const costBasisEngine = /\bFIFO\b|\bLIFO\b|lotMatch|matchLots|weightedAverage|averageCost|avg_cost|acquisitionPrice|purchasePrice/i
+  const returnEngine = /\bCAGR\b|\bIRR\b|\bXIRR\b|\bTWR\b|timeWeighted|moneyWeighted|annualis|annualiz|benchmark|attribution|percentChange|returnPct|gainPct|allocationShare|weightPct/i
+  const historyEngine = /interpolat|extrapolat|projectValue|forecastValue|priorValue|previousClose|yesterdayValue/i
+  const ownershipInference = /\bowner\b\s*[=:]|row\.owner|legacyOwner|ownerAllocation|sharedAllocation|splitShared|allocateTo/
+  const freshnessVerdict = /isStale|staleAfter|STALE_(?:DAYS|HOURS)|freshnessScore|daysSince|ageInDays|Date\.now\(\)|valuation_age_seconds/
+  const adviceEngine = /recommend|advice|suggestBuy|suggestSell|riskScore|concentrationRisk|rebalance|overweight|underweight/i
+  const marketData = /yahoo|coingecko|finnhub|alphavantage|polygon\.io|iexcloud|\bfetch\(/i
+
+  for (const file of investments) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    const executable = code
+      .replace(/>[^<>{}]+</g, '><')
+      .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+      .replace(/`(?:[^`\\]|\\.)*`/g, '``')
+    assert.ok(!forbiddenReads.test(code), `${file.path} must make no ledger, history or cross-screen read`)
+    assert.ok(!forbiddenWrites.test(code), `${file.path} must call no account, price or snapshot writer`)
+    assert.ok(!browserFx.test(code), `${file.path} must not convert currency in the browser`)
+    assert.ok(!valuationEngine.test(executable), `${file.path} must not multiply quantity by price`)
+    assert.ok(!costBasisEngine.test(executable), `${file.path} must not reconstruct a cost basis`)
+    assert.ok(!returnEngine.test(executable), `${file.path} must not compute a return or an allocation share`)
+    assert.ok(!historyEngine.test(executable), `${file.path} must not invent or interpolate history`)
+    assert.ok(!ownershipInference.test(executable), `${file.path} must not read or allocate legacy ownership`)
+    assert.ok(!freshnessVerdict.test(executable), `${file.path} must not author a freshness threshold`)
+    assert.ok(!adviceEngine.test(executable), `${file.path} must not carry an investment-advice heuristic`)
+    assert.ok(!marketData.test(code), `${file.path} must not reach a third-party market-data source`)
+  }
+})
+
+test('the Investments tree classifies holdings by contract, never by name or ticker', () => {
+  // A name or ticker heuristic is the cheapest wrong answer available on this
+  // screen: "India portfolio · Zerodha" looks like an asset class and a
+  // brokerage container, and matching on either would publish a
+  // classification and a hierarchy the database has never recorded.
+  const investments = sources.filter((file) => (
+    !/\.test\.jsx?$/.test(file.path)
+    && /^(?:InvestmentsScreen\.jsx|investments\/|data\/(?:investmentsModel|composeInvestments)\.js)/.test(file.path)
+  ))
+  const heuristics = [
+    /name\.(?:includes|match|startsWith|endsWith|indexOf|search|toLowerCase)/i,
+    /ticker\.(?:includes|match|startsWith|endsWith|indexOf|search|test)/i,
+    /\/[^/\n]+\/[gimsuy]*\.test\(\s*\w*(?:[Nn]ame|[Tt]icker)/,
+    /assetClass\s*=\s*(?!investmentsGapSlot)/,
+  ]
+  for (const file of investments) {
+    const code = file.text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    for (const pattern of heuristics) {
+      assert.ok(!pattern.test(code), `${file.path} must not classify a holding from a label (${pattern})`)
+    }
+  }
+})
+
+test('canonical investment position rows are the only source of per-holding figures', () => {
+  // The reader is the single doorway. If a per-holding AED value, cost basis
+  // or profit ever appears on this screen, it came through
+  // `listInvestmentPositions` and therefore through the approved contract's
+  // normalizer — there is no second path to construct one.
+  const compose = sources.find((file) => file.path === 'data/composeInvestments.js')
+  assert.ok(compose, 'data/composeInvestments.js must exist')
+  const reads = [...compose.text.matchAll(/reads\.(\w+)\(/g)].map((match) => match[1]).sort()
+  assert.deepEqual(reads, ['getInvestments', 'listInvestmentPositions'],
+    'Investments must compose exactly the two approved canonical reads')
 })
